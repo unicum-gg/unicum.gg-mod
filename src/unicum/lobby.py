@@ -38,11 +38,11 @@ _BATCH_DELAY = 0.25
 
 class LobbyFlags(object):
 
-    def __init__(self, session, lookup, flags, scales):
+    def __init__(self, session, lookup, flags, badges):
         self._session = session
         self._lookup = lookup
         self._textures = flags
-        self._scales = scales
+        self._badges = badges
         self._pending = set()
         self._scheduled = False
         # Views that drew before their languages arrived, and have to be told
@@ -261,24 +261,8 @@ class LobbyFlags(object):
         entry = self._entry(account_id)
         marker = self._textures.markup(entry)
         if rating and entry is not None:
-            marker += self._rating_markup(entry)
+            marker += self._badges.rating(entry)
         return marker
-
-    def _rating_markup(self, entry):
-        """' <FONT COLOR="#...">1792</FONT>', painted with the site's scale.
-
-        The recent WNx, or the lifetime one while the recent is not
-        computed. Unpainted rather than missing when the scale has not been
-        fetched yet.
-        """
-        wnx = entry.rating('wnx')
-        if wnx is None:
-            return ''
-        text = '%d' % round(wnx)
-        color = self._scales.color('wnx', wnx)
-        if color:
-            return ' <FONT COLOR="%s">%s</FONT>' % (color, text)
-        return ' ' + text
 
     def _request(self, account_id):
         self._pending.add(account_id)
@@ -310,5 +294,5 @@ class LobbyFlags(object):
             self._redraw()
 
 
-def install(session, lookup, flags, scales):
-    LobbyFlags(session, lookup, flags, scales).install()
+def install(session, lookup, flags, badges):
+    LobbyFlags(session, lookup, flags, badges).install()

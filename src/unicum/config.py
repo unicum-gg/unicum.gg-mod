@@ -53,9 +53,13 @@ API_TIMEOUT = 10.0
 # package.
 FLAGS_RES_PATH = 'gui/maps/icons/unicum/flags'
 
+# Rating badges, one image per value and one folder per metric, built by
+# tools/badges. Indexed at startup like the flags.
+BADGES_RES_PATH = 'gui/maps/icons/unicum/badges'
 
-def _flags_dir():
-    """Where flag PNGs are written, relative to the client's directory.
+
+def _res_mods_dir(res_path):
+    """Where resource files live on disk, relative to the client's directory.
 
     The res_mods folder is version-named and the mod has no business
     hardcoding a client version, so the one that is there is the one used.
@@ -68,10 +72,11 @@ def _flags_dir():
         versions = []
     if not versions:
         return None
-    return os.path.join(root, versions[-1], *FLAGS_RES_PATH.split('/'))
+    return os.path.join(root, versions[-1], *res_path.split('/'))
 
 
-CACHE_DIR = _flags_dir()
+CACHE_DIR = _res_mods_dir(FLAGS_RES_PATH)
+BADGES_DIR = _res_mods_dir(BADGES_RES_PATH)
 
 # Resolved players and clans, kept between sessions. Plain data read with
 # plain file I/O, so unlike the flags it has no business being in the

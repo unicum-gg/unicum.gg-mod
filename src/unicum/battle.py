@@ -44,10 +44,11 @@ _BATCH_DELAY = 0.25
 
 class BattleFlags(object):
 
-    def __init__(self, session, lookup, flags):
+    def __init__(self, session, lookup, flags, badges):
         self._session = session
         self._lookup = lookup
         self._textures = flags
+        self._badges = badges
         self._pending = set()
         self._scheduled = False
 
@@ -83,9 +84,11 @@ class BattleFlags(object):
         # An old answer is still drawn while a fresh one is fetched.
         if self._lookup.needs_fetch(PLAYERS, account_id):
             self._request(account_id)
-        # Every flag, up to config.MAX_FLAGS. A long name gets cut shorter by
-        # the field for it; that trade was chosen over hiding languages.
-        return self._textures.markup(self._lookup.get(PLAYERS, account_id))
+        # Every flag, up to config.MAX_FLAGS, then the WNX badge. The players
+        # panel, Tab and the loading screen all read this one field, so it is
+        # on all of them or none; a long name gets cut shorter for it.
+        entry = self._lookup.get(PLAYERS, account_id)
+        return self._textures.markup(entry) + self._badges.rating(entry)
 
     def _request(self, account_id):
         """Queue an id, and resolve the whole batch shortly after.
@@ -117,5 +120,5 @@ class BattleFlags(object):
         _logger.info('resolved %s/%s: %s', len(resolved), len(batch), resolved)
 
 
-def install(session, lookup, flags):
-    BattleFlags(session, lookup, flags).install()
+def install(session, lookup, flags, badges):
+    BattleFlags(session, lookup, flags, badges).install()

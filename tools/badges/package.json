@@ -1,0 +1,15 @@
+{
+  "name": "unicum-mod-badges",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Renders the rating badge pieces the Scaleform UI assembles into a coloured number.",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@fontsource/roboto-condensed": "^5.3.0",
+    "opentype.js": "^2.0.0",
+    "sharp": "^0.34.5"
+  }
+}

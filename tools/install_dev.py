@@ -156,6 +156,23 @@ def install_flags(game: Path, version: str) -> int:
 
 
 TITLES_SWF = REPO / 'build' / 'as3' / 'unicum.titles.swf'
+BADGES_BUILD = REPO / 'build' / 'badges'
+BADGES_SUBPATH = Path('gui') / 'maps' / 'icons' / 'unicum' / 'badges'
+
+
+def install_badges(game: Path, version: str) -> int:
+    """Copy the rating badges, one folder of images per metric.
+
+    Indexed at startup like the flags: a new or rebuilt set needs a client
+    restart, and until then ratings draw as bare numbers.
+    """
+    if not BADGES_BUILD.is_dir():
+        return 0
+    target = game / 'res_mods' / version / BADGES_SUBPATH
+    if target.is_dir():
+        shutil.rmtree(target)
+    shutil.copytree(BADGES_BUILD, target, ignore=shutil.ignore_patterns('*.json'))
+    return sum(1 for p in target.iterdir() if p.is_dir())
 
 
 def install_swf(game: Path, version: str) -> Path | None:
@@ -204,6 +221,12 @@ def main() -> None:
             print(f'flags    {flags} PNGs -> res_mods/{version}/{FLAGS_SUBPATH}')
         else:
             print('flags    none built yet (cd tools/flags && npm install && npm run build)')
+
+        bands = install_badges(game, version)
+        if bands:
+            print(f'badges   {bands} metrics -> res_mods/{version}/{BADGES_SUBPATH}')
+        else:
+            print('badges   none built yet (cd tools/badges && npm install && npm run build)')
 
         swf = install_swf(game, version)
         if swf:

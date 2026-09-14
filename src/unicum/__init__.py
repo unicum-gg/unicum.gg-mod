@@ -11,6 +11,7 @@ is nothing more than stop() followed by a fresh start().
 import logging
 
 from unicum import battle, browser, config, lobby, titles
+from unicum.badges import Badges
 from unicum.api.resolve import Lookup
 from unicum.api.scales import RatingScales
 from unicum.runtime.session import Session
@@ -38,10 +39,11 @@ def start(generation=0):
         lookup = Lookup(_session, config.REGION)
         scales = RatingScales(_session)
         flags = FlagCache(_session)
+        badges = Badges()
         browser.install(_session, lookup, flags, scales)
-        battle.install(_session, lookup, flags)
+        battle.install(_session, lookup, flags, badges)
         titles.install(_session)
-        lobby.install(_session, lookup, flags, scales)
+        lobby.install(_session, lookup, flags, badges)
     except Exception:
         # A feature that fails halfway leaves the ones before it installed.
         # Without this the session is orphaned: the loader sees start() fail
