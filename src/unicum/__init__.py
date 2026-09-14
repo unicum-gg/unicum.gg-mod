@@ -41,7 +41,7 @@ def start(generation=0):
         browser.install(_session, lookup, flags, scales)
         battle.install(_session, lookup, flags)
         titles.install(_session)
-        lobby.install(_session, lookup, flags)
+        lobby.install(_session, lookup, flags, scales)
     except Exception:
         # A feature that fails halfway leaves the ones before it installed.
         # Without this the session is orphaned: the loader sees start() fail

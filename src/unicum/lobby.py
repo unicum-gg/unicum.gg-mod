@@ -38,10 +38,11 @@ _BATCH_DELAY = 0.25
 
 class LobbyFlags(object):
 
-    def __init__(self, session, lookup, flags):
+    def __init__(self, session, lookup, flags, scales):
         self._session = session
         self._lookup = lookup
         self._textures = flags
+        self._scales = scales
         self._pending = set()
         self._scheduled = False
         # Views that drew before their languages arrived, and have to be told
@@ -103,7 +104,7 @@ class LobbyFlags(object):
             for slot in slots or ():
                 player = slot.get('player') if isinstance(slot, dict) else None
                 if isinstance(player, dict):
-                    self._mark_region(player, player.get('dbID'))
+                    self._mark_region(player, player.get('dbID'), rating=True)
         except Exception:
             _logger.exception('could not mark skirmish room members')
 
@@ -114,19 +115,19 @@ class LobbyFlags(object):
             vo = original(provider, pInfo, *args, **kwargs)
             try:
                 if isinstance(vo, dict):
-                    self._mark_region(vo, getattr(pInfo, 'dbID', None))
+                    self._mark_region(vo, getattr(pInfo, 'dbID', None), rating=True)
             except Exception:
                 _logger.exception('could not mark a skirmish volunteer')
             return vo
 
         return _makePlayerVO
 
-    def _mark_region(self, vo, account_id):
+    def _mark_region(self, vo, account_id, rating=False):
         # Appended, not assigned: a roaming player already has a region code
         # there, and it is not ours to drop. And left untouched when there is
         # nothing to add, so a None stays None -- some views type this field
         # as Object and reject an empty string.
-        marker = self._marker(account_id)
+        marker = self._marker(account_id, rating)
         if marker:
             vo['region'] = (vo.get('region') or '') + marker
 
@@ -249,10 +250,35 @@ class LobbyFlags(object):
         # class declared; the callers invoke it off the class.
         return classmethod(makeBaseUserProps)
 
-    def _marker(self, account_id):
+    def _marker(self, account_id, rating=False):
+        """Flags, and with `rating` the player's WNx, as htmlText markup.
+
+        The WNx goes only where there is room for it, the skirmish room for
+        now: contact rows and the profile title stay flags only.
+        """
         if not account_id:
             return ''
-        return self._textures.markup(self._entry(account_id))
+        entry = self._entry(account_id)
+        marker = self._textures.markup(entry)
+        if rating and entry is not None:
+            marker += self._rating_markup(entry)
+        return marker
+
+    def _rating_markup(self, entry):
+        """' <FONT COLOR="#...">1792</FONT>', painted with the site's scale.
+
+        The recent WNx, or the lifetime one while the recent is not
+        computed. Unpainted rather than missing when the scale has not been
+        fetched yet.
+        """
+        wnx = entry.rating('wnx')
+        if wnx is None:
+            return ''
+        text = '%d' % round(wnx)
+        color = self._scales.color('wnx', wnx)
+        if color:
+            return ' <FONT COLOR="%s">%s</FONT>' % (color, text)
+        return ' ' + text
 
     def _request(self, account_id):
         self._pending.add(account_id)
@@ -284,5 +310,5 @@ class LobbyFlags(object):
             self._redraw()
 
 
-def install(session, lookup, flags):
-    LobbyFlags(session, lookup, flags).install()
+def install(session, lookup, flags, scales):
+    LobbyFlags(session, lookup, flags, scales).install()
