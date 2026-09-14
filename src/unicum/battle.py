@@ -66,7 +66,14 @@ class BattleFlags(object):
                 existing = original(accountDBID)
             else:
                 existing = original(accountDBID, lobbyContext=lobbyContext)
-            return (existing or '') + self._marker(accountDBID)
+            marker = self._marker(accountDBID)
+            if not marker:
+                # Hand back exactly what the client decided, None included.
+                # Returning '' instead broke Onslaught: its vehicle info VO
+                # types `region` as Object, which takes null but not a string,
+                # and every player without a flag logged a cast error.
+                return existing
+            return (existing or '') + marker
 
         return getRegionCode
 
