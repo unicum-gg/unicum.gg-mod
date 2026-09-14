@@ -21,6 +21,7 @@ appears later is reported as `Cannot load protocol image` no matter what,
 which is why only files present when the client started are offered. What
 arrives during a session shows up in the next one.
 """
+import base64
 import logging
 import os
 
@@ -56,6 +57,25 @@ class FlagCache(object):
         if key not in self._failed and key not in self._in_flight:
             self._download(key)
         return None
+
+    def data_uri(self, key):
+        """The same flag inlined as a data: URI, for pages outside Scaleform.
+
+        The Stronghold list is a web page in the embedded browser, where the
+        resource tree means nothing. unicum.gg's own flag URLs sit behind a
+        bot challenge that an <img> request cannot pass, so the bytes already
+        on disk are handed over instead: no request, nothing to be blocked.
+        """
+        if key not in self._available:
+            return None
+        path = os.path.join(self._dir, '%s.png' % key)
+        try:
+            with open(path, 'rb') as handle:
+                data = handle.read()
+        except IOError:
+            _logger.exception('could not read %s', path)
+            return None
+        return 'data:image/png;base64,' + base64.b64encode(data)
 
     def _scan(self):
         if not self._dir or not os.path.isdir(self._dir):

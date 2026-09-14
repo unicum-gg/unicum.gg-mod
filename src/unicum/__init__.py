@@ -36,7 +36,7 @@ def start(generation=0):
         # learned that session.
         lookup = LanguageLookup(_session, config.REGION)
         flags = FlagCache(_session)
-        browser.install(_session)
+        browser.install(_session, lookup, flags)
         battle.install(_session, lookup, flags)
         lobby.install(_session, lookup, flags)
     except Exception:
