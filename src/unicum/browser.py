@@ -14,7 +14,11 @@ So the work is split across that channel:
 
   page    a content script finds every [TAG] leaf, and keeps finding them:
           the app is React, rows are re-rendered, and anything added once is
-          gone at the next render, so a MutationObserver rescans. Tags it has
+          gone at the next render, so a MutationObserver rescans. React also
+          reuses a row for another clan by changing only its text, which
+          would leave our flag next to the wrong tag and add another on
+          every render, so each scan first prunes any flag that is not
+          directly after the tag it was made for. Tags it has
           no answer for are reported as `[unicum] need RASZ,TENTS`.
   python  resolves each tag to a clan id, the id to its languages, the
           language to a flag, and sends the flags back as data: URIs.
@@ -65,7 +69,17 @@ _CONTENT_SCRIPT = (
     "if(t.charAt(0)!=='['||t.charAt(t.length-1)!==']')return null;"
     "return t.substring(1,t.length-1);"
     "}"
+    "function prune(){"
+    "var imgs=document.querySelectorAll('img[data-unicum-flag]'),i,img,prev;"
+    "for(i=0;i<imgs.length;i++){"
+    "img=imgs[i];prev=img.previousSibling;"
+    "if(prev&&prev.nodeType===1&&prev.tagName==='SPAN'"
+    "&&tagOf(prev)===img.getAttribute('data-unicum-flag'))continue;"
+    "img.parentNode.removeChild(img);"
+    "}"
+    "}"
     "function scan(){"
+    "prune();"
     "var spans=document.getElementsByTagName('span'),need=[],i,el,tag,next,img;"
     "for(i=0;i<spans.length;i++){"
     "el=spans[i];tag=tagOf(el);"
