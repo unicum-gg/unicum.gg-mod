@@ -154,7 +154,7 @@ function formatRating(value) {
 
 // The site's rating badge: the scale's colour as the background, white text.
 var BADGE_CSS = 'display:inline-block;padding:1px 5px;border-radius:3px;' +
-                'color:#FFFFFF;font-weight:bold;line-height:16px;text-shadow:none';
+                'color:#FFFFFF;line-height:16px;text-shadow:none';
 
 function fillWnx(cell, tag) {
     var wnx = tag && clans[tag] ? clans[tag].wnx : null;
