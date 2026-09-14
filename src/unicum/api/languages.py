@@ -64,6 +64,21 @@ class Entry(object):
         """Country code to show when there is only room for one flag."""
         return self.countries[0] if self.countries else None
 
+    @property
+    def flags(self):
+        """Country codes to draw, in the API's order, each once, at most a few.
+
+        Two languages can share a flag (en and en-us could both come back as
+        GB-UKM on EU), and a name field has room for a handful at most.
+        """
+        out = []
+        for code in self.countries:
+            if code and code not in out:
+                out.append(code)
+            if len(out) >= config.MAX_FLAGS:
+                break
+        return out
+
 
 class LanguageLookup(object):
     """Cache in front of GET /{region}/languages/resolve."""

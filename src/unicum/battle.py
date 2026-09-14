@@ -29,10 +29,6 @@ from unicum.api.languages import PLAYERS
 
 _logger = logging.getLogger('unicum.battle')
 
-# Flags come from the disk cache, addressed by resource path. See
-# textures.py for why a URL, and a memory texture, both fail here.
-_TEMPLATE = ' <IMG SRC="%s" width="12" height="9" vspace="-1"/>'
-
 # Long enough to gather a whole team's worth of ids from the render pass,
 # short enough to be back before anyone finishes reading the loading screen.
 _BATCH_DELAY = 0.25
@@ -82,18 +78,9 @@ class BattleFlags(object):
         # An old answer is still drawn while a fresh one is fetched.
         if self._lookup.needs_fetch(PLAYERS, account_id):
             self._request(account_id)
-        entry = self._lookup.get(PLAYERS, account_id)
-        if entry is None or not entry.countries:
-            return ''
-        # One flag only: a battle row has room for a couple of characters,
-        # and a player with three languages would otherwise push their own
-        # name out of the field.
-        source = self._textures.source(entry.countries[0])
-        if source is None:
-            # Still being fetched or mapped. Drawing nothing beats drawing a
-            # broken image, and the next redraw picks it up.
-            return ''
-        return _TEMPLATE % source
+        # Every flag, up to config.MAX_FLAGS. A long name gets cut shorter by
+        # the field for it; that trade was chosen over hiding languages.
+        return self._textures.markup(self._lookup.get(PLAYERS, account_id))
 
     def _request(self, account_id):
         """Queue an id, and resolve the whole batch shortly after.

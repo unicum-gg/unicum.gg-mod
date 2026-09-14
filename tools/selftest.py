@@ -742,6 +742,12 @@ def check_language_lookup(bigworld, src_root):
               % (SAMPLE_CLAN, entry.countries, entry.source))
         check('clan entry exposes a primary flag', entry.primary is not None)
 
+    from unicum.api.languages import Entry
+    many = Entry(['en', 'en-us', 'pl', 'uk', 'de'],
+                 ['GB-UKM', 'GB-UKM', 'PL', 'UA', 'DE'], 'declared', 0)
+    check('flags keep the API order, drop repeats and stop at three',
+          many.flags == ['GB-UKM', 'PL', 'UA'])
+
     for account in SAMPLE_PLAYERS:
         resolved = lookup.get(PLAYERS, account)
         check('player %s resolved' % account, resolved is not None)

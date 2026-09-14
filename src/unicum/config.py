@@ -32,6 +32,10 @@ API_BASE = (
 # a short break would put 33 requests back on the wire.
 REFRESH_SECONDS = 3600
 
+# Flags drawn per player or clan, in the API's order. About a third of players
+# come back with more than one language, and declared clans list up to three.
+MAX_FLAGS = 3
+
 API_TIMEOUT = 10.0
 
 # Downloaded images, kept between sessions, inside the resource tree.

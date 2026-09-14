@@ -29,6 +29,13 @@ from unicum import config
 
 _logger = logging.getLogger('unicum.textures')
 
+# One flag in a Scaleform htmlText field. 12x9 rather than the 16x12 the PNG
+# is, and nudged up with vspace. An image sets the line height, and name rows
+# are a fixed height, so a taller one makes Flash squash the whole line --
+# long names like Sofia_Lauren_de_Michelle[LOOTA] lose the most. The client's
+# own emblem template leans on vspace the same way, at 24x24 vspace=-10.
+_IMG = '<IMG SRC="%s" width="12" height="9" vspace="-1"/>'
+
 
 class FlagCache(object):
     """Disk-backed images, addressed by the path the client can resolve."""
@@ -57,6 +64,17 @@ class FlagCache(object):
         if key not in self._failed and key not in self._in_flight:
             self._download(key)
         return None
+
+    def markup(self, entry):
+        """' <IMG .../><IMG .../>' for an entry's flags, or '' when none draw.
+
+        A flag that cannot be resolved this session is left out rather than
+        drawn broken; the others still show.
+        """
+        if entry is None:
+            return ''
+        images = [_IMG % s for s in (self.source(c) for c in entry.flags) if s]
+        return ' ' + ''.join(images) if images else ''
 
     def data_uri(self, key):
         """The same flag inlined as a data: URI, for pages outside Scaleform.

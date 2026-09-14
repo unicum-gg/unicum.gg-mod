@@ -33,12 +33,6 @@ from unicum.api.languages import PLAYERS
 
 _logger = logging.getLogger('unicum.lobby')
 
-# 12x9 rather than the 16x12 the source PNG is, and nudged up with vspace.
-# An image sets the line height, and these rows are a fixed height, so a
-# taller one makes Flash squash the whole line -- long names like
-# Sofia_Lauren_de_Michelle[LOOTA] lose the most. The client's own emblem
-# template leans on vspace the same way, at 24x24 vspace=-10.
-_TEMPLATE = ' <IMG SRC="%s" width="12" height="9" vspace="-1"/>'
 _BATCH_DELAY = 0.25
 
 
@@ -258,13 +252,7 @@ class LobbyFlags(object):
     def _marker(self, account_id):
         if not account_id:
             return ''
-        entry = self._entry(account_id)
-        if entry is None or not entry.countries:
-            return ''
-        source = self._textures.source(entry.countries[0])
-        if source is None:
-            return ''
-        return _TEMPLATE % source
+        return self._textures.markup(self._entry(account_id))
 
     def _request(self, account_id):
         self._pending.add(account_id)
