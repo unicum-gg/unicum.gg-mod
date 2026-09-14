@@ -1,8 +1,8 @@
 # unicum.gg-mod
 
 World of Tanks client mod for [unicum.gg](https://unicum.gg). Shows where
-players come from, using the language unicum.gg knows for each of them and
-the same Flagpack flags as the site.
+players and clans come from, with the same Flagpack flags as the site, and
+their WNx painted with the site's colour scale.
 
 Not affiliated with Wargaming.net.
 
@@ -12,9 +12,9 @@ Not affiliated with Wargaming.net.
 |---|---|---|
 | Contacts list | flag after the name | `ContactConverter.makeBaseUserProps` |
 | Player profile window title | flag after the name (language code without the SWF) | `ProfileWindow.as_setInitDataS` |
-| Battle player panels | flag after the name | `player_format.getRegionCode` |
-| Skirmish room members and volunteers | flag after the name | `StrongholdBattleRoom.as_setMembersS`, `SortieCandidatesLegionariesDP._makePlayerVO` |
-| Stronghold detachment list (web page) | flags after the clan tag; "Places" folded into "Members"; sort by rating | `src/unicum/web/stronghold.js`, injected by `src/unicum/browser.py` |
+| Battle player panels, Tab, loading screen | flag after the name | `VehicleInfoComponent.addVehicleInfo` |
+| Skirmish room members and volunteers | flag and WNx after the name | `StrongholdBattleRoom.as_setMembersS` / `as_updateRallyS`, `SortieCandidatesLegionariesDP._makePlayerVO` |
+| Stronghold detachment list (web page) | flags after the clan tag; a WNx column; "Places" folded into "Members"; sort by rating or WNx | `src/unicum/web/stronghold/`, injected by `src/unicum/browser.py` |
 
 Every surface shows all of a player's or clan's flags, up to three
 (`config.MAX_FLAGS`), in the order the API gives them.
@@ -108,10 +108,11 @@ there is never found.
 python2.7 tools/selftest.py
 ```
 
-Runs outside the game against fake client modules: the edit/reload cycle,
-recovery from a broken save, patch restoration for module functions,
-classmethods and inherited methods, and the language lookup against the
-live API.
+Runs outside the game against fake client modules (`tools/checks/`): the
+edit/reload cycle, recovery from a broken save, patch restoration, every
+surface, the page script protocol, and the unicum.gg client against the live
+API. Set `UNICUM_API_BASE` to a server that has `/resolve` to test it;
+production is used to test the fallback.
 
 ### Layout
 
@@ -121,6 +122,9 @@ dev/      bootstrap template, packaged into the game once
 src/      everything reloadable; the only thing you edit
 tools/    installer, flag rasteriser, AS3 build, selftest
 ```
+
+Working on the mod: read [`AGENTS.md`](./AGENTS.md) for the rules that keep
+hot reload safe, and [`CONTRIBUTING.md`](./CONTRIBUTING.md) for commits.
 
 ## Requirements
 
