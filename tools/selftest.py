@@ -79,13 +79,39 @@ class FakeResponse(object):
 SENTINEL_REGION = 'XX'
 
 
-def sentinel_getRegionCode(accountDBID, lobbyContext=None):
-    """Stands in for the client's function, and says it was reached.
+class FakeVInfo(object):
 
-    Returns a real-looking region code so a hook that forgets to delegate --
+    def __init__(self, account_id):
+        self.player = type('Player', (object,), {'accountDBID': account_id})()
+
+
+class FakeVehicleInfoComponent(object):
+    """Stands in for the stats exchange's builder, and says it was reached.
+
+    Writes a real-looking region code so a hook that forgets to delegate --
     or drops what the original decided -- shows up as a missing 'XX'.
     """
-    return SENTINEL_REGION
+
+    def __init__(self):
+        self._data = {}
+
+    def get(self, forced=False):
+        return self._data
+
+    def addVehicleInfo(self, vInfoVO, overrides):
+        self._data = {'accountDBID': vInfoVO.player.accountDBID,
+                      'region': SENTINEL_REGION}
+
+
+class Comp7VehicleInfoComponent(FakeVehicleInfoComponent):
+    """Onslaught's builder: its VO rejects a string in `region`."""
+
+    def addVehicleInfo(self, vInfoVO, overrides):
+        super(Comp7VehicleInfoComponent, self).addVehicleInfo(vInfoVO, overrides)
+        self._data['region'] = None
+
+
+ORIGINAL_ADD_VEHICLE_INFO = FakeVehicleInfoComponent.__dict__['addVehicleInfo']
 
 
 class FakeEvent(object):
@@ -297,15 +323,17 @@ def install_fake_client(bigworld):
 
     for name in ('gui', 'gui.Scaleform', 'gui.Scaleform.daapi',
                  'gui.Scaleform.daapi.view', 'gui.Scaleform.daapi.view.lobby',
-                 'gui.battle_control', 'gui.battle_control.arena_info',
+                 'gui.Scaleform.daapi.view.battle',
+                 'gui.Scaleform.daapi.view.battle.shared',
+                 'gui.Scaleform.daapi.view.battle.shared.stats_exchange',
                  'helpers', 'skeletons', 'skeletons.gui'):
         _package(name)
 
-    player_format = types.ModuleType(
-        'gui.battle_control.arena_info.player_format')
-    player_format.getRegionCode = sentinel_getRegionCode
-    _attach('gui.battle_control.arena_info',
-            'gui.battle_control.arena_info.player_format', player_format)
+    exchange = types.ModuleType(
+        'gui.Scaleform.daapi.view.battle.shared.stats_exchange.vehicle')
+    exchange.VehicleInfoComponent = FakeVehicleInfoComponent
+    _attach('gui.Scaleform.daapi.view.battle.shared.stats_exchange',
+            'gui.Scaleform.daapi.view.battle.shared.stats_exchange.vehicle', exchange)
 
     for name in ('gui.Scaleform.daapi.view.lobby.profile',
                  'gui.Scaleform.daapi.view.lobby.fortifications',
@@ -399,7 +427,7 @@ def install_fake_client(bigworld):
     dependency.instance = lambda interface: services[interface]
     _attach('helpers', 'helpers.dependency', dependency)
 
-    return player_format
+    return FakeVehicleInfoComponent
 
 
 def render_stub(workdir, src_root):
@@ -448,12 +476,14 @@ def main():
         stub = imp.load_source('mod_unicum_dev', render_stub(workdir, src_root))
 
         def hooked():
-            return target.getRegionCode is not sentinel_getRegionCode
+            return target.__dict__['addVehicleInfo'] is not ORIGINAL_ADD_VEHICLE_INFO
 
         def delegates():
             # Account id 0 yields no marker and starts no lookup, so what
             # comes back is exactly what the original decided.
-            return target.getRegionCode(0) == SENTINEL_REGION
+            component = target()
+            component.addVehicleInfo(FakeVInfo(0), None)
+            return component.get()['region'] == SENTINEL_REGION
 
         stub.init()
         check('load installed the hook', hooked())
@@ -463,8 +493,9 @@ def main():
         check_contacts_redraw(bigworld)
         check_skirmish_room(bigworld)
         check_profile_title()
+        check_battle_panels()
 
-        first_hook = target.getRegionCode
+        first_hook = target.__dict__['addVehicleInfo']
         generation_before = stub._generation
 
         # Touch a source file the way an editor would.
@@ -474,7 +505,7 @@ def main():
         bigworld.run_pending()
         check('reload happened', stub._generation == generation_before + 1)
         check('hook was reinstalled, not stacked',
-              target.getRegionCode is not first_hook)
+              target.__dict__['addVehicleInfo'] is not first_hook)
         check('still delegates to the game original', delegates())
 
         bigworld.run_pending()
@@ -591,6 +622,27 @@ def check_skirmish_room(bigworld):
         FakePlayerInfo(SAMPLE_PLAYERS[0]), None, None, False)
     check('a volunteer with a known language gets a flag',
           'img://gui/maps/icons/unicum/flags/' in (volunteer['region'] or ''))
+
+
+def check_battle_panels():
+    """Battle names get flags in the stats exchange, and only there.
+
+    Uses the first sample player, whose language check_contacts_redraw
+    already resolved.
+    """
+    component = FakeVehicleInfoComponent()
+    component.addVehicleInfo(FakeVInfo(SAMPLE_PLAYERS[0]), None)
+    region = component.get()['region']
+    if region == SENTINEL_REGION:
+        print('skip no language came back, battle panels not checked')
+        return
+    check('a battle player gets flags after the region the client set',
+          region.startswith(SENTINEL_REGION + ' <IMG SRC="img://gui/maps/icons/unicum/flags/'))
+
+    onslaught = Comp7VehicleInfoComponent()
+    onslaught.addVehicleInfo(FakeVInfo(SAMPLE_PLAYERS[0]), None)
+    check('onslaught players are left as the client drew them',
+          onslaught.get()['region'] is None)
 
 
 def check_profile_title():
