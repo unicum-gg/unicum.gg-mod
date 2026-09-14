@@ -10,7 +10,7 @@ is nothing more than stop() followed by a fresh start().
 """
 import logging
 
-from unicum import battle, browser, config, lobby
+from unicum import battle, browser, config, lobby, titles
 from unicum.api.languages import LanguageLookup
 from unicum.runtime.session import Session
 from unicum.textures import FlagCache
@@ -38,6 +38,7 @@ def start(generation=0):
         flags = FlagCache(_session)
         browser.install(_session, lookup, flags)
         battle.install(_session, lookup, flags)
+        titles.install(_session)
         lobby.install(_session, lookup, flags)
     except Exception:
         # A feature that fails halfway leaves the ones before it installed.

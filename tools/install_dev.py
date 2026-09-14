@@ -155,6 +155,23 @@ def install_flags(game: Path, version: str) -> int:
     return count
 
 
+TITLES_SWF = REPO / 'build' / 'as3' / 'unicum.titles.swf'
+
+
+def install_swf(game: Path, version: str) -> Path | None:
+    """Copy the AS3 title view where the lobby loads SWFs from.
+
+    Indexed at startup like the flags, so a new or rebuilt SWF needs a
+    client restart. Without it, profile titles keep a language code.
+    """
+    if not TITLES_SWF.is_file():
+        return None
+    target = game / 'res_mods' / version / 'gui' / 'flash' / TITLES_SWF.name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(TITLES_SWF, target)
+    return target
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--game', required=True, type=Path,
@@ -187,6 +204,12 @@ def main() -> None:
             print(f'flags    {flags} PNGs -> res_mods/{version}/{FLAGS_SUBPATH}')
         else:
             print('flags    none built yet (cd tools/flags && npm install && npm run build)')
+
+        swf = install_swf(game, version)
+        if swf:
+            print(f'swf      {swf}')
+        else:
+            print('swf      none built yet (python tools/build_as3.py --game ...)')
 
     if args.shape in ('both', 'wotmod'):
         python27 = find_python27(args.python27)

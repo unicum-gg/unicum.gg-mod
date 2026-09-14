@@ -28,6 +28,7 @@ from gui.Scaleform.daapi.view.lobby.rally.rally_dps import SortieCandidatesLegio
 from messenger.gui.Scaleform.data.contacts_data_provider import ContactsDataProvider
 from messenger.gui.Scaleform.data.contacts_vo_converter import ContactConverter
 
+from unicum import titles
 from unicum.api.languages import PLAYERS
 
 _logger = logging.getLogger('unicum.lobby')
@@ -183,16 +184,20 @@ class LobbyFlags(object):
                 _logger.exception('could not refresh a profile window')
 
     def _wrap_profile(self, original):
-        """The profile window title, which takes a language code, not a flag.
+        """The profile window title: a flag, or a language code without one.
 
         Window.title is plain text: an <IMG> there once rendered as its own
         source. AS3's Window does have a titleUseHtml switch, which the
         vehicle info, buy and chat windows turn on and the profile window
-        never does. It cannot be reached from Python though: the view's
-        flashObject.window reads as None both when the title data arrives and
-        a moment later, so the GFx proxy does not expose it. The only other
-        way to a flag here is editing the SWF, which would not hot reload and
-        would break on every client update.
+        never does. titles.py loads a small AS3 view that turns it on; when
+        that SWF is missing the title falls back to the language code.
+
+        The switch cannot be reached from Python directly. The GFx proxy
+        reads AS3 getters and `parent`, but the view's interface-typed getters
+        (window, wrapper, containerContent) come back None, and walking up
+        from the view stops after three levels without meeting the Window.
+        Walking the display tree down from the app root crashed the client
+        (access violation) -- do not try that again.
         """
 
         def as_setInitDataS(view, data):
@@ -200,9 +205,13 @@ class LobbyFlags(object):
                 self._profiles.add(view)
                 account_id = getattr(view, '_ProfileWindow__databaseID', None)
                 if isinstance(data, dict) and data.get('fullName'):
-                    code = self._language_code(account_id)
-                    if code:
-                        data['fullName'] = '%s %s' % (data['fullName'], code)
+                    if titles.html_titles():
+                        marker = self._marker(account_id)
+                    else:
+                        code = self._language_code(account_id)
+                        marker = ' ' + code if code else ''
+                    if marker:
+                        data['fullName'] = data['fullName'] + marker
             except Exception:
                 _logger.exception('could not mark profile title')
             return original(view, data)
