@@ -12,7 +12,7 @@ through the provider's onConsoleMessage event.
 
 So the work is split across that channel:
 
-  page    web/stronghold.js finds every [TAG] leaf, keeps finding them as
+  page    web/stronghold/ finds every [TAG] leaf, keeps finding them as
           React re-renders, and reports the tags it has no answer for as
           `[unicum] need RASZ,TENTS`. It also folds the detachment list's
           redundant "Places" column into "Members", adds a WNx column and
@@ -51,7 +51,11 @@ NEED_PREFIX = '[unicum] need '
 # nothing sent may contain '%' or '#'. The content script lives in its own
 # file and travels base64-encoded, which has neither; the short scripts below
 # and every value spliced into them -- tags, base64 -- stay clear of both.
-_CONTENT_SCRIPT_PATH = os.path.join(os.path.dirname(__file__), 'web', 'stronghold.js')
+_CONTENT_SCRIPT_DIR = os.path.join(os.path.dirname(__file__), 'web', 'stronghold')
+
+# One script in several files, joined in this order: later files use what
+# earlier ones define, and lifecycle.js runs the first scan.
+_CONTENT_SCRIPT_FILES = ('core.js', 'table.js', 'sorting.js', 'flags.js', 'lifecycle.js')
 
 _STOP_SCRIPT = (
     "javascript:(function(){var U=window.__unicum;"
@@ -63,16 +67,19 @@ def is_stronghold_page(url):
     return bool(url) and _STRONGHOLD_HOST_MARK in url
 
 
-def content_script(generation, path=_CONTENT_SCRIPT_PATH):
-    """web/stronghold.js, ready to run as a javascript: URL.
+def content_script(generation, directory=_CONTENT_SCRIPT_DIR):
+    """web/stronghold/*.js, joined and ready to run as a javascript: URL.
 
     Read from disk each time, so reopening the Stronghold window picks up an
     edit to the script without a client restart; the bootstrap only watches
-    .py files. The file body is wrapped in a function, which gives it its
+    .py files. The joined body is wrapped in a function, which gives it its
     GENERATION argument and lets it `return` early.
     """
-    with open(path, 'rb') as handle:
-        body = handle.read().decode('ascii')
+    chunks = []
+    for name in _CONTENT_SCRIPT_FILES:
+        with open(os.path.join(directory, name), 'rb') as handle:
+            chunks.append(handle.read().decode('ascii'))
+    body = '\n'.join(chunks)
     source = '(function(GENERATION){\n%s\n})(%d);' % (body, int(generation))
     encoded = base64.b64encode(source.encode('ascii'))
     return "javascript:eval(atob('%s'));void(0);" % encoded
