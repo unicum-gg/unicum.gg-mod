@@ -12,6 +12,7 @@ import logging
 
 from unicum import battle, browser, config, lobby, titles
 from unicum.api.resolve import Lookup
+from unicum.api.scales import RatingScales
 from unicum.runtime.session import Session
 from unicum.textures import FlagCache
 
@@ -35,6 +36,8 @@ def start(generation=0):
         # wrote it back: whichever saved last dropped what the others had
         # learned that session.
         lookup = Lookup(_session, config.REGION)
+        # Not drawn with yet; loaded now so the scale is on disk by then.
+        RatingScales(_session)
         flags = FlagCache(_session)
         browser.install(_session, lookup, flags)
         battle.install(_session, lookup, flags)

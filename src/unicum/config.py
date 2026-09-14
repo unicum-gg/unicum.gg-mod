@@ -81,3 +81,6 @@ CACHE_DIR = _flags_dir()
 # consumed synchronously, so without it every game start draws one unmarked
 # contacts list before the answers arrive.
 RESOLVE_STORE = os.path.join('mods', 'configs', 'unicum', 'resolve.json')
+
+# The site's rating colour scales, refreshed at most daily.
+SCALES_STORE = os.path.join('mods', 'configs', 'unicum', 'scales.json')
