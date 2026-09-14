@@ -11,9 +11,10 @@ Not affiliated with Wargaming.net.
 | Surface | What is shown | Hook |
 |---|---|---|
 | Contacts list | flag after the name | `ContactConverter.makeBaseUserProps` |
-| Player profile window title | language code, e.g. `EN` | `ProfileWindow.as_setInitDataS` |
+| Player profile window title | flag after the name (language code without the SWF) | `ProfileWindow.as_setInitDataS` |
 | Battle player panels | flag after the name | `player_format.getRegionCode` |
-| Stronghold detachment list and skirmish room | not yet | see `src/unicum/browser.py` |
+| Skirmish room members and volunteers | flag after the name | `StrongholdBattleRoom.as_setMembersS`, `SortieCandidatesLegionariesDP._makePlayerVO` |
+| Stronghold detachment list (web page) | flag after the clan tag | content script, `src/unicum/browser.py` |
 
 Languages come from `GET /api/{region}/languages/resolve` on unicum.gg,
 asked for in batches of at most 100 ids. The API answers with country codes
@@ -43,6 +44,17 @@ copies them in. A flag missing at startup is downloaded from
 `https://unicum.gg/flags/s/<CODE>.png` and shows up next session, once the
 site serves PNGs there.
 
+### Profile title
+
+A window title is plain text unless its AS3 `Window` has `titleUseHtml` on,
+and the profile window never turns it on. Python cannot reach the `Window`
+through the GFx proxy, so `as3/src/unicum/TitleHtml.as` does it: a view with
+no display, loaded once into the lobby's service layer by
+`src/unicum/titles.py`, that flips the switch on every profile window. What
+the title says is still decided in Python and still hot reloads.
+
+Without the SWF in the resource tree, titles fall back to the language code.
+
 ## Development
 
 The client loads one file from this repo: a bootstrap, packaged as a
@@ -51,16 +63,21 @@ The client loads one file from this repo: a bootstrap, packaged as a
 
 ```
 cd tools/flags && npm install && npm run build && cd ../..
+python tools/build_as3.py --game "C:/Games/World_of_Tanks_EU"
 python tools/install_dev.py --game "C:/Games/World_of_Tanks_EU"
 ```
 
-That installs the bootstrap into `mods/<version>/` and the flags into
-`res_mods/<version>/`. Start the client once; after that, saving a file
-under `src/` reloads the mod in place within half a second.
+That installs the bootstrap into `mods/<version>/`, and the flags and the
+title SWF into `res_mods/<version>/`. Start the client once; after that,
+saving a file under `src/` reloads the mod in place within half a second.
+
+`build_as3.py` downloads Apache Royale (about 200 MB) and `playerglobal.swc`
+into `build/as3` on first run, and compiles against the client's own `.swc`
+files, taken from its `gui-part*.pkg` packages.
 
 Logs go to `game.log` in the game directory, under loggers named `unicum.*`.
 
-Still needs a restart: the bootstrap itself, and any new flag PNG.
+Still needs a restart: the bootstrap itself, any new flag PNG, and the SWF.
 
 ### Why the reload works
 
@@ -89,9 +106,10 @@ live API.
 ### Layout
 
 ```
+as3/      the profile title view, built once into a SWF
 dev/      bootstrap template, packaged into the game once
 src/      everything reloadable; the only thing you edit
-tools/    installer, flag rasteriser, selftest
+tools/    installer, flag rasteriser, AS3 build, selftest
 ```
 
 ## Requirements
@@ -99,6 +117,7 @@ tools/    installer, flag rasteriser, selftest
 - World of Tanks 2.4.0.0 (EU)
 - Python 2.7, as the client is, and Python 3 for the tooling
 - Node.js, to rasterise the flags
+- Java 11 or later, to compile the AS3 view
 
 ## License
 
