@@ -19,11 +19,18 @@ Not affiliated with Wargaming.net.
 Every surface shows all of a player's or clan's flags, up to three
 (`config.MAX_FLAGS`), in the order the API gives them.
 
-Languages come from `GET /api/{region}/languages/resolve` on unicum.gg,
-asked for in batches of at most 100 ids. The API answers with country codes
-already resolved, so the mod never needs to know that `en` is the UK flag on
-EU and the US one elsewhere. Clan languages are declared by the clan owner;
-player languages are inferred by unicum.gg.
+Everything comes from `GET /api/{region}/resolve` on unicum.gg: languages
+and flags, lifetime and 30-day ratings, win rates and a player's clan, for
+players and clans by id and for clans by tag, in batches of at most 100 per
+kind (`src/unicum/api/resolve.py`). The API answers with flag codes already
+resolved, so the mod never needs to know that `en` is the UK flag on EU and
+the US one elsewhere. Clan languages are declared by the clan owner; player
+languages are inferred by unicum.gg. Rating colours come from
+`GET /api/ratings/scales`, fetched at most daily (`src/unicum/api/scales.py`).
+
+A server without `/resolve` answers 404, and the mod then falls back to the
+older languages-only endpoints (`src/unicum/api/legacy.py`): flags keep
+working, ratings are absent.
 
 Images get countries, text gets languages: a country code only exists to
 name a flag file, and something like `GB-UKM` means nothing written out.
