@@ -32,6 +32,7 @@ from checks.fakes import (
     ORIGINAL_BUILD_LIST,
     SENTINEL_REGION)
 from checks.surfaces import (
+    check_badges,
     check_battle_panels,
     check_contacts_redraw,
     check_profile_title,
@@ -87,6 +88,7 @@ def main():
         check_skirmish_room(bigworld)
         check_profile_title()
         check_battle_panels()
+        check_badges(workdir)
 
         first_hook = target.__dict__['addVehicleInfo']
         generation_before = stub._generation

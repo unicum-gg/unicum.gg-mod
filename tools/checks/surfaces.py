@@ -129,3 +129,24 @@ def check_profile_title():
     finally:
         FakeResMgr.files.discard('gui/flash/unicum.titles.swf')
         factories.settings.clear()
+
+
+def check_badges(workdir):
+    """A rating becomes the one image of its badge, or nothing it cannot draw."""
+    import os
+    from unicum.badges import MAX_VALUE, Badges
+
+    folder = os.path.join(workdir, 'badges', 'wnx')
+    os.makedirs(folder)
+    for value in (0, MAX_VALUE):
+        open(os.path.join(folder, '%d.png' % value), 'wb').close()
+        # Installed before the client started, so the resource manager knows it.
+        FakeResMgr.files.add('gui/badges/wnx/%d.png' % value)
+    badges = Badges(directory=os.path.join(workdir, 'badges'), res_path='gui/badges')
+    check('a rating is one image of the rounded value, sized to its digits',
+          badges.markup('wnx', 3322.6) ==
+          '<IMG SRC="img://gui/badges/wnx/3323.png" width="32" height="12" vspace="-3"/>')
+    check('a metric whose badges were not installed draws nothing',
+          badges.markup('wn8', 3323) is None)
+    check('a value past the rendered range draws nothing',
+          badges.markup('wnx', MAX_VALUE + 1) is None)
