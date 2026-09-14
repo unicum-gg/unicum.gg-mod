@@ -20,8 +20,10 @@ about is not free: it asked for 3293 players at once, which is why the API
 client batches.
 """
 import logging
+import weakref
 
 from gui.Scaleform.daapi.view.lobby.profile.ProfileWindow import ProfileWindow
+from messenger.gui.Scaleform.data.contacts_data_provider import ContactsDataProvider
 from messenger.gui.Scaleform.data.contacts_vo_converter import ContactConverter
 
 from unicum import config
@@ -47,48 +49,105 @@ class LobbyFlags(object):
         self._textures = FlagCache(session)
         self._pending = set()
         self._scheduled = False
+        # Views that drew before their languages arrived, and have to be told
+        # to draw again once they do. Held weakly: tracking a view must never
+        # be what keeps a closed window alive.
+        self._providers = weakref.WeakSet()
+        self._profiles = weakref.WeakSet()
 
     def install(self):
         self._session.patch(ContactConverter, 'makeBaseUserProps', self._wrap)
         self._session.patch(ProfileWindow, 'as_setInitDataS', self._wrap_profile)
-        _logger.info('installed on ContactConverter and ProfileWindow')
+        self._session.patch(ContactsDataProvider, 'buildList', self._wrap_build)
+        _logger.info('installed on ContactConverter, ContactsDataProvider '
+                     'and ProfileWindow')
+
+    def _wrap_build(self, original):
+        """Remember every contacts list that builds, so it can be rebuilt.
+
+        The rows are made synchronously and the languages arrive over the
+        network, so the first build of a list is always missing whatever was
+        not cached yet. Nothing redraws it on its own: without a rebuild the
+        flags only appeared after closing and reopening the panel.
+        """
+
+        def buildList(provider, *args, **kwargs):
+            self._providers.add(provider)
+            return original(provider, *args, **kwargs)
+
+        return buildList
+
+    def _redraw(self):
+        """Rebuild the views that drew while languages were still missing.
+
+        Mirrors what the client does itself when clan members change:
+        buildList, refresh, onTotalStatusChanged. Rebuilding cannot loop --
+        by now every id it asks about is cached, so it queues no lookup.
+        """
+        for provider in list(self._providers):
+            try:
+                provider.buildList()
+                provider.refresh()
+                provider.onTotalStatusChanged()
+            except Exception:
+                _logger.exception('could not rebuild a contacts list')
+        for view in list(self._profiles):
+            try:
+                if getattr(view, 'isDisposed', lambda: False)():
+                    continue
+                update = getattr(view, '_ProfileWindow__updateUserInfo', None)
+                if update is not None:
+                    update()
+            except Exception:
+                _logger.exception('could not refresh a profile window')
 
     def _wrap_profile(self, original):
-        """The profile window title, which takes text and not markup.
+        """The profile window title, which takes a language code, not a flag.
 
-        Window(window).title is a plain TextField -- an <IMG> there renders
-        as its own source, which is how the over-reaching patch announced
-        itself. A country code says the same thing in a field that can hold
-        it.
+        Window.title is plain text: an <IMG> there once rendered as its own
+        source. AS3's Window does have a titleUseHtml switch, which the
+        vehicle info, buy and chat windows turn on and the profile window
+        never does. It cannot be reached from Python though: the view's
+        flashObject.window reads as None both when the title data arrives and
+        a moment later, so the GFx proxy does not expose it. The only other
+        way to a flag here is editing the SWF, which would not hot reload and
+        would break on every client update.
         """
 
         def as_setInitDataS(view, data):
             try:
+                self._profiles.add(view)
                 account_id = getattr(view, '_ProfileWindow__databaseID', None)
-                code = self._language(account_id)
-                if code and isinstance(data, dict) and data.get('fullName'):
-                    data['fullName'] = '%s %s' % (data['fullName'], code)
+                if isinstance(data, dict) and data.get('fullName'):
+                    code = self._language_code(account_id)
+                    if code:
+                        data['fullName'] = '%s %s' % (data['fullName'], code)
             except Exception:
                 _logger.exception('could not mark profile title')
             return original(view, data)
 
         return as_setInitDataS
 
-    def _language(self, account_id):
-        """Language code for a text field, not the country code.
+    def _language_code(self, account_id):
+        """Language, not country: text gets languages, images get countries.
 
-        Countries only exist here to name a flag file. Spelled out they are
-        meaningless or wrong -- 'GB-UKM' is a Flagpack filename, and it is
-        the language that was actually inferred. So images get countries and
-        text gets languages.
+        A country code only exists to name a flag file, and 'GB-UKM' spelled
+        out in a title means nothing.
         """
-        if not account_id:
+        entry = self._entry(account_id) if account_id else None
+        if entry is None or not entry.languages:
             return None
-        entry = self._lookup.get(PLAYERS, account_id)
-        if entry is None:
+        return entry.languages[0].upper()
+
+    def _entry(self, account_id):
+        """What is known about a player now, asking for more if it is due.
+
+        An old answer is still returned: it is drawn while the fresh one is
+        on its way, rather than the name going blank in between.
+        """
+        if self._lookup.needs_fetch(PLAYERS, account_id):
             self._request(account_id)
-            return None
-        return entry.languages[0].upper() if entry.languages else None
+        return self._lookup.get(PLAYERS, account_id)
 
     def _wrap(self, original):
 
@@ -110,11 +169,8 @@ class LobbyFlags(object):
     def _marker(self, account_id):
         if not account_id:
             return ''
-        entry = self._lookup.get(PLAYERS, account_id)
-        if entry is None:
-            self._request(account_id)
-            return ''
-        if not entry.countries:
+        entry = self._entry(account_id)
+        if entry is None or not entry.countries:
             return ''
         source = self._textures.source(entry.countries[0])
         if source is None:
@@ -143,7 +199,12 @@ class LobbyFlags(object):
             entry = self._lookup.get(PLAYERS, account_id)
             if entry is not None and entry.countries:
                 resolved.append((account_id, entry.countries[0]))
-        _logger.info('resolved %s/%s: %s', len(resolved), len(batch), resolved)
+        _logger.info('resolved %s/%s: %s', len(resolved), len(batch),
+                     resolved[:8])
+        # Only when something came back: a failed lookup leaves the views
+        # exactly as they were, so rebuilding them would be pure cost.
+        if resolved:
+            self._redraw()
 
 
 def install(session):

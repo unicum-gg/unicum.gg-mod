@@ -73,11 +73,11 @@ class BattleFlags(object):
     def _marker(self, account_id):
         if not account_id:
             return ''
-        entry = self._lookup.get(PLAYERS, account_id)
-        if entry is None:
+        # An old answer is still drawn while a fresh one is fetched.
+        if self._lookup.needs_fetch(PLAYERS, account_id):
             self._request(account_id)
-            return ''
-        if not entry.countries:
+        entry = self._lookup.get(PLAYERS, account_id)
+        if entry is None or not entry.countries:
             return ''
         # One flag only: a battle row has room for a couple of characters,
         # and a player with three languages would otherwise push their own

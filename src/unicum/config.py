@@ -22,11 +22,15 @@ API_BASE = (
     or _DEFAULT_API_BASE
 ).rstrip('/')
 
-# Seconds a language answer stays good for, matching the `max-age` the
-# resolve endpoint sends. Nothing here is worth being cleverer about: clan
-# languages barely move, and the server already fronts a much longer CDN
-# window.
-CACHE_SECONDS = 300
+# Seconds before a language answer is asked for again. It is never thrown
+# away in the meantime -- a stale answer keeps being drawn while the fresh
+# one is fetched, which is what the endpoint's stale-while-revalidate allows.
+#
+# An hour rather than the endpoint's five-minute max-age. Player languages
+# are recomputed hourly upstream, so asking more often learns nothing, and
+# the contacts list alone is ~3300 ids: at five minutes, every rebuild after
+# a short break would put 33 requests back on the wire.
+REFRESH_SECONDS = 3600
 
 API_TIMEOUT = 10.0
 

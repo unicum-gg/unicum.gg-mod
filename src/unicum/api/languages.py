@@ -155,19 +155,35 @@ class LanguageLookup(object):
             _logger.exception('could not write %s', self._store)
 
     def get(self, kind, entity_id):
-        """Cached entry, or None if it is unknown or stale.
+        """Cached entry, however old, or None if it was never answered.
 
         Deliberately never triggers a fetch: this is called from inside the
         VO builders, which are synchronous and must not grow a network
-        dependency.
+        dependency. Callers ask needs_fetch() for that.
+
+        Stale entries used to be deleted here, which turned "old" into
+        "unknown": open the contacts list more than a few minutes after the
+        last lookup and every flag vanished at once while 3000 ids went back
+        on the wire. A player's language does not change in minutes, so an
+        old answer keeps being drawn until the new one replaces it.
         """
-        entry = self._cache.get((kind, entity_id))
-        if entry is None:
-            return None
-        if time.time() - entry.fetched_at > config.CACHE_SECONDS:
-            del self._cache[(kind, entity_id)]
-            return None
-        return entry
+        return self._cache.get((kind, entity_id))
+
+    def needs_fetch(self, kind, entity_id):
+        """Whether an id should be asked for: never answered, or gone stale.
+
+        False while a request for it is already on the wire, so a view that
+        redraws during a lookup does not queue the same id twice.
+        """
+        key = (kind, entity_id)
+        if key in self._in_flight:
+            return False
+        entry = self._cache.get(key)
+        return entry is None or self._is_stale(entry)
+
+    @staticmethod
+    def _is_stale(entry):
+        return time.time() - entry.fetched_at > config.REFRESH_SECONDS
 
     def prefetch(self, players=(), clans=(), on_ready=None):
         """Fetch whatever is missing, then call on_ready once.
@@ -213,8 +229,7 @@ class LanguageLookup(object):
             if not entity_id:
                 continue
             entity_id = int(entity_id)
-            key = (kind, entity_id)
-            if key in self._in_flight or self.get(kind, entity_id) is not None:
+            if not self.needs_fetch(kind, entity_id):
                 continue
             if entity_id not in out:
                 out.append(entity_id)
