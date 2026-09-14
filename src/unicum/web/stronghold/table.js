@@ -2,8 +2,9 @@
 //
 // Part of the Stronghold content script, see core.js.
 //
-// Flex rows of five cells: name, rating, server, members, places. Rating is
-// not sortable on the site; server and places are, members is not.
+// Flex rows of five cells: name, rating, server, members, places, plus a
+// sixth icon cell on rows the player cannot join. Rating is not sortable on
+// the site; server and places are, members is not.
 //
 //   - "Places" only restates "Members" (7 places minus 2/7 members). The
 //     sortable places header is kept, with its native sort arrow, and
@@ -111,7 +112,9 @@ function table() {
     for (var r = 0; r < rows.length; r++) {
         var row = rows[r];
         var rowCells = siteCells(row);
-        if (rowCells.length !== 5) {
+        // Five cells, or six: a detachment the player cannot join carries a
+        // trailing icon cell (crossed swords) after places.
+        if (rowCells.length < 5) {
             continue;
         }
         rowCells[4].setAttribute(HIDE_ATTR, '1');
