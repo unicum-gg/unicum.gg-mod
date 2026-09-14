@@ -1,0 +1,20 @@
+# The client compiles src/ in place while it runs.
+*.pyc
+*.pyo
+__pycache__/
+
+# Rendered from dev/mod_unicum_dev.py.in with a machine-specific path.
+dev/mod_unicum_dev.py
+
+# Points the mod at a local API; see config.py.
+src/unicum/local_settings.py
+
+# Build output.
+/dist/
+/build/
+
+# Installed by `npm install` in tools/flags.
+node_modules/
+
+.venv/
+.DS_Store
