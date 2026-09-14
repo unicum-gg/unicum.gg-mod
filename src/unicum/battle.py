@@ -1,28 +1,30 @@
 """Marks battle player names with where each player comes from.
 
-Battle names are assembled by PlayerFullNameFormatter.format, which asks
-player_format.getRegionCode for a short suffix and drops it in right after
-the clan tag:
+The players panel, the full stats table (Tab) and the loading screen are fed
+by the stats exchange: VehicleInfoComponent.addVehicleInfo builds one dict per
+vehicle, and its `region` goes to AS3, where StatsUserProps and
+formatPlayerName assign it as `htmlText`. So the flags go into that dict, and
+nowhere else.
 
-    '{0:>s}[{1:>s}] {3:>s}'    name, clan, vehicle, region
+They used to go in one level lower, into player_format.getRegionCode. That
+reached the same panels, but getRegionCode also feeds every other consumer
+of a formatted name: the damage panel shows the player's own name as plain
+text, so its <IMG> markup was drawn as characters, and playerFullName carried
+it into markers and messages too. The stats exchange is where the name is
+known to end up in an HTML field.
 
-That reaches AS3 as `model.region` and is assigned as `htmlText` by
-CommonsBase.applyTextProps, so the field takes markup as well as text.
+`region` is empty for anyone on their home realm, so on EU the field is
+essentially always empty. A genuinely roaming player does have a code, and
+it is not ours to drop: ours is appended to it.
 
-getRegionCode returns None for anyone on their home realm, so on EU the
-field is empty for essentially everyone. A genuinely roaming player does
-have a code, and it is not ours to drop: ours is appended to whatever the
-client already decided.
-
-The hard part is that getRegionCode is synchronous and the answer comes over
-the network. So it never waits: it returns whatever is cached, and the
-account ids it is asked about are collected and resolved in one batch just
-after. Names drawn before the answer lands simply carry no marker, and pick
-one up the next time they are drawn.
+addVehicleInfo is synchronous and the answer comes over the network. So it
+never waits: it uses whatever is cached, and the account ids it sees are
+resolved in one batch just after. A vehicle drawn before the answer lands
+picks its flags up the next time the arena updates it.
 """
 import logging
 
-from gui.battle_control.arena_info import player_format
+from gui.Scaleform.daapi.view.battle.shared.stats_exchange.vehicle import VehicleInfoComponent
 
 from unicum import config
 from unicum.api.languages import PLAYERS
@@ -32,6 +34,10 @@ _logger = logging.getLogger('unicum.battle')
 # Long enough to gather a whole team's worth of ids from the render pass,
 # short enough to be back before anyone finishes reading the loading screen.
 _BATCH_DELAY = 0.25
+
+# Onslaught's own component. Its VO types `region` as Object, and a string
+# there is a cast error, so its players are left as the client drew them.
+_SKIPPED_COMPONENTS = ('Comp7VehicleInfoComponent', 'Comp7LightVehicleInfoComponent')
 
 
 class BattleFlags(object):
@@ -44,33 +50,31 @@ class BattleFlags(object):
         self._scheduled = False
 
     def install(self):
-        # PlayerFullNameFormatter.format resolves getRegionCode as a module
-        # global at call time, so replacing the attribute reaches it.
-        self._session.patch(player_format, 'getRegionCode', self._wrap)
-        _logger.info('installed on player_format.getRegionCode, api=%s',
+        self._session.patch(VehicleInfoComponent, 'addVehicleInfo', self._wrap)
+        _logger.info('installed on VehicleInfoComponent.addVehicleInfo, api=%s',
                      config.API_BASE)
 
     def _wrap(self, original):
 
-        def getRegionCode(accountDBID, lobbyContext=None):
-            # The original is wrapped in @dependency.replace_none_kwargs,
-            # which injects lobbyContext as a keyword. Forwarding our own
-            # default positionally collides with that injection, so let it do
-            # its job when the caller did not supply one.
-            if lobbyContext is None:
-                existing = original(accountDBID)
-            else:
-                existing = original(accountDBID, lobbyContext=lobbyContext)
-            marker = self._marker(accountDBID)
-            if not marker:
-                # Hand back exactly what the client decided, None included.
-                # Returning '' instead broke Onslaught: its vehicle info VO
-                # types `region` as Object, which takes null but not a string,
-                # and every player without a flag logged a cast error.
-                return existing
-            return (existing or '') + marker
+        def addVehicleInfo(component, vInfoVO, overrides):
+            result = original(component, vInfoVO, overrides)
+            try:
+                if type(component).__name__ not in _SKIPPED_COMPONENTS:
+                    self._mark(component, vInfoVO)
+            except Exception:
+                # A panel without flags beats a panel that fails to build.
+                _logger.exception('could not mark a battle player')
+            return result
 
-        return getRegionCode
+        return addVehicleInfo
+
+    def _mark(self, component, vInfoVO):
+        data = component.get()
+        player = getattr(vInfoVO, 'player', None)
+        marker = self._marker(getattr(player, 'accountDBID', None))
+        # Left untouched without a marker, so a None stays None.
+        if marker and isinstance(data, dict):
+            data['region'] = (data.get('region') or '') + marker
 
     def _marker(self, account_id):
         if not account_id:
@@ -85,7 +89,7 @@ class BattleFlags(object):
     def _request(self, account_id):
         """Queue an id, and resolve the whole batch shortly after.
 
-        Every name in a team is formatted in the same pass, so waiting a
+        Every vehicle in a team is added in the same pass, so waiting a
         moment turns what would be fifteen requests into one.
         """
         self._pending.add(account_id)
