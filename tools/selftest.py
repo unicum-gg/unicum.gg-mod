@@ -104,11 +104,11 @@ class FakeVehicleInfoComponent(object):
 
 
 class Comp7VehicleInfoComponent(FakeVehicleInfoComponent):
-    """Onslaught's builder: its VO rejects a string in `region`."""
+    """Onslaught's builder: extends the base one through super()."""
 
     def addVehicleInfo(self, vInfoVO, overrides):
         super(Comp7VehicleInfoComponent, self).addVehicleInfo(vInfoVO, overrides)
-        self._data['region'] = None
+        self._data.update({'role': 'assault'})
 
 
 ORIGINAL_ADD_VEHICLE_INFO = FakeVehicleInfoComponent.__dict__['addVehicleInfo']
@@ -641,8 +641,9 @@ def check_battle_panels():
 
     onslaught = Comp7VehicleInfoComponent()
     onslaught.addVehicleInfo(FakeVInfo(SAMPLE_PLAYERS[0]), None)
-    check('onslaught players are left as the client drew them',
-          onslaught.get()['region'] is None)
+    check('onslaught players get flags too, through the base builder',
+          '<IMG SRC="img://gui/maps/icons/unicum/flags/' in onslaught.get()['region']
+          and onslaught.get()['role'] == 'assault')
 
 
 def check_profile_title():
