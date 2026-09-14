@@ -33,7 +33,7 @@ import logging
 from gui.Scaleform.daapi.view.battle.shared.stats_exchange.vehicle import VehicleInfoComponent
 
 from unicum import config
-from unicum.api.resolve import PLAYERS
+from unicum.api.entry import PLAYERS
 
 _logger = logging.getLogger('unicum.battle')
 

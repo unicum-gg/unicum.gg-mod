@@ -14,20 +14,16 @@ Until the endpoint is deployed everywhere, a server that answers 404 is
 talked to the old way: see legacy.py. Languages keep working; ratings are
 simply absent.
 """
-import json
 import logging
-import os
 import time
 import urllib
 
 from unicum import config
 from unicum.api import legacy
+from unicum.api import store as disk
+from unicum.api.entry import CLANS, PLAYERS, TAGS, Entry
 
 _logger = logging.getLogger('unicum.api')
-
-PLAYERS = 'players'
-CLANS = 'clans'
-TAGS = 'tags'
 
 # Ids per kind per request, the endpoint's own cap. A longer list is refused,
 # not truncated, and the contacts list alone is ~3300 ids.
@@ -39,99 +35,6 @@ _SAVE_DELAY = 10.0
 # How long a failed request keeps its ids from being asked for again. Without
 # it, a server that is down gets the whole roster again on every redraw.
 _RETRY_AFTER = 60.0
-
-_STORE_VERSION = 2
-
-
-class Entry(object):
-    """One player or clan, as the server described it.
-
-    An entity the server holds nothing for is an empty Entry with `known`
-    false: the answer "nothing" is cached like any other, so the same
-    unknown accounts are not asked for on every redraw.
-    """
-
-    __slots__ = ('known', 'name', 'clan', 'languages', 'countries', 'source',
-                 'ratings', 'members', 'fetched_at')
-
-    def __init__(self, known=False, name=None, clan=None, languages=(),
-                 countries=(), source=None, ratings=None, members=None,
-                 fetched_at=0.0):
-        self.known = known
-        self.name = name              # player nickname, or clan tag
-        self.clan = clan              # a player's clan: {id, tag, color}
-        self.languages = list(languages)
-        self.countries = list(countries)
-        self.source = source
-        self.ratings = ratings or {}  # {'total': {...}, 'recent': {...}}
-        self.members = members
-        self.fetched_at = fetched_at
-
-    @classmethod
-    def from_api(cls, kind, raw, fetched_at):
-        clan = raw.get('clan')
-        return cls(
-            known=True,
-            name=raw.get('nickname') if kind == PLAYERS else raw.get('tag'),
-            clan=clan if isinstance(clan, dict) else None,
-            languages=raw.get('languages') or [],
-            countries=raw.get('countries') or [],
-            source=raw.get('languageSource') or raw.get('source'),
-            ratings=raw.get('ratings') or {},
-            members=raw.get('membersCount'),
-            fetched_at=fetched_at)
-
-    def to_store(self):
-        return {'name': self.name, 'clan': self.clan,
-                'languages': self.languages, 'countries': self.countries,
-                'source': self.source, 'ratings': self.ratings,
-                'members': self.members, 'fetchedAt': self.fetched_at}
-
-    @classmethod
-    def from_store(cls, raw):
-        return cls(known=True, name=raw.get('name'), clan=raw.get('clan'),
-                   languages=raw.get('languages') or [],
-                   countries=raw.get('countries') or [],
-                   source=raw.get('source'), ratings=raw.get('ratings') or {},
-                   members=raw.get('members'),
-                   fetched_at=raw.get('fetchedAt') or 0.0)
-
-    @property
-    def primary(self):
-        """Country code to show when there is only room for one flag."""
-        flags = self.flags
-        return flags[0] if flags else None
-
-    @property
-    def flags(self):
-        """Country codes to draw, in the API's order, each once, at most a few.
-
-        `countries` is aligned with `languages` and holds null where a
-        language has no published flag. Two languages can also share one
-        (en and en-us both GB-UKM on EU), and a name field has room for a
-        handful at most.
-        """
-        out = []
-        for code in self.countries:
-            if code and code not in out:
-                out.append(code)
-            if len(out) >= config.MAX_FLAGS:
-                break
-        return out
-
-    def rating(self, metric, window='recent'):
-        """A rating or win rate, from `window`, else lifetime; or None.
-
-        A recent value can be null while its battles are not: the server
-        fills 30-day win rates on its own schedule, so null there means "not
-        computed yet", not zero. Falling back to lifetime keeps the number on
-        screen meaningful instead of blank.
-        """
-        for name in (window, 'total'):
-            value = (self.ratings.get(name) or {}).get(metric)
-            if value is not None:
-                return value
-        return None
 
 
 class Lookup(object):
@@ -151,8 +54,6 @@ class Lookup(object):
         self._save_scheduled = False
         self._load()
         session.on_close(self._save)
-
-    # -- reading ----------------------------------------------------------
 
     def get(self, kind, entity_id):
         """Cached entry, however old, or None if it was never answered.
@@ -180,8 +81,6 @@ class Lookup(object):
             return False
         entry = self._cache.get(key)
         return entry is None or self._is_stale(entry.fetched_at)
-
-    # -- fetching ---------------------------------------------------------
 
     def prefetch(self, players=(), clans=(), tags=(), on_ready=None):
         """Fetch whatever is missing or stale, then call on_ready once.
@@ -299,39 +198,9 @@ class Lookup(object):
     def _is_stale(fetched_at):
         return time.time() - fetched_at > config.REFRESH_SECONDS
 
-    # -- the disk store ---------------------------------------------------
-
     def _load(self):
-        """Warm the cache from the last session.
-
-        Without this the first draw of anything is unmarked: answers come
-        over the network but are consumed synchronously. Entries keep the
-        time they were fetched, so old ones are drawn at once and refreshed
-        in the background rather than trusted for another half hour.
-        """
-        if not self._store or not os.path.isfile(self._store):
-            return
-        try:
-            with open(self._store, 'rb') as handle:
-                stored = json.load(handle)
-        except (IOError, ValueError):
-            _logger.warning('could not read %s, starting cold', self._store)
-            return
-        if stored.get('version') != _STORE_VERSION or stored.get('region') != self._region:
-            return
-        for kind in (PLAYERS, CLANS):
-            for key, raw in (stored.get(kind) or {}).items():
-                try:
-                    self._cache[(kind, int(key))] = Entry.from_store(raw)
-                except (TypeError, ValueError, AttributeError):
-                    continue
-        for tag, raw in (stored.get(TAGS) or {}).items():
-            try:
-                self._tags[tag] = (int(raw['id']), float(raw['fetchedAt']))
-            except (TypeError, ValueError, KeyError):
-                continue
-        _logger.info('warmed %s entries and %s tags from %s',
-                     len(self._cache), len(self._tags), self._store)
+        """Warm the cache from the last session; see store.py."""
+        self._cache, self._tags = disk.load(self._store, self._region)
 
     def _schedule_save(self):
         """Write soon, not now, and not once per answer.
@@ -350,27 +219,9 @@ class Lookup(object):
         self._session.callback(_SAVE_DELAY, flush)
 
     def _save(self):
-        if not self._dirty or not self._store:
-            return
-        payload = {'version': _STORE_VERSION, 'region': self._region,
-                   PLAYERS: {}, CLANS: {}, TAGS: {}}
-        for (kind, entity_id), entry in self._cache.items():
-            # "Unknown" is not written down: the server may simply not hold
-            # the account yet, and a stored miss would hide it for a day.
-            if entry.known:
-                payload[kind][str(entity_id)] = entry.to_store()
-        for tag, (clan_id, fetched_at) in self._tags.items():
-            if clan_id:
-                payload[TAGS][tag] = {'id': clan_id, 'fetchedAt': fetched_at}
-        try:
-            directory = os.path.dirname(self._store)
-            if directory and not os.path.isdir(directory):
-                os.makedirs(directory)
-            with open(self._store, 'wb') as handle:
-                json.dump(payload, handle)
+        if self._dirty and self._store and disk.save(
+                self._store, self._region, self._cache, self._tags):
             self._dirty = False
-        except (IOError, OSError):
-            _logger.exception('could not write %s', self._store)
 
 
 def _tag_key(tag):

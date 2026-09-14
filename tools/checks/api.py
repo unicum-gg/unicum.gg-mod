@@ -61,7 +61,8 @@ def check_lookup(bigworld, src_root, api_base, label):
     if src_root not in sys.path:
         sys.path.insert(0, src_root)
     from unicum import config
-    from unicum.api.resolve import CLANS, Lookup, PLAYERS
+    from unicum.api.entry import CLANS, PLAYERS
+    from unicum.api.resolve import Lookup
     from unicum.runtime.session import Session
 
     print('\n-- %s against %s' % (label, api_base))
@@ -132,7 +133,7 @@ def check_lookup(bigworld, src_root, api_base, label):
 
 
 def check_entries(src_root):
-    from unicum.api.resolve import Entry
+    from unicum.api.entry import Entry
 
     many = Entry(known=True, languages=['en', 'en-us', 'eo', 'pl', 'uk', 'de'],
                  countries=['GB-UKM', 'GB-UKM', None, 'PL', 'UA', 'DE'])

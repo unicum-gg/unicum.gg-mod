@@ -37,7 +37,7 @@ import weakref
 from helpers import dependency
 from skeletons.gui.game_control import IBrowserController
 
-from unicum.api.resolve import CLANS
+from unicum.api.entry import CLANS
 
 _logger = logging.getLogger('unicum.browser')
 
