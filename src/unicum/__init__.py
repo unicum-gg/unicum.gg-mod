@@ -10,8 +10,10 @@ is nothing more than stop() followed by a fresh start().
 """
 import logging
 
-from unicum import battle, browser, lobby
+from unicum import battle, browser, config, lobby
+from unicum.api.languages import LanguageLookup
 from unicum.runtime.session import Session
+from unicum.textures import FlagCache
 
 VERSION = '0.1.0-dev'
 
@@ -28,9 +30,15 @@ def start(generation=0):
     _session = Session(generation)
     _logger.info('start: version=%s generation=%s', VERSION, generation)
     try:
+        # One of each, shared by every surface. Each feature used to build
+        # its own lookup, and every one of them loaded languages.json and
+        # wrote it back: whichever saved last dropped what the others had
+        # learned that session.
+        lookup = LanguageLookup(_session, config.REGION)
+        flags = FlagCache(_session)
         browser.install(_session)
-        battle.install(_session)
-        lobby.install(_session)
+        battle.install(_session, lookup, flags)
+        lobby.install(_session, lookup, flags)
     except Exception:
         # A feature that fails halfway leaves the ones before it installed.
         # Without this the session is orphaned: the loader sees start() fail

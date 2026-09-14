@@ -26,9 +26,7 @@ from gui.Scaleform.daapi.view.lobby.profile.ProfileWindow import ProfileWindow
 from messenger.gui.Scaleform.data.contacts_data_provider import ContactsDataProvider
 from messenger.gui.Scaleform.data.contacts_vo_converter import ContactConverter
 
-from unicum import config
-from unicum.api.languages import PLAYERS, LanguageLookup
-from unicum.textures import FlagCache
+from unicum.api.languages import PLAYERS
 
 _logger = logging.getLogger('unicum.lobby')
 
@@ -43,10 +41,10 @@ _BATCH_DELAY = 0.25
 
 class LobbyFlags(object):
 
-    def __init__(self, session):
+    def __init__(self, session, lookup, flags):
         self._session = session
-        self._lookup = LanguageLookup(session, config.REGION)
-        self._textures = FlagCache(session)
+        self._lookup = lookup
+        self._textures = flags
         self._pending = set()
         self._scheduled = False
         # Views that drew before their languages arrived, and have to be told
@@ -207,5 +205,5 @@ class LobbyFlags(object):
             self._redraw()
 
 
-def install(session):
-    LobbyFlags(session).install()
+def install(session, lookup, flags):
+    LobbyFlags(session, lookup, flags).install()

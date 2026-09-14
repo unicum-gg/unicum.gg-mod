@@ -25,8 +25,7 @@ import logging
 from gui.battle_control.arena_info import player_format
 
 from unicum import config
-from unicum.api.languages import PLAYERS, LanguageLookup
-from unicum.textures import FlagCache
+from unicum.api.languages import PLAYERS
 
 _logger = logging.getLogger('unicum.battle')
 
@@ -41,10 +40,10 @@ _BATCH_DELAY = 0.25
 
 class BattleFlags(object):
 
-    def __init__(self, session):
+    def __init__(self, session, lookup, flags):
         self._session = session
-        self._lookup = LanguageLookup(session, config.REGION)
-        self._textures = FlagCache(session)
+        self._lookup = lookup
+        self._textures = flags
         self._pending = set()
         self._scheduled = False
 
@@ -126,5 +125,5 @@ class BattleFlags(object):
         _logger.info('resolved %s/%s: %s', len(resolved), len(batch), resolved)
 
 
-def install(session):
-    BattleFlags(session).install()
+def install(session, lookup, flags):
+    BattleFlags(session, lookup, flags).install()
