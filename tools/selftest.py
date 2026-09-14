@@ -76,13 +76,16 @@ class FakeResponse(object):
         return {}
 
 
-def sentinel_makePlayerVO(pInfo, user, colorGetter, isPlayerSpeaking=False,
-                          isIncludeAccountWTR=False):
-    return {'fullName': 'original'}
+SENTINEL_REGION = 'XX'
 
 
 def sentinel_getRegionCode(accountDBID, lobbyContext=None):
-    return None
+    """Stands in for the client's function, and says it was reached.
+
+    Returns a real-looking region code so a hook that forgets to delegate --
+    or drops what the original decided -- shows up as a missing 'XX'.
+    """
+    return SENTINEL_REGION
 
 
 class FakeEvent(object):
@@ -131,6 +134,27 @@ class FakeContactConverter(object):
     @classmethod
     def makeBaseUserProps(cls, contact):
         return {'userName': contact.getName(), 'region': None}
+
+
+class FakeContactsDataProvider(object):
+    """Counts the rebuild sequence the client runs when a list goes stale."""
+
+    def __init__(self):
+        self.builds = 0
+        self.refreshes = 0
+        self.status_changes = 0
+
+    def buildList(self):
+        self.builds += 1
+
+    def refresh(self):
+        self.refreshes += 1
+
+    def onTotalStatusChanged(self):
+        self.status_changes += 1
+
+
+ORIGINAL_BUILD_LIST = FakeContactsDataProvider.__dict__['buildList']
 
 
 class FakeProfileWindowMeta(object):
@@ -185,41 +209,15 @@ def install_fake_client(bigworld):
 
     for name in ('gui', 'gui.Scaleform', 'gui.Scaleform.daapi',
                  'gui.Scaleform.daapi.view', 'gui.Scaleform.daapi.view.lobby',
-                 'gui.Scaleform.daapi.view.lobby.rally', 'gui.battle_control',
-                 'gui.battle_control.arena_info', 'gui.shared', 'helpers',
-                 'skeletons', 'skeletons.gui'):
+                 'gui.battle_control', 'gui.battle_control.arena_info',
+                 'helpers', 'skeletons', 'skeletons.gui'):
         _package(name)
-
-    vo = types.ModuleType('gui.Scaleform.daapi.view.lobby.rally.vo_converters')
-    vo.makePlayerVO = sentinel_makePlayerVO
-    _attach('gui.Scaleform.daapi.view.lobby.rally',
-            'gui.Scaleform.daapi.view.lobby.rally.vo_converters', vo)
 
     player_format = types.ModuleType(
         'gui.battle_control.arena_info.player_format')
     player_format.getRegionCode = sentinel_getRegionCode
     _attach('gui.battle_control.arena_info',
             'gui.battle_control.arena_info.player_format', player_format)
-
-    # Textures live outside Python in the real client, which is precisely why
-    # they can leak across reloads. Here they are a dict, so the test can
-    # assert the session gave them all back.
-    utils = types.ModuleType('gui.shared.utils')
-    utils.registered = {}
-
-    def mapTextureToTheMemory(textureData, uniqueID=None, temp=True):
-        if not textureData:
-            return None
-        textureID = uniqueID or 'texture%d' % len(utils.registered)
-        utils.registered[textureID] = textureData
-        return textureID
-
-    def removeTextureFromMemory(textureID):
-        utils.registered.pop(textureID, None)
-
-    utils.mapTextureToTheMemory = mapTextureToTheMemory
-    utils.removeTextureFromMemory = removeTextureFromMemory
-    _attach('gui.shared', 'gui.shared.utils', utils)
 
     for name in ('gui.Scaleform.daapi.view.lobby.profile', 'messenger',
                  'messenger.gui', 'messenger.gui.Scaleform',
@@ -237,6 +235,12 @@ def install_fake_client(bigworld):
     contacts.ContactConverter = FakeContactConverter
     _attach('messenger.gui.Scaleform.data',
             'messenger.gui.Scaleform.data.contacts_vo_converter', contacts)
+
+    provider = types.ModuleType(
+        'messenger.gui.Scaleform.data.contacts_data_provider')
+    provider.ContactsDataProvider = FakeContactsDataProvider
+    _attach('messenger.gui.Scaleform.data',
+            'messenger.gui.Scaleform.data.contacts_data_provider', provider)
 
     skeleton = types.ModuleType('skeletons.gui.lobby_context')
     skeleton.ILobbyContext = type('ILobbyContext', (object,), {})
@@ -256,7 +260,7 @@ def install_fake_client(bigworld):
     dependency.instance = lambda interface: services[interface]
     _attach('helpers', 'helpers.dependency', dependency)
 
-    return vo
+    return player_format
 
 
 def render_stub(workdir, src_root):
@@ -281,58 +285,70 @@ def main():
                         format='       %(name)s: %(message)s')
 
     workdir = tempfile.mkdtemp(prefix='unicum-selftest-')
+    original_cwd = os.getcwd()
     try:
         # A copy, so a test run never writes .pyc into the checkout.
         src_root = os.path.join(workdir, 'src')
         shutil.copytree(os.path.join(REPO, 'src'), src_root)
 
+        # The mod resolves its caches against the client's working directory.
+        # Running from a scratch one keeps a test run from reading or writing
+        # anything under the checkout.
+        os.chdir(workdir)
+
         bigworld = FakeBigWorld()
-        vo = install_fake_client(bigworld)
+        target = install_fake_client(bigworld)
         stub = imp.load_source('mod_unicum_dev', render_stub(workdir, src_root))
 
+        def hooked():
+            return target.getRegionCode is not sentinel_getRegionCode
+
+        def delegates():
+            # Account id 0 yields no marker and starts no lookup, so what
+            # comes back is exactly what the original decided.
+            return target.getRegionCode(0) == SENTINEL_REGION
+
         stub.init()
-        check('load installed the hook', vo.makePlayerVO is not sentinel_makePlayerVO)
-        check('hook delegates to the original',
-              vo.makePlayerVO(None, None, None)['fullName'].endswith('original'))
+        check('load installed the hook', hooked())
+        check('hook delegates to the original', delegates())
         check('watcher armed', bool(bigworld.pending))
 
-        first_hook = vo.makePlayerVO
+        check_contacts_redraw(bigworld)
+
+        first_hook = target.getRegionCode
         generation_before = stub._generation
 
         # Touch a source file the way an editor would.
-        probe = os.path.join(src_root, 'unicum', 'probe.py')
-        os.utime(probe, (os.path.getatime(probe), os.path.getmtime(probe) + 10))
+        edited = os.path.join(src_root, 'unicum', 'battle.py')
+        os.utime(edited, (os.path.getatime(edited), os.path.getmtime(edited) + 10))
 
         bigworld.run_pending()
         check('reload happened', stub._generation == generation_before + 1)
-        check('hook was reinstalled, not stacked', vo.makePlayerVO is not first_hook)
-        check('still delegates to the game original',
-              vo.makePlayerVO(None, None, None)['fullName'].endswith('original'))
+        check('hook was reinstalled, not stacked',
+              target.getRegionCode is not first_hook)
+        check('still delegates to the game original', delegates())
 
         bigworld.run_pending()
         check('watcher still running after reload', bool(bigworld.pending))
 
         # A reload with a broken file must not take the watcher down.
-        with open(probe) as handle:
+        with open(edited) as handle:
             intact = handle.read()
-        with open(probe, 'a') as handle:
+        with open(edited, 'a') as handle:
             handle.write('\nthis is not python\n')
         bigworld.run_pending()
-        check('broken source leaves the original restored',
-              vo.makePlayerVO is sentinel_makePlayerVO)
+        check('broken source leaves the original restored', not hooked())
         bigworld.run_pending()
         check('watcher survived the failed load', bool(bigworld.pending))
 
         # And the fix lands without a restart, which is the whole point.
-        with open(probe, 'w') as handle:
+        with open(edited, 'w') as handle:
             handle.write(intact)
         bigworld.run_pending()
-        check('saving a fix recovers in place',
-              vo.makePlayerVO is not sentinel_makePlayerVO)
+        check('saving a fix recovers in place', hooked())
 
         stub.fini()
-        check('fini leaves the game function untouched',
-              vo.makePlayerVO is sentinel_makePlayerVO)
+        check('fini leaves the game function untouched', not hooked())
         check('fini cancelled every callback', not bigworld.pending)
 
         # Undoing a patch has to put back what was *stored*, which is not
@@ -345,12 +361,64 @@ def main():
                   FakeContact(1))['region'] is None)
         check('inherited method left inherited, not shadowed',
               'as_setInitDataS' not in FakeProfileWindow.__dict__)
+        check('plain method restored to the original function',
+              FakeContactsDataProvider.__dict__['buildList'] is ORIGINAL_BUILD_LIST)
+
+        check_browser_scope(src_root)
 
         check_language_lookup(bigworld, src_root)
 
         print('\nall checks passed')
     finally:
+        # Windows will not remove the directory a process is standing in.
+        os.chdir(original_cwd)
         shutil.rmtree(workdir, ignore_errors=True)
+
+
+def check_contacts_redraw(bigworld):
+    """A list drawn before its languages arrived is rebuilt once they do.
+
+    Without this, the flags of a freshly opened contacts list only appeared
+    after closing and reopening the panel.
+    """
+    provider = FakeContactsDataProvider()
+    provider.buildList()
+    builds_before = provider.builds
+
+    row = FakeContactConverter.makeBaseUserProps(FakeContact(SAMPLE_PLAYERS[0]))
+    check('a row drawn before its language arrives has no flag', not row['region'])
+
+    # batch timer, then the request, then its response
+    for _ in range(4):
+        bigworld.run_pending()
+
+    if provider.builds == builds_before:
+        print('skip no language came back, redraw checks not run')
+        return
+    check('the list is rebuilt once the language arrives',
+          provider.builds == builds_before + 1)
+    check('and refreshed, as the client does', provider.refreshes == 1
+          and provider.status_changes == 1)
+
+    for _ in range(4):
+        bigworld.run_pending()
+    check('rebuilding does not start another lookup',
+          provider.builds == builds_before + 1)
+
+
+def check_browser_scope(src_root):
+    """Script goes into Stronghold pages and nowhere else."""
+    if src_root not in sys.path:
+        sys.path.insert(0, src_root)
+    from unicum.browser import is_stronghold_page
+
+    check('stronghold page is scripted', is_stronghold_page(
+        'https://wgsh-woteu-static.wgcdn.co/auth/entry?spa_id=1&next=/%23/battlerooms'))
+    check('shop page is left alone', not is_stronghold_page(
+        'https://eu.wargaming.net/shop/wot/'))
+    check('clan portal is left alone', not is_stronghold_page(
+        'https://eu.wargaming.net/clans/wot/500198413/'))
+    check('a page without a url is left alone', not is_stronghold_page(None))
 
 
 # Accounts and a clan from a real EU skirmish roster, used so the lookup is
@@ -377,9 +445,12 @@ def check_language_lookup(bigworld, src_root):
           lookup.get(PLAYERS, SAMPLE_PLAYERS[0]) is None)
 
     ready = []
+    # Counted from here: earlier checks share the same fake engine.
+    fetched_before = len(bigworld.fetched)
     lookup.prefetch(players=SAMPLE_PLAYERS, clans=[SAMPLE_CLAN],
                     on_ready=lambda: ready.append(True))
-    check('one request for the whole roster', len(bigworld.fetched) == 1)
+    check('one request for the whole roster',
+          len(bigworld.fetched) == fetched_before + 1)
     check('nothing resolved before the response lands', not ready)
 
     bigworld.run_pending()
@@ -408,6 +479,25 @@ def check_language_lookup(bigworld, src_root):
                     on_ready=lambda: ready.append(True))
     check('a cached roster asks for nothing', len(bigworld.fetched) == before)
     check('on_ready still fires on a full cache hit', len(ready) == 2)
+
+    # The contacts list was opened again long after the last lookup. The old
+    # answer has to keep being drawn while the fresh one is fetched: deleting
+    # it here is what blanked every flag at once.
+    stale = lookup.get(CLANS, SAMPLE_CLAN)
+    stale.fetched_at -= config.REFRESH_SECONDS + 1
+    check('a stale entry is still served', lookup.get(CLANS, SAMPLE_CLAN) is stale)
+    check('a stale entry is asked for again', lookup.needs_fetch(CLANS, SAMPLE_CLAN))
+    before = len(bigworld.fetched)
+    lookup.prefetch(clans=[SAMPLE_CLAN])
+    check('refreshing it sends one request', len(bigworld.fetched) == before + 1)
+    check('it is not asked for twice while in flight',
+          not lookup.needs_fetch(CLANS, SAMPLE_CLAN))
+    check('the stale answer is drawn during the refresh',
+          lookup.get(CLANS, SAMPLE_CLAN) is stale)
+    bigworld.run_pending()
+    bigworld.run_pending()
+    check('the fresh answer replaces it', not lookup.needs_fetch(CLANS, SAMPLE_CLAN)
+          and lookup.get(CLANS, SAMPLE_CLAN) is not stale)
 
     session.close()
     lookup.prefetch(players=[1], on_ready=lambda: ready.append(True))
