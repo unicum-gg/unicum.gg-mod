@@ -157,6 +157,62 @@ class FakeContactsDataProvider(object):
 ORIGINAL_BUILD_LIST = FakeContactsDataProvider.__dict__['buildList']
 
 
+class FakeBaseRallyRoomViewMeta(object):
+    """as_setMembersS lives on the meta, as in the client."""
+
+    def as_setMembersS(self, hasRestrictions, slots):
+        self.sent = slots
+
+    def as_updateRallyS(self, data):
+        self.sent = data['slots']
+
+
+class FakeStrongholdBattleRoom(FakeBaseRallyRoomViewMeta):
+    """A skirmish room with one occupied slot and one empty one."""
+
+    def __init__(self, account_id):
+        self.account_id = account_id
+        self.sent = None
+        self.candidate_rebuilds = 0
+
+    def isDisposed(self):
+        return False
+
+    def _updateMembersData(self):
+        self.as_setMembersS(False, [
+            {'player': {'dbID': self.account_id, 'region': None}},
+            {'player': None},
+        ])
+
+    def _updateRallyData(self):
+        # What the client sends when the detachment goes into battle.
+        self.as_updateRallyS({'slots': [
+            {'player': {'dbID': self.account_id, 'region': None}},
+        ]})
+
+    def _rebuildCandidatesDP(self):
+        self.candidate_rebuilds += 1
+
+    def member_region(self):
+        return self.sent[0]['player']['region']
+
+
+class FakeSortieCandidatesDP(object):
+
+    def _makePlayerVO(self, pInfo, user, colorGetter, isPlayerSpeaking):
+        return {'dbID': pInfo.dbID, 'region': None}
+
+
+class FakeSortieCandidatesLegionariesDP(FakeSortieCandidatesDP):
+    """Inherits _makePlayerVO, so patching it is an override to undo."""
+
+
+class FakePlayerInfo(object):
+
+    def __init__(self, account_id):
+        self.dbID = account_id
+
+
 class FakeProfileWindowMeta(object):
     """as_setInitDataS lives on the base, so the patch is an override.
 
@@ -171,6 +227,38 @@ class FakeProfileWindowMeta(object):
 
 class FakeProfileWindow(FakeProfileWindowMeta):
     pass
+
+
+class FakeOpenProfile(FakeProfileWindow):
+    """Another player's profile window, as the client builds it."""
+
+    def __init__(self, account_id):
+        self._ProfileWindow__databaseID = account_id
+
+    def title(self):
+        return self.as_setInitDataS({'fullName': 'Player [TAG]'})['fullName']
+
+
+class FakeResMgr(object):
+    """Which files the client indexed at startup; titles.py asks for its SWF."""
+
+    files = set()
+
+    @classmethod
+    def isFile(cls, path):
+        return path in cls.files
+
+
+class FakeEntitiesFactories(object):
+
+    def __init__(self):
+        self.settings = {}
+
+    def getSettings(self, alias):
+        return self.settings.get(alias)
+
+    def addSettings(self, settings):
+        self.settings[settings[0]] = settings
 
 
 class FakeBrowserController(object):
@@ -219,10 +307,56 @@ def install_fake_client(bigworld):
     _attach('gui.battle_control.arena_info',
             'gui.battle_control.arena_info.player_format', player_format)
 
-    for name in ('gui.Scaleform.daapi.view.lobby.profile', 'messenger',
+    for name in ('gui.Scaleform.daapi.view.lobby.profile',
+                 'gui.Scaleform.daapi.view.lobby.fortifications',
+                 'gui.Scaleform.daapi.view.lobby.rally', 'messenger',
                  'messenger.gui', 'messenger.gui.Scaleform',
                  'messenger.gui.Scaleform.data'):
         _package(name)
+
+    # titles.py. The SWF starts out missing, so install() stands down and
+    # profile titles keep their language code; check_profile_title adds it.
+    sys.modules['ResMgr'] = FakeResMgr
+    _package('frameworks')
+    wulf = types.ModuleType('frameworks.wulf')
+    wulf.WindowLayer = type('WindowLayer', (object,), {'SERVICE_LAYOUT': 'service'})
+    _attach('frameworks', 'frameworks.wulf', wulf)
+    for name in ('gui.app_loader', 'gui.Scaleform.framework',
+                 'gui.Scaleform.framework.entities',
+                 'gui.Scaleform.framework.managers', 'gui.shared'):
+        _package(name)
+    app_settings = types.ModuleType('gui.app_loader.settings')
+    app_settings.APP_NAME_SPACE = type('APP_NAME_SPACE', (object,), {'SF_LOBBY': 'lobby'})
+    _attach('gui.app_loader', 'gui.app_loader.settings', app_settings)
+    framework = sys.modules['gui.Scaleform.framework']
+    framework.ScopeTemplates = type('ScopeTemplates', (object,), {'GLOBAL_SCOPE': 'global'})
+    framework.ViewSettings = lambda *args: args
+    framework.g_entitiesFactories = FakeEntitiesFactories()
+    view_module = types.ModuleType('gui.Scaleform.framework.entities.View')
+    view_module.View = type('View', (object,), {})
+    view_module.ViewKey = lambda alias, name=None: (alias, name or alias)
+    _attach('gui.Scaleform.framework.entities',
+            'gui.Scaleform.framework.entities.View', view_module)
+    loaders = types.ModuleType('gui.Scaleform.framework.managers.loaders')
+    loaders.SFViewLoadParams = lambda alias, parent=None: alias
+    _attach('gui.Scaleform.framework.managers',
+            'gui.Scaleform.framework.managers.loaders', loaders)
+    shared = sys.modules['gui.shared']
+    shared.EVENT_BUS_SCOPE = type('EVENT_BUS_SCOPE', (object,), {'GLOBAL': 'global'})
+    shared.events = types.ModuleType('gui.shared.events')
+    shared.g_eventBus = None
+
+    room = types.ModuleType(
+        'gui.Scaleform.daapi.view.lobby.fortifications.stronghold_battle_room')
+    room.StrongholdBattleRoom = FakeStrongholdBattleRoom
+    _attach('gui.Scaleform.daapi.view.lobby.fortifications',
+            'gui.Scaleform.daapi.view.lobby.fortifications.stronghold_battle_room',
+            room)
+
+    dps = types.ModuleType('gui.Scaleform.daapi.view.lobby.rally.rally_dps')
+    dps.SortieCandidatesLegionariesDP = FakeSortieCandidatesLegionariesDP
+    _attach('gui.Scaleform.daapi.view.lobby.rally',
+            'gui.Scaleform.daapi.view.lobby.rally.rally_dps', dps)
 
     profile = types.ModuleType(
         'gui.Scaleform.daapi.view.lobby.profile.ProfileWindow')
@@ -249,6 +383,11 @@ def install_fake_client(bigworld):
     control = types.ModuleType('skeletons.gui.game_control')
     control.IBrowserController = type('IBrowserController', (object,), {})
     _attach('skeletons.gui', 'skeletons.gui.game_control', control)
+    for interface in ('app_loader:IAppLoader', 'impl:IGuiLoader'):
+        module_name, class_name = interface.split(':')
+        module = types.ModuleType('skeletons.gui.' + module_name)
+        setattr(module, class_name, type(class_name, (object,), {}))
+        _attach('skeletons.gui', 'skeletons.gui.' + module_name, module)
 
     # Keyed by interface, because handing every caller the same object hides
     # a whole class of mistake: asking for the wrong service still "works".
@@ -296,6 +435,14 @@ def main():
         # anything under the checkout.
         os.chdir(workdir)
 
+        # Flags the mod can resolve, laid out as the client sees them. Only
+        # their names matter: the cache offers what was on disk at startup.
+        flags_dir = os.path.join(workdir, 'res_mods', '2.4.0.0', 'gui', 'maps',
+                                 'icons', 'unicum', 'flags')
+        os.makedirs(flags_dir)
+        for code in FLAG_CODES:
+            open(os.path.join(flags_dir, code + '.png'), 'wb').close()
+
         bigworld = FakeBigWorld()
         target = install_fake_client(bigworld)
         stub = imp.load_source('mod_unicum_dev', render_stub(workdir, src_root))
@@ -314,6 +461,8 @@ def main():
         check('watcher armed', bool(bigworld.pending))
 
         check_contacts_redraw(bigworld)
+        check_skirmish_room(bigworld)
+        check_profile_title()
 
         first_hook = target.getRegionCode
         generation_before = stub._generation
@@ -363,8 +512,13 @@ def main():
               'as_setInitDataS' not in FakeProfileWindow.__dict__)
         check('plain method restored to the original function',
               FakeContactsDataProvider.__dict__['buildList'] is ORIGINAL_BUILD_LIST)
+        check('skirmish room patches undone',
+              'as_setMembersS' not in FakeStrongholdBattleRoom.__dict__
+              and 'as_updateRallyS' not in FakeStrongholdBattleRoom.__dict__
+              and '_makePlayerVO' not in FakeSortieCandidatesLegionariesDP.__dict__)
 
         check_browser_scope(src_root)
+        check_clan_resolver(bigworld, src_root)
 
         check_language_lookup(bigworld, src_root)
 
@@ -386,7 +540,9 @@ def check_contacts_redraw(bigworld):
     builds_before = provider.builds
 
     row = FakeContactConverter.makeBaseUserProps(FakeContact(SAMPLE_PLAYERS[0]))
-    check('a row drawn before its language arrives has no flag', not row['region'])
+    # None, not '': some views type `region` as Object and reject a string.
+    check('a row drawn before its language arrives is left untouched',
+          row['region'] is None)
 
     # batch timer, then the request, then its response
     for _ in range(4):
@@ -406,11 +562,124 @@ def check_contacts_redraw(bigworld):
           provider.builds == builds_before + 1)
 
 
+def check_skirmish_room(bigworld):
+    """Members and volunteers get a flag, and a room redraws once one lands.
+
+    Uses the second sample player, who check_contacts_redraw left uncached,
+    so the room first draws without a flag and has to be refreshed.
+    """
+    room = FakeStrongholdBattleRoom(SAMPLE_PLAYERS[1])
+    room._updateMembersData()
+    check('a member drawn before the language arrives is left untouched',
+          room.member_region() is None)
+    check('an empty slot is left alone', room.sent[1]['player'] is None)
+
+    for _ in range(4):
+        bigworld.run_pending()
+
+    if not room.member_region():
+        print('skip no language came back, skirmish checks not run')
+        return
+    check('the room is redrawn with a flag once the language arrives',
+          'img://gui/maps/icons/unicum/flags/' in room.member_region())
+    check('and its volunteers are rebuilt too', room.candidate_rebuilds == 1)
+    room._updateRallyData()
+    check('the flag survives the room going into battle',
+          'img://gui/maps/icons/unicum/flags/' in (room.member_region() or ''))
+
+    volunteer = FakeSortieCandidatesLegionariesDP()._makePlayerVO(
+        FakePlayerInfo(SAMPLE_PLAYERS[0]), None, None, False)
+    check('a volunteer with a known language gets a flag',
+          'img://gui/maps/icons/unicum/flags/' in (volunteer['region'] or ''))
+
+
+def check_profile_title():
+    """The title gets a flag only when the title SWF can render it.
+
+    Uses the first sample player, whose language check_contacts_redraw
+    already resolved. A flag sent to a plain-text title shows its <IMG> tag
+    as text, so the two cases must never mix.
+    """
+    title = FakeOpenProfile(SAMPLE_PLAYERS[0]).title()
+    if title == 'Player [TAG]':
+        print('skip no language came back, profile title not checked')
+        return
+    check('without the title SWF the title gets a language code',
+          '<IMG' not in title and title.startswith('Player [TAG] ')
+          and title[len('Player [TAG] '):].isupper())
+
+    factories = sys.modules['gui.Scaleform.framework'].g_entitiesFactories
+    FakeResMgr.files.add('gui/flash/unicum.titles.swf')
+    factories.settings['unicumTitleHtml'] = ('unicumTitleHtml',)
+    try:
+        check('with it the title gets a flag instead',
+              FakeOpenProfile(SAMPLE_PLAYERS[0]).title().startswith(
+                  'Player [TAG] <IMG SRC="img://gui/maps/icons/unicum/flags/'))
+    finally:
+        FakeResMgr.files.discard('gui/flash/unicum.titles.swf')
+        factories.settings.clear()
+
+
+def check_clan_resolver(bigworld, src_root):
+    """Clan tags from the page turn into the ids the languages API wants."""
+    if src_root not in sys.path:
+        sys.path.insert(0, src_root)
+    from unicum.browser import ClanResolver
+    from unicum.runtime.session import Session
+
+    session = Session(generation=0)
+    resolver = ClanResolver(session, 'eu')
+    answers = []
+    resolver.resolve([SAMPLE_CLAN_TAG, 'ZZZZZ9'], answers.append)
+    resolver.resolve([SAMPLE_CLAN_TAG], answers.append)
+    fetched_before = len(bigworld.fetched)
+    for _ in range(3):
+        bigworld.run_pending()
+
+    if not answers:
+        print('skip the API is unreachable, clan resolver checks not run')
+        session.close()
+        return
+    check('a tag asked for twice is fetched once',
+          sum(1 for url in bigworld.fetched if url.endswith('/' + SAMPLE_CLAN_TAG)) == 1)
+    check('both callers get an answer', len(answers) == 2)
+    # Matched by content, not position: the single-tag call settles first,
+    # as soon as its tag is back, while the other still waits on 'ZZZZZ9'.
+    both = [a for a in answers if 'ZZZZZ9' in a]
+    check('each caller gets exactly the tags it asked for',
+          len(both) == 1 and sorted(both[0]) == sorted([SAMPLE_CLAN_TAG, 'ZZZZZ9']))
+    check('a known tag resolves to its clan id',
+          both[0][SAMPLE_CLAN_TAG] == SAMPLE_CLAN)
+    check('an unknown tag resolves to None', both[0]['ZZZZZ9'] is None)
+
+    resolver.resolve([SAMPLE_CLAN_TAG], answers.append)
+    check('a resolved tag is answered without a request',
+          len(answers) == 3 and len(bigworld.fetched) == fetched_before)
+    session.close()
+
+
 def check_browser_scope(src_root):
     """Script goes into Stronghold pages and nowhere else."""
     if src_root not in sys.path:
         sys.path.insert(0, src_root)
-    from unicum.browser import is_stronghold_page
+    from unicum.browser import (content_script, flags_script, is_stronghold_page,
+                                parse_need)
+
+    check('the page asking for tags is understood',
+          parse_need('[unicum] need RASZ,TENTS') == ['RASZ', 'TENTS'])
+    check('any other console output is ignored',
+          parse_need('Uncaught TypeError: x is undefined') is None)
+    check('a malformed tag from the page is dropped',
+          parse_need('[unicum] need RASZ,<img onerror=x>') == ['RASZ'])
+
+    # javascript: URLs are percent-decoded, and '#' would start a fragment.
+    script = content_script(7)
+    check('the content script carries its generation', 'var G=7,' in script)
+    check('the content script survives being a URL',
+          '%' not in script and '#' not in script)
+    pushed = flags_script({'RASZ': 'data:image/png;base64,iVBOR+/w==', 'TENTS': ''})
+    check('the flags script survives being a URL',
+          '%' not in pushed and '#' not in pushed)
 
     check('stronghold page is scripted', is_stronghold_page(
         'https://wgsh-woteu-static.wgcdn.co/auth/entry?spa_id=1&next=/%23/battlerooms'))
@@ -424,7 +693,13 @@ def check_browser_scope(src_root):
 # Accounts and a clan from a real EU skirmish roster, used so the lookup is
 # exercised against answers the server actually holds.
 SAMPLE_PLAYERS = [518080300, 538132472]
+# A third real account, never looked up before the profile check.
+SAMPLE_UNCACHED_PLAYER = 554095149
 SAMPLE_CLAN = 500198413
+SAMPLE_CLAN_TAG = 'RASZ'
+
+# Enough to cover what those samples resolve to, without depending on it.
+FLAG_CODES = ('CZ', 'GB-UKM', 'PL', 'DE', 'FR', 'RU', 'UA', 'SK')
 
 
 def check_language_lookup(bigworld, src_root):
