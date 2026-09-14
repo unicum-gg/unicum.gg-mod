@@ -1,9 +1,11 @@
-"""Keeps the images the UI needs on disk, fetching them as they come up.
+"""Serves flag images from the client's resource tree.
 
-Nothing is bundled. A flag is downloaded the first time a player who needs
-it is seen, and stays in the resource tree from then on, so an install
-carries no artwork and only the handful of languages actually encountered is
-ever fetched.
+The flags themselves are put there ahead of time: tools/flags rasterises the
+Flagpack set and tools/install_dev.py copies it in. What this module adds is
+the fallback for a flag that is not there. It is downloaded the first time a
+player who needs it is seen, and kept, so it shows up from the next session
+on. That fallback depends on unicum.gg serving /flags/s/<CODE>.png, which it
+does not yet: today it logs a failed fetch and nothing more.
 
 Images are referenced by resource path rather than handed to the engine as
 memory textures. That was tried first, since wg_addScaleformTexture needs no
