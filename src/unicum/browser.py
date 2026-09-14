@@ -16,8 +16,8 @@ So the work is split across that channel:
           React re-renders, and reports the tags it has no answer for as
           `[unicum] need RASZ,TENTS`. It also folds the detachment list's
           redundant "Places" column into "Members". The details are there.
-  python  resolves each tag to a clan id, the id to its languages, the
-          languages to flags, and sends the flags back as data: URIs.
+  python  asks the resolve endpoint for all the tags in one request, which
+          answers with each clan, and sends its flags back as data: URIs.
 
 data: URIs rather than unicum.gg's flag URLs, because those sit behind a bot
 challenge that an <img> request cannot pass. The PNGs are already on disk.
@@ -30,14 +30,12 @@ import base64
 import json
 import logging
 import os
-import urllib
 import weakref
 
 from helpers import dependency
 from skeletons.gui.game_control import IBrowserController
 
-from unicum import config
-from unicum.api.languages import CLANS
+from unicum.api.resolve import CLANS
 
 _logger = logging.getLogger('unicum.browser')
 
@@ -100,78 +98,6 @@ def parse_need(message):
     return tags
 
 
-class ClanResolver(object):
-    """Clan tag to clan id, the one thing the page does not carry.
-
-    The languages endpoint is keyed by id, and a detachment row shows only
-    the tag -- five ancestors up from it there is no id at all. Until the
-    endpoint accepts tags, each one goes through GET /{region}/clans/{tag}
-    once, and the answer is kept: a tag belongs to the same clan for as long
-    as this session lasts.
-    """
-
-    def __init__(self, session, region):
-        self._session = session
-        self._region = region
-        self._ids = {}
-        self._waiting = {}
-
-    def resolve(self, tags, on_ready):
-        """Call on_ready({tag: clan id or None}) once every tag is known."""
-        unknown = [t for t in tags if t not in self._ids]
-        remaining = set(unknown)
-
-        def finish():
-            on_ready(dict((t, self._ids.get(t)) for t in tags))
-
-        if not remaining:
-            finish()
-            return
-
-        def settled(tag):
-            remaining.discard(tag)
-            if not remaining:
-                finish()
-
-        for tag in unknown:
-            listeners = self._waiting.get(tag)
-            if listeners is not None:
-                listeners.append(settled)
-                continue
-            self._waiting[tag] = [settled]
-            self._fetch(tag)
-
-    def _fetch(self, tag):
-        url = '%s/api/%s/clans/%s' % (config.API_BASE, self._region,
-                                      urllib.quote(tag))
-
-        def received(response):
-            code = getattr(response, 'responseCode', None)
-            if code == 200:
-                self._ids[tag] = self._parse_id(tag, response)
-            elif code == 404:
-                self._ids[tag] = None
-            else:
-                # Not an answer about the clan: a timeout, a 403 from the bot
-                # challenge, a 5xx. Remembering it as "no such clan" would keep
-                # that clan flagless for the rest of the session, so it is left
-                # unknown and asked for again next time the page needs it.
-                _logger.warning('clan lookup for %s failed with HTTP %s', tag, code)
-            for listener in self._waiting.pop(tag, ()):
-                listener(tag)
-
-        self._session.fetch(url, received, timeout=config.API_TIMEOUT)
-
-    @staticmethod
-    def _parse_id(tag, response):
-        try:
-            clan = json.loads(response.body).get('clan') or {}
-            return int(clan['id'])
-        except (TypeError, ValueError, KeyError):
-            _logger.warning('no clan id in the answer for %s', tag)
-            return None
-
-
 class BrowserBridge(object):
     """Keeps the content script running in every Stronghold page."""
 
@@ -180,7 +106,6 @@ class BrowserBridge(object):
         self._lookup = lookup
         self._flags = flags
         self._controller = dependency.instance(IBrowserController)
-        self._resolver = ClanResolver(session, config.REGION)
         self._attached = {}
         session.on_close(self._remove_scripts)
 
@@ -238,23 +163,21 @@ class BrowserBridge(object):
         if not tags:
             return
         _logger.info('page needs %s clans: %s', len(tags), ','.join(tags))
-        self._resolver.resolve(tags, lambda ids: self._answer(ref, ids))
+        # One /resolve?tags= answers the whole list: each tag's clan id and
+        # the clan itself.
+        self._lookup.prefetch(tags=tags, on_ready=lambda: self._answer(ref, tags))
 
-    def _answer(self, ref, ids):
-        clan_ids = [i for i in ids.values() if i]
-
-        def ready():
-            flags = {}
-            for tag, clan_id in ids.items():
-                entry = self._lookup.get(CLANS, clan_id) if clan_id else None
-                codes = entry.flags if entry is not None else []
-                uris = [self._flags.data_uri(code) for code in codes]
-                flags[tag] = [uri for uri in uris if uri]
-            _logger.info('sending %s flags for %s clans',
-                         sum(len(v) for v in flags.values()), len(flags))
-            self._run(ref, flags_script(flags))
-
-        self._lookup.prefetch(clans=clan_ids, on_ready=ready)
+    def _answer(self, ref, tags):
+        flags = {}
+        for tag in tags:
+            clan_id = self._lookup.clan_id(tag)
+            entry = self._lookup.get(CLANS, clan_id) if clan_id else None
+            codes = entry.flags if entry is not None else []
+            uris = [self._flags.data_uri(code) for code in codes]
+            flags[tag] = [uri for uri in uris if uri]
+        _logger.info('sending %s flags for %s clans',
+                     sum(len(v) for v in flags.values()), len(flags))
+        self._run(ref, flags_script(flags))
 
     def _remove_scripts(self):
         """Take the observer and every flag back out of the page on unload."""

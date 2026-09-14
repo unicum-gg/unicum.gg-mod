@@ -29,7 +29,7 @@ from messenger.gui.Scaleform.data.contacts_data_provider import ContactsDataProv
 from messenger.gui.Scaleform.data.contacts_vo_converter import ContactConverter
 
 from unicum import titles
-from unicum.api.languages import PLAYERS
+from unicum.api.resolve import PLAYERS
 
 _logger = logging.getLogger('unicum.lobby')
 

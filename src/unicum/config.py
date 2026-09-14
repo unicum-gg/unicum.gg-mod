@@ -22,15 +22,15 @@ API_BASE = (
     or _DEFAULT_API_BASE
 ).rstrip('/')
 
-# Seconds before a language answer is asked for again. It is never thrown
+# Seconds before a player or clan is asked for again. It is never thrown
 # away in the meantime -- a stale answer keeps being drawn while the fresh
 # one is fetched, which is what the endpoint's stale-while-revalidate allows.
 #
-# An hour rather than the endpoint's five-minute max-age. Player languages
-# are recomputed hourly upstream, so asking more often learns nothing, and
-# the contacts list alone is ~3300 ids: at five minutes, every rebuild after
-# a short break would put 33 requests back on the wire.
-REFRESH_SECONDS = 3600
+# Half an hour: /resolve carries ratings, which move with every crawl, where
+# languages alone justified an hour. Still well above the endpoint's
+# five-minute max-age, because the contacts list alone is ~3300 ids and at
+# five minutes every rebuild after a short break would send 33 requests.
+REFRESH_SECONDS = 1800
 
 # Flags drawn per player or clan, in the API's order. About a third of players
 # come back with more than one language, and declared clans list up to three.
@@ -73,10 +73,11 @@ def _flags_dir():
 
 CACHE_DIR = _flags_dir()
 
-# Resolved languages, kept between sessions. Plain data read with plain file
-# I/O, so unlike the flags it has no business being in the resource tree.
+# Resolved players and clans, kept between sessions. Plain data read with
+# plain file I/O, so unlike the flags it has no business being in the
+# resource tree.
 #
 # Its job is the first paint: lookups are answered over the network but
 # consumed synchronously, so without it every game start draws one unmarked
 # contacts list before the answers arrive.
-LANGUAGE_STORE = os.path.join('mods', 'configs', 'unicum', 'languages.json')
+RESOLVE_STORE = os.path.join('mods', 'configs', 'unicum', 'resolve.json')

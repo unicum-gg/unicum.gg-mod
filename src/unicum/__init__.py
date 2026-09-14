@@ -11,7 +11,7 @@ is nothing more than stop() followed by a fresh start().
 import logging
 
 from unicum import battle, browser, config, lobby, titles
-from unicum.api.languages import LanguageLookup
+from unicum.api.resolve import Lookup
 from unicum.runtime.session import Session
 from unicum.textures import FlagCache
 
@@ -34,7 +34,7 @@ def start(generation=0):
         # its own lookup, and every one of them loaded languages.json and
         # wrote it back: whichever saved last dropped what the others had
         # learned that session.
-        lookup = LanguageLookup(_session, config.REGION)
+        lookup = Lookup(_session, config.REGION)
         flags = FlagCache(_session)
         browser.install(_session, lookup, flags)
         battle.install(_session, lookup, flags)
