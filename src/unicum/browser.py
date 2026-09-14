@@ -1,19 +1,20 @@
-"""Injects into the embedded browser, and reports back through game.log.
+"""Runs script inside the Stronghold pages of the embedded browser.
 
 The Stronghold "Clan Battles" window is not Flash. BrowserController loads
 the WGSH single-page app from wgsh-woteu-static.wgcdn.co into an embedded
 CEF view, so the detachment list and its member panel are both DOM, and no
 Python view model is involved. Reaching them means running script in the
-page, through WebBrowser.executeJavascript.
+page.
 
-Nothing in the client calls that method, so the meaning of its `frame`
-argument is not documented anywhere. Several candidates are tried and each
-attempt says so in the log; whichever produces console output from the page
-is the right one, and the rest of this module can then be written against a
-known API.
+WebBrowser.executeJavascript is dead code in this build: it forwards to a
+native method the provider does not have. The native provider does have
+loadURL, and a `javascript:` URL runs in the current document. The page's
+console comes back through the provider's onConsoleMessage event, which is
+the return channel: inject, read the log, adjust, save. No restart.
 
-The page's console is piped into game.log under [WebBrowser (webapp)], which
-makes it the return channel: inject, read the log, adjust, save. No restart.
+Only Stronghold pages are touched. The same controller hosts every embedded
+browser in the client -- the shop, the clan portal, event pages -- and none
+of them are ours to script.
 """
 import logging
 
@@ -23,6 +24,14 @@ from skeletons.gui.game_control import IBrowserController
 _logger = logging.getLogger('unicum.browser')
 
 TAG = '[unicum]'
+
+# Every Stronghold page observed so far is served from a wgsh-* host, e.g.
+# https://wgsh-woteu-static.wgcdn.co/auth/entry?...next=/#/battlerooms
+_STRONGHOLD_HOST_MARK = '://wgsh-'
+
+
+def is_stronghold_page(url):
+    return bool(url) and _STRONGHOLD_HOST_MARK in url
 
 # Travels as a URL, so it stays on one line and avoids characters that a URL
 # parser could take an interest in. No regex either: a clan tag is just a
@@ -83,15 +92,21 @@ class BrowserBridge(object):
         browser = self._controller.getBrowser(browser_id)
         if browser is None:
             return
-        _logger.info('attaching to browser %s: %s', browser_id,
-                     getattr(browser, 'baseUrl', '?'))
+        url = getattr(browser, 'baseUrl', None)
+        if not is_stronghold_page(url):
+            return
+        _logger.info('attaching to browser %s: %s', browser_id, url)
         self._session.subscribe(
             browser.onReadyToShowContent,
             lambda url, b=browser: self._inject(b, url))
         # Already-loaded pages will not fire the event again.
-        self._inject(browser, getattr(browser, 'baseUrl', None))
+        self._inject(browser, url)
 
     def _inject(self, browser, url):
+        # Checked again on every load: a browser that started on a
+        # Stronghold page can navigate somewhere else.
+        if not is_stronghold_page(url):
+            return
         native = getattr(browser, '_WebBrowser__browser', None)
         if native is None:
             return
