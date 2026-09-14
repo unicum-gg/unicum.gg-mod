@@ -1,9 +1,9 @@
-// Sorting the detachment list by rating or WNx.
+// Sorting the detachment list by rating or WNX.
 //
 // Part of the Stronghold content script, see core.js.
 //
 // The site sorts by server and places but not by rating, and knows nothing of
-// WNx. Both headers are made to look and act sortable: a click sorts by that
+// WNX. Both headers are made to look and act sortable: a click sorts by that
 // column, descending first, then flips. Rows are not moved in the DOM -- React
 // owns them, and moving its nodes would desynchronise its next render. The
 // rows container becomes a flex column and each row gets a CSS `order`

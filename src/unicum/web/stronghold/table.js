@@ -11,9 +11,9 @@
 //     relabelled with the members header's own text; the members header and
 //     the places cells are hidden. Sorting by free places is sorting by
 //     members, with the arrow reversed.
-//   - A WNx column, the clan's recent WNx painted with the site's scale, goes
+//   - A WNX column, the clan's recent WNX as the site's coloured badge, goes
 //     after rating.
-//   - Rating and WNx are made sortable, see "Sorting" below.
+//   - Rating and WNX are made sortable, see "Sorting" below.
 //
 // The site's own cells are told apart from ours by ADDED_ATTR and addressed
 // by position among themselves, never by their English titles, so this holds
@@ -26,7 +26,7 @@
 // rows, and the name column takes the rest.
 
 var NUMBER_COLUMN_WIDTH = '70px';
-var WNX_TITLE = 'WNx';
+var WNX_TITLE = 'WNX';
 
 var TABLE_CSS = [
     '[' + HIDE_ATTR + '] { display: none !important; }',
@@ -89,7 +89,7 @@ function table() {
         to.textContent = from.textContent;
     }
 
-    // The WNx header, built from the rating header so it looks the same.
+    // The WNX header, built from the rating header so it looks the same.
     var wnxHead = head.querySelector('[' + COL_ATTR + '="wnx"]');
     if (!wnxHead) {
         wnxHead = cells[1].cloneNode(false);
@@ -144,13 +144,25 @@ function rowTag(nameCell) {
     return null;
 }
 
+// Grouped the way the site writes ratings, "3 323", with a narrow no-break
+// space. Built from its code point: the script has to stay ASCII.
+var THOUSANDS = String.fromCharCode(0x202F);
+
+function formatRating(value) {
+    return String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, THOUSANDS);
+}
+
+// The site's rating badge: the scale's colour as the background, white text.
+var BADGE_CSS = 'display:inline-block;padding:1px 5px;border-radius:3px;' +
+                'color:#FFFFFF;font-weight:bold;line-height:16px;text-shadow:none';
+
 function fillWnx(cell, tag) {
     var wnx = tag && clans[tag] ? clans[tag].wnx : null;
     var span = cell.firstChild;
-    setText(span, wnx ? String(Math.round(wnx.value)) : '-');
-    var color = wnx && wnx.color ? wnx.color : '';
-    if (span.style.color !== color) {
-        span.style.color = color;
+    setText(span, wnx ? formatRating(wnx.value) : '-');
+    var style = wnx && wnx.color ? BADGE_CSS + ';background-color:' + wnx.color : '';
+    if (span.getAttribute('style') !== style) {
+        span.setAttribute('style', style);
     }
     cell.setAttribute('data-value', wnx ? String(wnx.value) : '-1');
 }
