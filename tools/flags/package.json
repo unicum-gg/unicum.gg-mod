@@ -1,0 +1,14 @@
+{
+  "name": "unicum-mod-flags",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Rasterises Flagpack SVGs to the PNGs the Scaleform UI needs.",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "react-flagpack": "^2.0.6",
+    "sharp": "^0.34.5"
+  }
+}
