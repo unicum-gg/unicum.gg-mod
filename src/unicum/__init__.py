@@ -10,7 +10,7 @@ is nothing more than stop() followed by a fresh start().
 """
 import logging
 
-from unicum import battle, browser, lobby, probe
+from unicum import battle, browser, lobby
 from unicum.runtime.session import Session
 
 VERSION = '0.1.0-dev'
@@ -28,7 +28,6 @@ def start(generation=0):
     _session = Session(generation)
     _logger.info('start: version=%s generation=%s', VERSION, generation)
     try:
-        probe.install(_session)
         browser.install(_session)
         battle.install(_session)
         lobby.install(_session)
