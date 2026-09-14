@@ -36,10 +36,9 @@ def start(generation=0):
         # wrote it back: whichever saved last dropped what the others had
         # learned that session.
         lookup = Lookup(_session, config.REGION)
-        # Not drawn with yet; loaded now so the scale is on disk by then.
-        RatingScales(_session)
+        scales = RatingScales(_session)
         flags = FlagCache(_session)
-        browser.install(_session, lookup, flags)
+        browser.install(_session, lookup, flags, scales)
         battle.install(_session, lookup, flags)
         titles.install(_session)
         lobby.install(_session, lookup, flags)

@@ -15,9 +15,11 @@ So the work is split across that channel:
   page    web/stronghold.js finds every [TAG] leaf, keeps finding them as
           React re-renders, and reports the tags it has no answer for as
           `[unicum] need RASZ,TENTS`. It also folds the detachment list's
-          redundant "Places" column into "Members". The details are there.
+          redundant "Places" column into "Members", adds a WNx column and
+          sorts by rating or WNx. The details are there.
   python  asks the resolve endpoint for all the tags in one request, which
-          answers with each clan, and sends its flags back as data: URIs.
+          answers with each clan, and sends back its flags as data: URIs
+          and its recent WNx with the site's colour for it.
 
 data: URIs rather than unicum.gg's flag URLs, because those sit behind a bot
 challenge that an <img> request cannot pass. The PNGs are already on disk.
@@ -76,14 +78,17 @@ def content_script(generation, path=_CONTENT_SCRIPT_PATH):
     return "javascript:eval(atob('%s'));void(0);" % encoded
 
 
-def flags_script(flags_by_tag):
-    """Hand resolved flags to the content script: {tag: [data URI, ...]}.
+def answers_script(clans_by_tag):
+    """Hand resolved clans to the content script.
 
-    An empty list is still an answer, "no flag", so the page stops asking.
+    {tag: {'flags': [data URI, ...], 'wnx': {'value', 'color'} or None}}. A
+    clan with no flags and no rating is still an answer, so the page stops
+    asking. The JSON travels base64-encoded like the script itself: colours
+    carry a '#', which would end the javascript: URL.
     """
-    payload = json.dumps(flags_by_tag, sort_keys=True)
+    payload = base64.b64encode(json.dumps(clans_by_tag, sort_keys=True))
     return ("javascript:(function(){var U=window.__unicum;"
-            "if(U){U.set(" + payload + ");}})();void(0);")
+            "if(U){U.set(JSON.parse(atob('" + payload + "')));}})();void(0);")
 
 
 def parse_need(message):
@@ -101,10 +106,11 @@ def parse_need(message):
 class BrowserBridge(object):
     """Keeps the content script running in every Stronghold page."""
 
-    def __init__(self, session, lookup, flags):
+    def __init__(self, session, lookup, flags, scales):
         self._session = session
         self._lookup = lookup
         self._flags = flags
+        self._scales = scales
         self._controller = dependency.instance(IBrowserController)
         self._attached = {}
         session.on_close(self._remove_scripts)
@@ -168,16 +174,21 @@ class BrowserBridge(object):
         self._lookup.prefetch(tags=tags, on_ready=lambda: self._answer(ref, tags))
 
     def _answer(self, ref, tags):
-        flags = {}
+        answers = {}
         for tag in tags:
             clan_id = self._lookup.clan_id(tag)
             entry = self._lookup.get(CLANS, clan_id) if clan_id else None
             codes = entry.flags if entry is not None else []
             uris = [self._flags.data_uri(code) for code in codes]
-            flags[tag] = [uri for uri in uris if uri]
-        _logger.info('sending %s flags for %s clans',
-                     sum(len(v) for v in flags.values()), len(flags))
-        self._run(ref, flags_script(flags))
+            wnx = entry.rating('wnx') if entry is not None else None
+            answers[tag] = {
+                'flags': [uri for uri in uris if uri],
+                'wnx': None if wnx is None else {
+                    'value': wnx, 'color': self._scales.color('wnx', wnx)},
+            }
+        _logger.info('sending %s clans, %s with wnx', len(answers),
+                     sum(1 for a in answers.values() if a['wnx']))
+        self._run(ref, answers_script(answers))
 
     def _remove_scripts(self):
         """Take the observer and every flag back out of the page on unload."""
@@ -197,5 +208,5 @@ class BrowserBridge(object):
             _logger.exception('could not run script in the page')
 
 
-def install(session, lookup, flags):
-    BrowserBridge(session, lookup, flags).install()
+def install(session, lookup, flags, scales):
+    BrowserBridge(session, lookup, flags, scales).install()

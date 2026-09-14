@@ -686,7 +686,7 @@ def check_browser_scope(src_root):
     """Script goes into Stronghold pages and nowhere else."""
     if src_root not in sys.path:
         sys.path.insert(0, src_root)
-    from unicum.browser import (content_script, flags_script, is_stronghold_page,
+    from unicum.browser import (answers_script, content_script, is_stronghold_page,
                                 parse_need)
 
     check('the page asking for tags is understood',
@@ -707,10 +707,11 @@ def check_browser_scope(src_root):
           decoded.startswith('(function(GENERATION){') and decoded.endswith('})(7);'))
     check('the page and python agree on how tags are asked for',
           ("'%s'" % NEED_PREFIX) in decoded)
-    pushed = flags_script({'RASZ': ['data:image/png;base64,iVBOR+/w==',
-                                    'data:image/png;base64,AAAA'],
-                           'TENTS': []})
-    check('the flags script survives being a URL',
+    pushed = answers_script({
+        'RASZ': {'flags': ['data:image/png;base64,iVBOR+/w=='],
+                 'wnx': {'value': 1792.2, 'color': '#6D9521'}},
+        'TENTS': {'flags': [], 'wnx': None}})
+    check('the answers script survives being a URL, colours included',
           '%' not in pushed and '#' not in pushed)
 
     check('stronghold page is scripted', is_stronghold_page(
