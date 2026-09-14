@@ -26,7 +26,7 @@
 // rows, and the name column takes the rest.
 
 var NUMBER_COLUMN_WIDTH = '70px';
-var WNX_TITLE = 'WNX';
+var WNX_TITLE = '30d WNX';
 
 var TABLE_CSS = [
     '[' + HIDE_ATTR + '] { display: none !important; }',
