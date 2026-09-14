@@ -17,6 +17,12 @@ known to end up in an HTML field.
 essentially always empty. A genuinely roaming player does have a code, and
 it is not ours to drop: ours is appended to it.
 
+Onslaught (comp7) gets flags too, at a cost in the log. Its VO leaves
+`region` at null, typed Object, and DAAPIDataClass.fromHash reports a string
+assigned there as "incorrect cast value ... to field with type Object" --
+then assigns it anyway, so the flags draw. A player without flags is left
+untouched, so only flagged players produce that line.
+
 addVehicleInfo is synchronous and the answer comes over the network. So it
 never waits: it uses whatever is cached, and the account ids it sees are
 resolved in one batch just after. A vehicle drawn before the answer lands
@@ -34,10 +40,6 @@ _logger = logging.getLogger('unicum.battle')
 # Long enough to gather a whole team's worth of ids from the render pass,
 # short enough to be back before anyone finishes reading the loading screen.
 _BATCH_DELAY = 0.25
-
-# Onslaught's own component. Its VO types `region` as Object, and a string
-# there is a cast error, so its players are left as the client drew them.
-_SKIPPED_COMPONENTS = ('Comp7VehicleInfoComponent', 'Comp7LightVehicleInfoComponent')
 
 
 class BattleFlags(object):
@@ -59,8 +61,7 @@ class BattleFlags(object):
         def addVehicleInfo(component, vInfoVO, overrides):
             result = original(component, vInfoVO, overrides)
             try:
-                if type(component).__name__ not in _SKIPPED_COMPONENTS:
-                    self._mark(component, vInfoVO)
+                self._mark(component, vInfoVO)
             except Exception:
                 # A panel without flags beats a panel that fails to build.
                 _logger.exception('could not mark a battle player')
