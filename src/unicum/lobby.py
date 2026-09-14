@@ -22,7 +22,9 @@ client batches.
 import logging
 import weakref
 
+from gui.Scaleform.daapi.view.lobby.fortifications.stronghold_battle_room import StrongholdBattleRoom
 from gui.Scaleform.daapi.view.lobby.profile.ProfileWindow import ProfileWindow
+from gui.Scaleform.daapi.view.lobby.rally.rally_dps import SortieCandidatesLegionariesDP
 from messenger.gui.Scaleform.data.contacts_data_provider import ContactsDataProvider
 from messenger.gui.Scaleform.data.contacts_vo_converter import ContactConverter
 
@@ -52,13 +54,86 @@ class LobbyFlags(object):
         # be what keeps a closed window alive.
         self._providers = weakref.WeakSet()
         self._profiles = weakref.WeakSet()
+        self._rooms = weakref.WeakSet()
 
     def install(self):
         self._session.patch(ContactConverter, 'makeBaseUserProps', self._wrap)
         self._session.patch(ProfileWindow, 'as_setInitDataS', self._wrap_profile)
         self._session.patch(ContactsDataProvider, 'buildList', self._wrap_build)
-        _logger.info('installed on ContactConverter, ContactsDataProvider '
-                     'and ProfileWindow')
+        # The skirmish room, scoped to that one view. makePlayerVO would have
+        # reached it too, but it also feeds the platoon and other rally
+        # windows whose rendering has not been checked -- the same over-reach
+        # that once put raw <IMG> markup in the profile window title.
+        self._session.patch(StrongholdBattleRoom, 'as_setMembersS',
+                            self._wrap_members)
+        self._session.patch(StrongholdBattleRoom, 'as_updateRallyS',
+                            self._wrap_rally)
+        self._session.patch(SortieCandidatesLegionariesDP, '_makePlayerVO',
+                            self._wrap_candidate)
+        _logger.info('installed on contacts, profile window and skirmish room')
+
+    def _wrap_members(self, original):
+        """Mark the detachment members, just before they reach Flash.
+
+        Each slot's `player` VO carries `region` into the same
+        UserNameField -> formatPlayerName -> htmlText chain as the contacts
+        list, so the flag goes in the same field.
+        """
+
+        def as_setMembersS(room, hasRestrictions, slots):
+            self._rooms.add(room)
+            self._mark_slots(slots)
+            return original(room, hasRestrictions, slots)
+
+        return as_setMembersS
+
+    def _wrap_rally(self, original):
+        """The same members, sent again whenever the room's state changes.
+
+        Going into battle redraws the whole detachment through this call,
+        with its own freshly built slots, so without it the flags vanished
+        the moment the detachment entered a battle.
+        """
+
+        def as_updateRallyS(room, data):
+            self._rooms.add(room)
+            if isinstance(data, dict):
+                self._mark_slots(data.get('slots'))
+            return original(room, data)
+
+        return as_updateRallyS
+
+    def _mark_slots(self, slots):
+        try:
+            for slot in slots or ():
+                player = slot.get('player') if isinstance(slot, dict) else None
+                if isinstance(player, dict):
+                    self._mark_region(player, player.get('dbID'))
+        except Exception:
+            _logger.exception('could not mark skirmish room members')
+
+    def _wrap_candidate(self, original):
+        """Mark the volunteers panel of the skirmish room."""
+
+        def _makePlayerVO(provider, pInfo, *args, **kwargs):
+            vo = original(provider, pInfo, *args, **kwargs)
+            try:
+                if isinstance(vo, dict):
+                    self._mark_region(vo, getattr(pInfo, 'dbID', None))
+            except Exception:
+                _logger.exception('could not mark a skirmish volunteer')
+            return vo
+
+        return _makePlayerVO
+
+    def _mark_region(self, vo, account_id):
+        # Appended, not assigned: a roaming player already has a region code
+        # there, and it is not ours to drop. And left untouched when there is
+        # nothing to add, so a None stays None -- some views type this field
+        # as Object and reject an empty string.
+        marker = self._marker(account_id)
+        if marker:
+            vo['region'] = (vo.get('region') or '') + marker
 
     def _wrap_build(self, original):
         """Remember every contacts list that builds, so it can be rebuilt.
@@ -89,6 +164,14 @@ class LobbyFlags(object):
                 provider.onTotalStatusChanged()
             except Exception:
                 _logger.exception('could not rebuild a contacts list')
+        for room in list(self._rooms):
+            try:
+                if getattr(room, 'isDisposed', lambda: False)():
+                    continue
+                room._updateMembersData()
+                room._rebuildCandidatesDP()
+            except Exception:
+                _logger.exception('could not refresh a skirmish room')
         for view in list(self._profiles):
             try:
                 if getattr(view, 'isDisposed', lambda: False)():
@@ -152,8 +235,7 @@ class LobbyFlags(object):
         def makeBaseUserProps(cls, contact):
             props = original(contact)
             try:
-                props['region'] = (props.get('region') or '') + self._marker(
-                    contact.getID())
+                self._mark_region(props, contact.getID())
             except Exception:
                 # A contacts list that fails to build is worse than one
                 # without flags, and this runs for every row.
