@@ -14,7 +14,10 @@ Not affiliated with Wargaming.net.
 | Player profile window title | flag after the name (language code without the SWF) | `ProfileWindow.as_setInitDataS` |
 | Battle player panels | flag after the name | `player_format.getRegionCode` |
 | Skirmish room members and volunteers | flag after the name | `StrongholdBattleRoom.as_setMembersS`, `SortieCandidatesLegionariesDP._makePlayerVO` |
-| Stronghold detachment list (web page) | flag after the clan tag | content script, `src/unicum/browser.py` |
+| Stronghold detachment list (web page) | flags after the clan tag; "Places" folded into "Members"; sort by rating | `src/unicum/web/stronghold.js`, injected by `src/unicum/browser.py` |
+
+Every surface shows all of a player's or clan's flags, up to three
+(`config.MAX_FLAGS`), in the order the API gives them.
 
 Languages come from `GET /api/{region}/languages/resolve` on unicum.gg,
 asked for in batches of at most 100 ids. The API answers with country codes
