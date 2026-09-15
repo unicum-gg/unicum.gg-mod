@@ -104,6 +104,13 @@ def template(values):
                                  tooltip='{HEADER}Tank menu button{/HEADER}{BODY}A unicum.gg button beside the '
                                          'vehicle menu, with links for the selected tank: its unicum.gg tabs, '
                                          'AI assistants and its build.{/BODY}'),
+        templates.createEmpty(_SPACER),
+        _heading(templates, 'Battle'),
+        templates.createCheckbox('Announce reloading', 'autoReload', window['autoReload'],
+                                 tooltip='{HEADER}Announce reloading{/HEADER}{BODY}Sends the "Reloading!" '
+                                         'message to your team by itself, as F8 does: after each shot, or '
+                                         'once a magazine is empty. Reloads shorter than the 5-second '
+                                         'limit of the chat are not announced.{/BODY}'),
     ]
     return {'modDisplayName': 'unicum.gg', 'enabled': values['enabled'],
             'column1': ratings, 'column2': flags}
@@ -112,6 +119,7 @@ def template(values):
 def to_window(values):
     """What the window stores for these settings: flat, dropdowns by index."""
     window = {'enabled': values['enabled'], 'maxFlags': values['maxFlags'], 'tankButton': values['tankButton'],
+              'autoReload': values['autoReload'],
               'metric': METRICS.index(values['metric']), 'window': WINDOWS.index(values['window'])}
     for mode in MODES:
         for team in ('allies', 'enemies'):
@@ -127,7 +135,7 @@ def to_window(values):
 def from_window(raw):
     """settings.json changes from what the window sends back."""
     changes = {}
-    for key in ('enabled', 'tankButton'):
+    for key in ('enabled', 'tankButton', 'autoReload'):
         if isinstance(raw.get(key), bool):
             changes[key] = raw[key]
     if _index(raw.get('metric'), METRICS) is not None:

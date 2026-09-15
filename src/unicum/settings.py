@@ -7,6 +7,7 @@ required. When izeberg's modsSettingsApi is installed, settings_window.py
 also shows these settings in its window, and writes back here.
 
     {"enabled": true, "metric": "wnx", "window": "recent", "maxFlags": 3, "tankButton": true,
+     "autoReload": true,
      "contacts": {"flags": true, "rating": false},
      "battle": {"flags": true, "rating": true, "average": true}, ...,
      "modes": {"random": {"allies": true, "enemies": true}, "ranked": {...}, ...}}
@@ -18,7 +19,8 @@ unicum.gg button in the hangar's vehicle menu.
 
 In battle, `modes` says per kind of battle (see modes.py) whose ratings and
 flags show at all: the allies', the enemies', both or neither, whatever the
-battle surface itself shows.
+battle surface itself shows. autoReload sends the "Reloading!" chat command
+by itself after a shot (see auto_reload.py).
 
 Every change reaches the surfaces through on_change(), and each surface
 redraws what it has on screen, so nothing needs a restart.
@@ -61,6 +63,7 @@ DEFAULTS = dict({
     'window': 'recent',
     'maxFlags': MAX_FLAGS,
     'tankButton': True,
+    'autoReload': True,
     'modes': dict((mode, {'allies': True, 'enemies': True}) for mode in MODES),
 }, **dict((surface, _surface(surface)) for surface in SURFACES))
 
@@ -78,6 +81,7 @@ def validate(raw):
         'window': raw.get('window') if raw.get('window') in WINDOWS else DEFAULTS['window'],
         'maxFlags': DEFAULTS['maxFlags'],
         'tankButton': _bool(raw.get('tankButton'), DEFAULTS['tankButton']),
+        'autoReload': _bool(raw.get('autoReload'), DEFAULTS['autoReload']),
     }
     modes = raw.get('modes') if isinstance(raw.get('modes'), dict) else {}
     values['modes'] = {}
@@ -159,6 +163,9 @@ class Settings(object):
 
     def shows_tank_button(self):
         return self._values['enabled'] and self._values['tankButton']
+
+    def shows_auto_reload(self):
+        return self._values['enabled'] and self._values['autoReload']
 
     def shows_team(self, mode, ally):
         """Whether a battle of this kind shows the allies' (or enemies') ratings and flags."""

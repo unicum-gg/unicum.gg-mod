@@ -36,6 +36,7 @@ API gives them.
 | `contacts`, `profile`, `stronghold` | `{"flags": true, "rating": ...}` | whether each surface shows flags and the rating; the rating is off for contacts and profile |
 | `skirmishRoom`, `battle` | `{"flags": true, "rating": true, "average": true}` | the same, plus the detachment's or team's average |
 | `modes` | every mode `{"allies": true, "enemies": true}` | in battle, per kind of battle (`random`, `ranked`, `onslaught`, `stronghold`, `frontline`, `training`, `other`), whether the allies' and the enemies' ratings and flags show, on every battle surface |
+| `autoReload` | `true` | sends the "Reloading!" chat command by itself, as F8 does: after each shot of a single-shot gun, once a magazine is empty; not for reloads under the chat's 5-second limit |
 
 One rating for the whole mod, so a number means the same thing on every
 screen. A settings.json written by an earlier version is converted on first
