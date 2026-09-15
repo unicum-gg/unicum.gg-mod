@@ -73,6 +73,7 @@ def install_fake_client(bigworld):
     wulf = types.ModuleType('frameworks.wulf')
     wulf.WindowLayer = type('WindowLayer', (object,), {'SERVICE_LAYOUT': 'service'})
     wulf.WindowStatus = type('WindowStatus', (object,), {'DESTROYING': 4, 'DESTROYED': 5})
+    wulf.ViewModel = type('ViewModel', (object,), {})
     _attach('frameworks', 'frameworks.wulf', wulf)
     for name in ('gui.app_loader', 'gui.Scaleform.framework',
                  'gui.Scaleform.framework.entities',
@@ -123,6 +124,21 @@ def install_fake_client(bigworld):
 
     # room_sort.py: the client's translations of its sort orders.
     _package('gui.impl')
+    # tank_button.py, which stands down without openwg_gameface.
+    current_vehicle = types.ModuleType('CurrentVehicle')
+    current_vehicle.g_currentVehicle = None
+    sys.modules['CurrentVehicle'] = current_vehicle
+    gen_utils = types.ModuleType('gui.impl.gen_utils')
+    gen_utils.INVALID_RES_ID = -1
+    _attach('gui.impl', 'gui.impl.gen_utils', gen_utils)
+    for name in ('gui.impl.lobby', 'gui.impl.lobby.hangar', 'gui.impl.lobby.hangar.presenters', 'gui.impl.pub'):
+        _attach(name.rsplit('.', 1)[0], name, _package(name))
+    menu = types.ModuleType('gui.impl.lobby.hangar.presenters.vehicle_menu_presenter')
+    menu.VehicleMenuPresenter = type('VehicleMenuPresenter', (object,), {})
+    _attach('gui.impl.lobby.hangar.presenters', menu.__name__, menu)
+    view_component = types.ModuleType('gui.impl.pub.view_component')
+    view_component.ViewComponent = type('ViewComponent', (object,), {})
+    _attach('gui.impl.pub', view_component.__name__, view_component)
     backport = types.ModuleType('gui.impl.backport')
     backport.text = lambda resource: 'client %s' % resource
     _attach('gui.impl', 'gui.impl.backport', backport)

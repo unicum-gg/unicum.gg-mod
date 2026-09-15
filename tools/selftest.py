@@ -39,6 +39,7 @@ from checks.surfaces import (
     check_room_sort,
     check_skirmish_room)
 from checks.settings import check_live_settings, check_settings, check_settings_window
+from checks.tank_menu import check_tank_menu
 
 
 def main():
@@ -95,6 +96,7 @@ def main():
         check_settings(workdir)
         check_settings_window()
         check_live_settings(bigworld)
+        check_tank_menu()
 
         first_hook = target.__dict__['addVehicleInfo']
         generation_before = stub._generation
