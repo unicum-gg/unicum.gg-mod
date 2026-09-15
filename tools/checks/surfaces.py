@@ -126,6 +126,30 @@ def check_battle_panels():
           and onslaught.get()['role'] == 'assault')
 
 
+def check_team_order():
+    """The order the client sends each team's screens in is kept, and wins."""
+    from unicum.battle import BattleFlags
+    flags = BattleFlags(None, None, None, None, None)
+    flags._keep_order({'leftItemsIDs': [3, 1, 2], 'rightItemsIDs': 'not a list'})
+    check('a team order the client sends is kept', flags._order['leftItemsIDs'] == [3, 1, 2])
+    check('and marked as received, so the default order does not replace it',
+          flags._received == set(['leftItemsIDs']))
+    flags._keep_order({'leftItemsIDs': []})
+    check('an empty team from the client is an order too', flags._order['leftItemsIDs'] == []
+          and 'leftItemsIDs' in flags._received)
+
+
+def check_icon_markers():
+    """The markers drawn beside a vehicle icon, and the width they take."""
+    from unicum.battle import icon_markers, markup_width
+    flag = '<IMG SRC="img://f/fr.png" width="12" height="9" vspace="-1"/>'
+    badge = '<IMG SRC="img://b/wnx/1234.png" width="38" height="12" vspace="-3"/>'
+    check('the badge and the flags come apart, each with its width',
+          icon_markers(' ' + flag + flag, ' ' + badge) == [badge, 38, flag + flag, 24])
+    check('a bare number is counted by its digits', markup_width('1234') == 28)
+    check('no badge leaves an empty badge column', icon_markers(' ' + flag, '') == ['', 0, flag, 12])
+
+
 def check_profile_title():
     """The title gets a flag only when the title SWF can render it.
 

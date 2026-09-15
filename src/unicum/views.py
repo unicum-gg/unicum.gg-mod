@@ -9,6 +9,8 @@ What they do lives on AS3 objects the GFx proxy does not hand to Python:
                     WNX, see room_sort.py and lobby.py
   TeamNamesHtml.as  into the battle: team names set with TextField.text
                     render HTML, see battle.BattleFlags._mark_teams
+    VehicleMarkers.as  ratings and flags by the vehicle icons, see
+                    battle.BattleFlags._publish
 
 One view per app: they load into the app's service layer, a single-view
 container where loading a second view destroys the first.
@@ -124,7 +126,7 @@ class SwfView(object):
 LOBBY = SwfView('unicumLobby', 'unicum.lobby.swf', APP_NAME_SPACE.SF_LOBBY,
                 'profile titles keep a language code, no members sort nor detachment average')
 BATTLE = SwfView('unicumBattle', 'unicum.battle.swf', APP_NAME_SPACE.SF_BATTLE,
-                 'team averages stay plain numbers')
+                 'no ratings by the vehicle icons, team averages stay plain numbers')
 
 
 def html_titles():
@@ -141,6 +143,17 @@ def lobby_view():
     if not LOBBY.available():
         return None
     for window in LOBBY.windows():
+        view = getattr(window, 'content', None)
+        if getattr(view, 'flashObject', None) is not None:
+            return view.flashObject
+    return None
+
+
+def battle_view():
+    """The loaded battle view's flash object, or None."""
+    if not BATTLE.available():
+        return None
+    for window in BATTLE.windows():
         view = getattr(window, 'content', None)
         if getattr(view, 'flashObject', None) is not None:
             return view.flashObject

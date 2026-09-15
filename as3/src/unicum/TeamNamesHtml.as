@@ -21,6 +21,9 @@ package unicum
    // is covered as long as it keeps the names. A screen arrives as one display
    // object with its fields already inside, so each added object is searched
    // down to MAX_DEPTH, once.
+   //
+   // The same search finds the screens VehicleMarkers draws beside the
+   // vehicle icons; Python sets the three public strings below.
    public class TeamNamesHtml extends AbstractView
    {
       private static const FIELDS:Array = ["team1TF", "team2TF", "team1Text", "team2Text"];
@@ -30,6 +33,19 @@ package unicum
       private var _fields:Dictionary = new Dictionary(true);
 
       private var _searched:Dictionary = new Dictionary(true);
+
+      private var _markers:VehicleMarkers = new VehicleMarkers();
+
+      // field -> [the text the client set, the same text once shown as HTML]
+      private var _names:Dictionary = new Dictionary(true);
+
+      // One vehicle a line: "id TAB badge TAB its width TAB flags TAB their width".
+      public var markersText:String = null;
+
+      // Each team's vehicle ids, top row first, comma separated.
+      public var leftIds:String = null;
+
+      public var rightIds:String = null;
 
       public function TeamNamesHtml()
       {
@@ -54,6 +70,8 @@ package unicum
          removeEventListener(Event.ENTER_FRAME, this.onFrame);
          this._fields = new Dictionary(true);
          this._searched = new Dictionary(true);
+         this._names = new Dictionary(true);
+         this._markers.dispose();
          super.onDispose();
       }
 
@@ -70,6 +88,7 @@ package unicum
          }
          this._searched[target] = true;
          this.inspect(target);
+         this._markers.inspect(target);
          var container:DisplayObjectContainer = target as DisplayObjectContainer;
          if(container == null || depth >= MAX_DEPTH)
          {
@@ -103,8 +122,10 @@ package unicum
 
       // Every frame: a name the client has just set as text would otherwise
       // show its raw tag until the next check. There are four fields at most.
+      // A row the panel has just moved takes its markers along the same way.
       private function onFrame(event:Event) : void
       {
+         this._markers.update(this.markersText, this.leftIds, this.rightIds, this._names);
          for(var key:Object in this._fields)
          {
             var field:TextField = key as TextField;
@@ -112,7 +133,9 @@ package unicum
             // is converted once each time the client sets it.
             if(field != null && field.text.indexOf("<IMG") >= 0)
             {
-               field.htmlText = field.text;
+               var set:String = field.text;
+               field.htmlText = set;
+               this._names[field] = [set, field.text];
             }
          }
       }

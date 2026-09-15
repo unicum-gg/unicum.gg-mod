@@ -12,7 +12,7 @@ Not affiliated with Wargaming.net.
 |---|---|---|
 | Contacts list | flag after the name | `ContactConverter.makeBaseUserProps` |
 | Player profile window title | flag after the name (language code without the SWF) | `ProfileWindow.as_setInitDataS` |
-| Battle player panels, Tab, loading screen | flags and rating after the name; team averages after the team names | `VehicleInfoComponent.addVehicleInfo`, `BattleStatisticsDataController.as_setArenaInfoS` |
+| Battle players panel, Tab, loading screen | rating and flags beside each vehicle icon, lined up in a column per team; in the Tab, the team average in that column on the team name's line | `VehicleInfoComponent.addVehicleInfo`, `BattleStatisticsDataController` (team order, `as_setArenaInfoS`), the battle SWF |
 | Skirmish room members and volunteers | flags and rating after the name; members sort dropdown (the special battles' orders, plus the rating and personal rating) and average rating beside the title | `StrongholdBattleRoom.as_setMembersS` / `as_updateRallyS`, `SortieCandidatesLegionariesDP._makePlayerVO` |
 | Hangar vehicle menu | a unicum.gg button with a menu for the selected tank, opened in the browser: its tabs on unicum.gg (specifications, performances, marks, history, videos, community), handing its page to ChatGPT, Claude or Scira AI as the site's own menu does, and opening or copying the build as the site's `?setup=` link (with openwg_gameface) | `VehicleMenuPresenter._getChildComponents`, `res/gui/gameface/mods/unicum/TankButton/` |
 | Stronghold detachment list (web page) | flags after the clan tag; a rating column; "Places" folded into "Members"; sort by personal rating or rating | `src/unicum/web/stronghold/`, injected by `src/unicum/browser.py` |
@@ -146,7 +146,7 @@ API, production unless `UNICUM_API_BASE` points elsewhere.
 ### Layout
 
 ```
-as3/      the profile title view, built once into a SWF
+as3/      the AS3 views: lobby and battle
 dev/      bootstrap template, packaged into the game once
 src/      everything reloadable; the only thing you edit
 tools/    installer, flag rasteriser, AS3 build, selftest

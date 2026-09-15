@@ -34,6 +34,8 @@ from checks.fakes import (
 from checks.surfaces import (
     check_badges,
     check_battle_panels,
+    check_icon_markers,
+    check_team_order,
     check_contacts_redraw,
     check_profile_title,
     check_room_sort,
@@ -91,6 +93,8 @@ def main():
         check_skirmish_room(bigworld)
         check_profile_title()
         check_battle_panels()
+        check_icon_markers()
+        check_team_order()
         check_badges(workdir)
         check_room_sort(workdir)
         check_settings(workdir)

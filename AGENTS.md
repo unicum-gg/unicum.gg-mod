@@ -15,7 +15,7 @@ Read `README.md` for the feature table and setup, `CONTRIBUTING.md` for commits.
   - Surfaces: `lobby.py` (contacts, profile title, skirmish room), `battle.py` (players panel, Tab, loading screen), `browser.py` + `web/stronghold/*.js` (the Stronghold detachment list, a web page), `room_sort.py` (saves the skirmish room's members order), `views.py` (loads the AS3 views and reloads them when their SWF changes).
   - `textures.py`: flag PNGs, as `img://` paths for Scaleform and data URIs for web pages.
   - `local_settings.py`: gitignored, points `API_BASE` at a local server.
-- **`as3/`**, one AS3 view per app: `LobbyView.as` (made of `TitleHtml.as`, and `RoomTools.as` + `MembersSection.as` for the skirmish room's members sort and average) built into `unicum.lobby.swf`, `TeamNamesHtml.as` into `unicum.battle.swf`. One per app because a second view in an app's service layer destroys the first.
+- **`as3/`**, one AS3 view per app: `LobbyView.as` (made of `TitleHtml.as`, and `RoomTools.as` + `MembersSection.as` for the skirmish room's members sort and average) built into `unicum.lobby.swf`, `TeamNamesHtml.as` (with `VehicleMarkers.as`, the icon columns) into `unicum.battle.swf`. One per app because a second view in an app's service layer destroys the first.
 - **`tools/`**: `install_dev.py`, `build_as3.py`, `flags/` (Flagpack SVG to PNG), `selftest.py` + `checks/`.
 
 # Commands
