@@ -20,6 +20,7 @@ about is not free: it asked for 3293 players at once, which is why the API
 client batches.
 """
 import logging
+import time
 import weakref
 
 from gui.Scaleform.daapi.view.lobby.fortifications.stronghold_battle_room import StrongholdBattleRoom
@@ -81,7 +82,7 @@ class LobbyFlags(object):
 
         def as_setMembersS(room, hasRestrictions, slots):
             self._rooms.add(room)
-            self._publish_members(self._mark_slots(slots))
+            self._publish_members_safely(self._mark_slots(slots))
             return original(room, hasRestrictions, slots)
 
         return as_setMembersS
@@ -97,7 +98,7 @@ class LobbyFlags(object):
         def as_updateRallyS(room, data):
             self._rooms.add(room)
             if isinstance(data, dict):
-                self._publish_members(self._mark_slots(data.get('slots')))
+                self._publish_members_safely(self._mark_slots(data.get('slots')))
             return original(room, data)
 
         return as_updateRallyS
@@ -112,6 +113,13 @@ class LobbyFlags(object):
             return original(room, *args, **kwargs)
 
         return _dispose
+
+    def _publish_members_safely(self, account_ids):
+        """_publish_members, whose failure must not keep the room from updating."""
+        try:
+            self._publish_members(account_ids)
+        except Exception:
+            _logger.exception('could not publish the detachment ratings')
 
     def _publish_members(self, account_ids):
         """Hand the members' ratings to the lobby view, or clear them.
@@ -141,7 +149,7 @@ class LobbyFlags(object):
             view.ratingByPlayer = by_player
         markup = ''
         if values and self._settings.shows_average('skirmishRoom'):
-            average = sum(values) / len(values)
+            average = sum(values) / float(len(values))
             badge = self._badges.markup(self._settings.metric('skirmishRoom'), average) or '%d' % round(average)
             # The badge alone: the title's embedded font has no average sign,
             # which came out in a fallback serif.
@@ -331,20 +339,20 @@ class LobbyFlags(object):
             return
         batch, self._pending = sorted(self._pending), set()
         _logger.info('resolving %s players', len(batch))
+        asked_at = time.time()
         self._lookup.prefetch(players=batch,
-                              on_ready=lambda: self._report(batch))
+                              on_ready=lambda: self._report(batch, asked_at))
 
-    def _report(self, batch):
-        resolved = []
-        for account_id in batch:
-            entry = self._lookup.get(PLAYERS, account_id)
-            if entry is not None and entry.countries:
-                resolved.append((account_id, entry.countries[0]))
+    def _report(self, batch, asked_at=0.0):
+        entries = [(account_id, self._lookup.get(PLAYERS, account_id)) for account_id in batch]
+        resolved = [(account_id, entry.countries[0]) for account_id, entry in entries
+                    if entry is not None and entry.countries]
         _logger.info('resolved %s/%s: %s', len(resolved), len(batch),
                      resolved[:8])
-        # Only when something came back: a failed lookup leaves the views
-        # exactly as they were, so rebuilding them would be pure cost.
-        if resolved:
+        # On any fresh answer, flags or not: a player with ratings and no
+        # language still has a badge and counts in the room's average. A
+        # failed lookup leaves the views as they were, so no rebuild then.
+        if any(entry is not None and entry.fetched_at >= asked_at for _, entry in entries):
             self._redraw()
 
 
