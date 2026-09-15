@@ -7,7 +7,7 @@ no way to give text a background. Images are left alone, so the site's badge
 -- a white number on its colour band -- is an image, rendered in advance by
 tools/badges for every whole value:
 
-    badges/wnx/3323.png     "3 323" on its WNX band
+    badges/wnx/3323.png     "3 323" on its WNX band, likewise wn7 and wn8
 
 Whole badges rather than digits laid side by side: Scaleform leaves a seam
 between adjacent inline images whatever hspace says, and every join showed.
@@ -23,7 +23,7 @@ from unicum import config
 
 _logger = logging.getLogger('unicum.badges')
 
-METRICS = ('wnx', 'wn8')
+METRICS = ('wn7', 'wn8', 'wnx')
 MAX_VALUE = 9999
 
 # Mirrors tools/badges/build.mjs, which the <IMG> width has to match.
@@ -49,16 +49,15 @@ class Badges(object):
         _logger.info('badges usable for %s from %s', sorted(self._metrics) or 'no metric',
                      os.path.abspath(self._dir) if self._dir else '<none>')
 
-    def rating(self, entry, metric='wnx'):
-        """' ' + a rating as its badge, a bare number, or '' without one.
+    def rating(self, entry, settings, surface):
+        """' ' + the surface's rating as its badge, a bare number, or '' without one.
 
-        The recent value, or the lifetime one while the recent is not
-        computed (Entry.rating). A bare number when the badge cannot draw.
+        A bare number when the badge cannot draw.
         """
-        value = entry.rating(metric) if entry is not None else None
+        value = settings.rating(entry, surface)
         if value is None:
             return ''
-        return ' ' + (self.markup(metric, value) or '%d' % round(value))
+        return ' ' + (self.markup(settings.metric(surface), value) or '%d' % round(value))
 
     def markup(self, metric, value):
         """htmlText for a rating badge, or None when it cannot draw."""

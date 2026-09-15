@@ -28,7 +28,7 @@ from gui.Scaleform.daapi.view.lobby.rally.rally_dps import SortieCandidatesLegio
 from messenger.gui.Scaleform.data.contacts_data_provider import ContactsDataProvider
 from messenger.gui.Scaleform.data.contacts_vo_converter import ContactConverter
 
-from unicum import titles
+from unicum import views
 from unicum.api.entry import PLAYERS
 
 _logger = logging.getLogger('unicum.lobby')
@@ -38,11 +38,12 @@ _BATCH_DELAY = 0.25
 
 class LobbyFlags(object):
 
-    def __init__(self, session, lookup, flags, badges):
+    def __init__(self, session, lookup, flags, badges, settings):
         self._session = session
         self._lookup = lookup
         self._textures = flags
         self._badges = badges
+        self._settings = settings
         self._pending = set()
         self._scheduled = False
         # Views that drew before their languages arrived, and have to be told
@@ -64,8 +65,10 @@ class LobbyFlags(object):
                             self._wrap_members)
         self._session.patch(StrongholdBattleRoom, 'as_updateRallyS',
                             self._wrap_rally)
+        self._session.patch(StrongholdBattleRoom, '_dispose', self._wrap_dispose)
         self._session.patch(SortieCandidatesLegionariesDP, '_makePlayerVO',
                             self._wrap_candidate)
+        self._settings.on_change(self._redraw)
         _logger.info('installed on contacts, profile window and skirmish room')
 
     def _wrap_members(self, original):
@@ -78,7 +81,7 @@ class LobbyFlags(object):
 
         def as_setMembersS(room, hasRestrictions, slots):
             self._rooms.add(room)
-            self._mark_slots(slots)
+            self._publish_members(self._mark_slots(slots))
             return original(room, hasRestrictions, slots)
 
         return as_setMembersS
@@ -94,19 +97,71 @@ class LobbyFlags(object):
         def as_updateRallyS(room, data):
             self._rooms.add(room)
             if isinstance(data, dict):
-                self._mark_slots(data.get('slots'))
+                self._publish_members(self._mark_slots(data.get('slots')))
             return original(room, data)
 
         return as_updateRallyS
 
+    def _wrap_dispose(self, original):
+
+        def _dispose(room, *args, **kwargs):
+            try:
+                self._publish_members([])
+            except Exception:
+                _logger.exception('could not clear the detachment ratings')
+            return original(room, *args, **kwargs)
+
+        return _dispose
+
+    def _publish_members(self, account_ids):
+        """Hand the members' ratings to the lobby view, or clear them.
+
+        Written to as3/src/unicum/RoomTools.as: each member's rating, which
+        the rating order sorts by, and the average's badge, shown beside the
+        members title, which is text the AS3 section sets itself. Called with
+        every members update, so both follow arrivals, departures and ratings
+        that land.
+        """
+        view = views.lobby_view()
+        if view is None:
+            return
+        enabled = self._settings['enabled']
+        if getattr(view, 'roomEnabled', None) != enabled:
+            view.roomEnabled = enabled
+        values = []
+        known = []
+        for account_id in account_ids:
+            entry = self._entry(account_id)
+            value = self._settings.rating(entry, 'skirmishRoom')
+            if value is not None:
+                values.append(value)
+                known.append('%d:%d' % (account_id, round(value)))
+        by_player = ','.join(known)
+        if getattr(view, 'ratingByPlayer', None) != by_player:
+            view.ratingByPlayer = by_player
+        markup = ''
+        if values and self._settings.shows_average('skirmishRoom'):
+            average = sum(values) / len(values)
+            badge = self._badges.markup(self._settings.metric('skirmishRoom'), average) or '%d' % round(average)
+            # The badge alone: the title's embedded font has no average sign,
+            # which came out in a fallback serif.
+            markup = badge
+        if getattr(view, 'averageHtml', None) != markup:
+            view.averageHtml = markup
+
     def _mark_slots(self, slots):
+        """Mark every member; the account ids seen, for the average."""
+        account_ids = []
         try:
             for slot in slots or ():
                 player = slot.get('player') if isinstance(slot, dict) else None
                 if isinstance(player, dict):
-                    self._mark_region(player, player.get('dbID'), rating=True)
+                    self._mark_region(player, player.get('dbID'), 'skirmishRoom')
+                    if player.get('dbID'):
+                        account_ids.append(player.get('dbID'))
         except Exception:
             _logger.exception('could not mark skirmish room members')
+        return account_ids
 
     def _wrap_candidate(self, original):
         """Mark the volunteers panel of the skirmish room."""
@@ -115,19 +170,19 @@ class LobbyFlags(object):
             vo = original(provider, pInfo, *args, **kwargs)
             try:
                 if isinstance(vo, dict):
-                    self._mark_region(vo, getattr(pInfo, 'dbID', None), rating=True)
+                    self._mark_region(vo, getattr(pInfo, 'dbID', None), 'skirmishRoom')
             except Exception:
                 _logger.exception('could not mark a skirmish volunteer')
             return vo
 
         return _makePlayerVO
 
-    def _mark_region(self, vo, account_id, rating=False):
+    def _mark_region(self, vo, account_id, surface):
         # Appended, not assigned: a roaming player already has a region code
         # there, and it is not ours to drop. And left untouched when there is
         # nothing to add, so a None stays None -- some views type this field
         # as Object and reject an empty string.
-        marker = self._marker(account_id, rating)
+        marker = self._marker(account_id, surface)
         if marker:
             vo['region'] = (vo.get('region') or '') + marker
 
@@ -184,7 +239,7 @@ class LobbyFlags(object):
         Window.title is plain text: an <IMG> there once rendered as its own
         source. AS3's Window does have a titleUseHtml switch, which the
         vehicle info, buy and chat windows turn on and the profile window
-        never does. titles.py loads a small AS3 view that turns it on; when
+        never does. views.py loads a small AS3 view that turns it on; when
         that SWF is missing the title falls back to the language code.
 
         The switch cannot be reached from Python directly. The GFx proxy
@@ -199,12 +254,14 @@ class LobbyFlags(object):
             try:
                 self._profiles.add(view)
                 account_id = getattr(view, '_ProfileWindow__databaseID', None)
-                if isinstance(data, dict) and data.get('fullName'):
-                    if titles.html_titles():
-                        marker = self._marker(account_id)
-                    else:
+                if isinstance(data, dict) and data.get('fullName') and self._settings.shows('profile'):
+                    if views.html_titles():
+                        marker = self._marker(account_id, 'profile')
+                    elif self._settings.shows_flags('profile'):
                         code = self._language_code(account_id)
                         marker = ' ' + code if code else ''
+                    else:
+                        marker = ''
                     if marker:
                         data['fullName'] = data['fullName'] + marker
             except Exception:
@@ -239,7 +296,7 @@ class LobbyFlags(object):
         def makeBaseUserProps(cls, contact):
             props = original(contact)
             try:
-                self._mark_region(props, contact.getID())
+                self._mark_region(props, contact.getID(), 'contacts')
             except Exception:
                 # A contacts list that fails to build is worse than one
                 # without flags, and this runs for every row.
@@ -250,18 +307,15 @@ class LobbyFlags(object):
         # class declared; the callers invoke it off the class.
         return classmethod(makeBaseUserProps)
 
-    def _marker(self, account_id, rating=False):
-        """Flags, and with `rating` the player's WNx, as htmlText markup.
-
-        The WNx goes only where there is room for it, the skirmish room for
-        now: contact rows and the profile title stay flags only.
-        """
-        if not account_id:
+    def _marker(self, account_id, surface):
+        """The surface's flags and rating, as htmlText markup."""
+        if not account_id or not self._settings.shows(surface):
             return ''
         entry = self._entry(account_id)
-        marker = self._textures.markup(entry)
-        if rating and entry is not None:
-            marker += self._badges.rating(entry)
+        marker = ''
+        if self._settings.shows_flags(surface):
+            marker += self._textures.markup(entry, self._settings['maxFlags'])
+        marker += self._badges.rating(entry, self._settings, surface)
         return marker
 
     def _request(self, account_id):
@@ -294,5 +348,5 @@ class LobbyFlags(object):
             self._redraw()
 
 
-def install(session, lookup, flags, badges):
-    LobbyFlags(session, lookup, flags, badges).install()
+def install(session, lookup, flags, badges, settings):
+    LobbyFlags(session, lookup, flags, badges, settings).install()

@@ -3,21 +3,23 @@
 // One script split across this folder. src/unicum/browser.py joins the files
 // in the order of its _CONTENT_SCRIPT_FILES (core, table, sorting, flags,
 // lifecycle), wraps the result in
-//   (function(GENERATION){ <the files> })(<n>);
-// and runs that as javascript:eval(atob('<base64>')). So the files share one
-// scope, may use any syntax and comments, and `return` at the top level, but
-// must stay ASCII (atob decodes to Latin-1). They are read again at every
-// injection: reopening the Stronghold window picks up an edit without a
-// client restart.
+//   (function(GENERATION, RATING_TITLE, SHOW_RATING){ <the files> })(...);
+// and runs that as javascript:eval(atob('<base64>')), where RATING_TITLE and
+// SHOW_RATING carry the mod's settings: the rating column's title, and
+// whether there is one. So the files share one scope, may use any syntax and
+// comments, and `return` at the top level, but must stay ASCII (atob decodes
+// to Latin-1). They are read again at every injection: reopening the
+// Stronghold window picks up an edit without a client restart.
 //
 // Talks back through console.log, which the client forwards to Python:
 //   [unicum] need TAG1,TAG2   tags this page has no answer for yet
 // Python answers by calling window.__unicum.set({TAG: clan}), where clan is
-//   {flags: [dataUri, ...], wnx: {value: 1792, color: '#6D9521'} or null}
+//   {flags: [dataUri, ...], score: {value: 1792, color: '#6D9521'} or null}
 //
-// GENERATION is the mod's session generation. A reload injects the new
-// version, which finds the old one by its older generation and stops it
-// first, so the page never runs two observers or holds two sets of flags.
+// GENERATION changes with every reload of the mod and every settings change.
+// Either injects the new version, which finds the old one by its other
+// generation and stops it first, so the page never runs two observers or
+// holds two sets of flags.
 
 var NEED_PREFIX = '[unicum] need ';
 var FLAG_ATTR = 'data-unicum-flag';     // a flag box, valued with its tag
@@ -38,7 +40,7 @@ if (current && current.stop) {
 }
 
 var alive = true;  // false once stopped; listeners left on page nodes check it
-var clans = {};    // tag -> {flags, wnx}
+var clans = {};    // tag -> {flags, score}
 var asked = {};    // tags already reported, so each is asked for once
 var timer = null;
 

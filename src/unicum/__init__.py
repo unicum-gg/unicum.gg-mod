@@ -10,11 +10,12 @@ is nothing more than stop() followed by a fresh start().
 """
 import logging
 
-from unicum import battle, browser, config, lobby, titles
+from unicum import battle, browser, config, lobby, room_sort, settings_window, views
 from unicum.badges import Badges
 from unicum.api.resolve import Lookup
 from unicum.api.scales import RatingScales
 from unicum.runtime.session import Session
+from unicum.settings import Settings
 from unicum.textures import FlagCache
 
 VERSION = '0.1.0-dev'
@@ -36,14 +37,18 @@ def start(generation=0):
         # its own lookup, and every one of them loaded languages.json and
         # wrote it back: whichever saved last dropped what the others had
         # learned that session.
+        settings = Settings(_session)
+        settings.install()
+        settings_window.install(_session, settings)
         lookup = Lookup(_session, config.REGION)
         scales = RatingScales(_session)
         flags = FlagCache(_session)
         badges = Badges()
-        browser.install(_session, lookup, flags, scales)
-        battle.install(_session, lookup, flags, badges)
-        titles.install(_session)
-        lobby.install(_session, lookup, flags, badges)
+        browser.install(_session, lookup, flags, scales, settings)
+        battle.install(_session, lookup, flags, badges, settings)
+        views.install(_session)
+        lobby.install(_session, lookup, flags, badges, settings)
+        room_sort.install(_session, settings)
     except Exception:
         # A feature that fails halfway leaves the ones before it installed.
         # Without this the session is orphaned: the loader sees start() fail

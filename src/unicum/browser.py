@@ -15,11 +15,12 @@ So the work is split across that channel:
   page    web/stronghold/ finds every [TAG] leaf, keeps finding them as
           React re-renders, and reports the tags it has no answer for as
           `[unicum] need RASZ,TENTS`. It also folds the detachment list's
-          redundant "Places" column into "Members", adds a WNx column and
-          sorts by rating or WNx. The details are there.
+          redundant "Places" column into "Members", adds a column for the
+          rating chosen in the settings and sorts by rating or by it. The
+          details are there.
   python  asks the resolve endpoint for all the tags in one request, which
           answers with each clan, and sends back its flags as data: URIs
-          and its recent WNx with the site's colour for it.
+          and its rating with the site's colour for it.
 
 data: URIs rather than unicum.gg's flag URLs, because those sit behind a bot
 challenge that an <img> request cannot pass. The PNGs are already on disk.
@@ -67,20 +68,23 @@ def is_stronghold_page(url):
     return bool(url) and _STRONGHOLD_HOST_MARK in url
 
 
-def content_script(generation, directory=_CONTENT_SCRIPT_DIR):
+def content_script(generation, rating_title='30d WNX', show_rating=True,
+                   directory=_CONTENT_SCRIPT_DIR):
     """web/stronghold/*.js, joined and ready to run as a javascript: URL.
 
     Read from disk each time, so reopening the Stronghold window picks up an
     edit to the script without a client restart; the bootstrap only watches
     .py files. The joined body is wrapped in a function, which gives it its
-    GENERATION argument and lets it `return` early.
+    arguments and lets it `return` early. The title travels as a JSON string,
+    inside the base64 like the rest.
     """
     chunks = []
     for name in _CONTENT_SCRIPT_FILES:
         with open(os.path.join(directory, name), 'rb') as handle:
             chunks.append(handle.read().decode('ascii'))
     body = '\n'.join(chunks)
-    source = '(function(GENERATION){\n%s\n})(%d);' % (body, int(generation))
+    source = '(function(GENERATION, RATING_TITLE, SHOW_RATING){\n%s\n})(%d, %s, %s);' % (
+        body, int(generation), json.dumps(str(rating_title)), 'true' if show_rating else 'false')
     encoded = base64.b64encode(source.encode('ascii'))
     return "javascript:eval(atob('%s'));void(0);" % encoded
 
@@ -88,7 +92,7 @@ def content_script(generation, directory=_CONTENT_SCRIPT_DIR):
 def answers_script(clans_by_tag):
     """Hand resolved clans to the content script.
 
-    {tag: {'flags': [data URI, ...], 'wnx': {'value', 'color'} or None}}. A
+    {tag: {'flags': [data URI, ...], 'score': {'value', 'color'} or None}}. A
     clan with no flags and no rating is still an answer, so the page stops
     asking. The JSON travels base64-encoded like the script itself: colours
     carry a '#', which would end the javascript: URL.
@@ -113,11 +117,14 @@ def parse_need(message):
 class BrowserBridge(object):
     """Keeps the content script running in every Stronghold page."""
 
-    def __init__(self, session, lookup, flags, scales):
+    def __init__(self, session, lookup, flags, scales, settings):
         self._session = session
         self._lookup = lookup
         self._flags = flags
         self._scales = scales
+        self._settings = settings
+        # Bumped by every settings change, so the page sees a new version.
+        self._revision = 0
         self._controller = dependency.instance(IBrowserController)
         self._attached = {}
         session.on_close(self._remove_scripts)
@@ -130,6 +137,16 @@ class BrowserBridge(object):
         # already open when the reload lands.
         for browser_id in list(self._controller.getAllBrowsers()):
             self._attach(browser_id)
+        self._settings.on_change(self._on_settings)
+
+    def _on_settings(self):
+        """Stop the page's script, and start one with the new settings."""
+        self._revision += 1
+        for ref in list(self._attached.values()):
+            self._run(ref, _STOP_SCRIPT)
+            browser = ref()
+            if browser is not None:
+                self._inject(ref, browser.baseUrl)
 
     def _on_added(self, browser_id, *args):
         self._attach(browser_id)
@@ -165,9 +182,12 @@ class BrowserBridge(object):
     def _inject(self, ref, url):
         # Checked again on every load: a browser that started on a Stronghold
         # page can navigate somewhere else.
-        if not is_stronghold_page(url):
+        if not is_stronghold_page(url) or not self._settings.shows('stronghold'):
             return
-        self._run(ref, content_script(self._session.generation))
+        generation = self._session.generation * 1000 + self._revision
+        metric = self._settings.metric('stronghold')
+        self._run(ref, content_script(generation, self._settings.label('stronghold') or '',
+                                     metric is not None))
 
     def _on_console(self, ref, *args):
         # The native event passes (level, message, lineNumber, source, viewId).
@@ -185,16 +205,18 @@ class BrowserBridge(object):
         for tag in tags:
             clan_id = self._lookup.clan_id(tag)
             entry = self._lookup.get(CLANS, clan_id) if clan_id else None
-            codes = entry.flags if entry is not None else []
+            codes = []
+            if entry is not None and self._settings.shows_flags('stronghold'):
+                codes = entry.flags[:self._settings['maxFlags']]
             uris = [self._flags.data_uri(code) for code in codes]
-            wnx = entry.rating('wnx') if entry is not None else None
+            value = self._settings.rating(entry, 'stronghold')
             answers[tag] = {
                 'flags': [uri for uri in uris if uri],
-                'wnx': None if wnx is None else {
-                    'value': wnx, 'color': self._scales.color('wnx', wnx)},
+                'score': None if value is None else {
+                    'value': value, 'color': self._scales.color(self._settings.metric('stronghold'), value)},
             }
-        _logger.info('sending %s clans, %s with wnx', len(answers),
-                     sum(1 for a in answers.values() if a['wnx']))
+        _logger.info('sending %s clans, %s with %s', len(answers),
+                     sum(1 for a in answers.values() if a['score']), self._settings.label('stronghold'))
         self._run(ref, answers_script(answers))
 
     def _remove_scripts(self):
@@ -215,5 +237,5 @@ class BrowserBridge(object):
             _logger.exception('could not run script in the page')
 
 
-def install(session, lookup, flags, scales):
-    BrowserBridge(session, lookup, flags, scales).install()
+def install(session, lookup, flags, scales, settings):
+    BrowserBridge(session, lookup, flags, scales, settings).install()

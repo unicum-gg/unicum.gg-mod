@@ -1,14 +1,14 @@
-// Sorting the detachment list by rating or WNX.
+// Sorting the detachment list by rating or by the mod's rating column.
 //
 // Part of the Stronghold content script, see core.js.
 //
 // The site sorts by server and places but not by rating, and knows nothing of
-// WNX. Both headers are made to look and act sortable: a click sorts by that
-// column, descending first, then flips. Rows are not moved in the DOM -- React
-// owns them, and moving its nodes would desynchronise its next render. The
-// rows container becomes a flex column and each row gets a CSS `order`
-// instead, recomputed on every scan, so rows the site adds or updates fall in
-// place.
+// our column. Both headers are made to look and act sortable: a click sorts
+// by that column, descending first, then flips. Rows are not moved in the
+// DOM -- React owns them, and moving its nodes would desynchronise its next
+// render. The rows container becomes a flex column and each row gets a CSS
+// `order` instead, recomputed on every scan, so rows the site adds or updates
+// fall in place.
 //
 // The site's own sort keeps running underneath. Clicking one of its sortable
 // headers hands control back to it.
@@ -17,7 +17,7 @@
 // classes, UnitsList_th__desc--<hash> and __asc--<hash>. The hash changes with
 // every site build, so the names are read from its stylesheets.
 
-var sortKey = null;       // null, 'rating' or 'wnx'
+var sortKey = null;       // null, 'rating' or 'score'
 var sortOrder = 'desc';
 var sortClasses = null;   // {desc, asc, sortable}
 
@@ -26,8 +26,8 @@ var SORT_VALUES = {
         var value = parseInt(siteCells(row)[1].textContent.replace(/\D/g, ''), 10);
         return isNaN(value) ? -1 : value;
     },
-    wnx: function (row) {
-        var cell = row.querySelector('[' + COL_ATTR + '="wnx"]');
+    score: function (row) {
+        var cell = row.querySelector('[' + COL_ATTR + '="score"]');
         return cell ? parseFloat(cell.getAttribute('data-value')) : -1;
     }
 };
@@ -60,7 +60,7 @@ function sorting(head) {
         }
     }
     var cells = siteCells(head);
-    var ours = {rating: cells[1], wnx: head.querySelector('[' + COL_ATTR + '="wnx"]')};
+    var ours = {rating: cells[1], score: head.querySelector('[' + COL_ATTR + '="score"]')};
     for (var key in ours) {
         var header = ours[key];
         if (!header) {

@@ -11,9 +11,10 @@
 //     relabelled with the members header's own text; the members header and
 //     the places cells are hidden. Sorting by free places is sorting by
 //     members, with the arrow reversed.
-//   - A WNX column, the clan's recent WNX as the site's coloured badge, goes
-//     after rating.
-//   - Rating and WNX are made sortable, see "Sorting" below.
+//   - A column for the rating chosen in the mod's settings (RATING_TITLE,
+//     e.g. "30d WNX"), as the site's coloured badge, goes after rating;
+//     unless SHOW_RATING is false.
+//   - Rating and that column are made sortable, see sorting.js.
 //
 // The site's own cells are told apart from ours by ADDED_ATTR and addressed
 // by position among themselves, never by their English titles, so this holds
@@ -26,7 +27,6 @@
 // rows, and the name column takes the rest.
 
 var NUMBER_COLUMN_WIDTH = '70px';
-var WNX_TITLE = '30d WNX';
 
 var TABLE_CSS = [
     '[' + HIDE_ATTR + '] { display: none !important; }',
@@ -89,23 +89,29 @@ function table() {
         to.textContent = from.textContent;
     }
 
-    // The WNX header, built from the rating header so it looks the same.
-    var wnxHead = head.querySelector('[' + COL_ATTR + '="wnx"]');
-    if (!wnxHead) {
-        wnxHead = cells[1].cloneNode(false);
-        wnxHead.removeAttribute('data-tip');
-        wnxHead.removeAttribute('data-for');
-        wnxHead.removeAttribute(SORT_ATTR);
-        wnxHead.setAttribute(ADDED_ATTR, '1');
-        wnxHead.setAttribute(COL_ATTR, 'wnx');
+    if (!SHOW_RATING) {
+        hideRows();
+        sorting(head);
+        return;
+    }
+
+    // Our header, built from the rating header so it looks the same.
+    var scoreHead = head.querySelector('[' + COL_ATTR + '="score"]');
+    if (!scoreHead) {
+        scoreHead = cells[1].cloneNode(false);
+        scoreHead.removeAttribute('data-tip');
+        scoreHead.removeAttribute('data-for');
+        scoreHead.removeAttribute(SORT_ATTR);
+        scoreHead.setAttribute(ADDED_ATTR, '1');
+        scoreHead.setAttribute(COL_ATTR, 'score');
         var title = cells[2].querySelector('[class*="UnitsList_thTitle"]').cloneNode(false);
         var label = document.createElement('span');
-        label.textContent = WNX_TITLE;
+        label.textContent = RATING_TITLE;
         title.appendChild(label);
-        wnxHead.appendChild(title);
+        scoreHead.appendChild(title);
     }
-    if (wnxHead.nextSibling !== cells[2]) {
-        head.insertBefore(wnxHead, cells[2]);
+    if (scoreHead.nextSibling !== cells[2]) {
+        head.insertBefore(scoreHead, cells[2]);
     }
 
     var rows = bodyRows();
@@ -118,19 +124,30 @@ function table() {
             continue;
         }
         rowCells[4].setAttribute(HIDE_ATTR, '1');
-        var cell = row.querySelector('[' + COL_ATTR + '="wnx"]');
+        var cell = row.querySelector('[' + COL_ATTR + '="score"]');
         if (!cell) {
             cell = rowCells[1].cloneNode(false);
             cell.setAttribute(ADDED_ATTR, '1');
-            cell.setAttribute(COL_ATTR, 'wnx');
+            cell.setAttribute(COL_ATTR, 'score');
             cell.appendChild(document.createElement('span'));
         }
         if (cell.nextSibling !== rowCells[2]) {
             row.insertBefore(cell, rowCells[2]);
         }
-        fillWnx(cell, rowTag(rowCells[0]));
+        fillScore(cell, rowTag(rowCells[0]));
     }
     sorting(head);
+}
+
+// Places cells hidden as with the column, for rows without it.
+function hideRows() {
+    var rows = bodyRows();
+    for (var r = 0; r < rows.length; r++) {
+        var rowCells = siteCells(rows[r]);
+        if (rowCells.length >= 5) {
+            rowCells[4].setAttribute(HIDE_ATTR, '1');
+        }
+    }
 }
 
 function rowTag(nameCell) {
@@ -156,13 +173,13 @@ function formatRating(value) {
 var BADGE_CSS = 'display:inline-block;padding:1px 5px;border-radius:3px;' +
                 'color:#FFFFFF;line-height:16px;text-shadow:none';
 
-function fillWnx(cell, tag) {
-    var wnx = tag && clans[tag] ? clans[tag].wnx : null;
+function fillScore(cell, tag) {
+    var score = tag && clans[tag] ? clans[tag].score : null;
     var span = cell.firstChild;
-    setText(span, wnx ? formatRating(wnx.value) : '-');
-    var style = wnx && wnx.color ? BADGE_CSS + ';background-color:' + wnx.color : '';
+    setText(span, score ? formatRating(score.value) : '-');
+    var style = score && score.color ? BADGE_CSS + ';background-color:' + score.color : '';
     if (span.getAttribute('style') !== style) {
         span.setAttribute('style', style);
     }
-    cell.setAttribute('data-value', wnx ? String(wnx.value) : '-1');
+    cell.setAttribute('data-value', score ? String(score.value) : '-1');
 }

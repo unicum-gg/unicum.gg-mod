@@ -65,15 +65,15 @@ class FlagCache(object):
             self._download(key)
         return None
 
-    def markup(self, entry):
+    def markup(self, entry, limit=None):
         """' <IMG .../><IMG .../>' for an entry's flags, or '' when none draw.
 
-        A flag that cannot be resolved this session is left out rather than
-        drawn broken; the others still show.
+        At most `limit` flags. A flag that cannot be resolved this session is
+        left out rather than drawn broken; the others still show.
         """
-        if entry is None:
+        if entry is None or limit == 0:
             return ''
-        images = [_IMG % s for s in (self.source(c) for c in entry.flags) if s]
+        images = [_IMG % s for s in (self.source(c) for c in entry.flags[:limit]) if s]
         return ' ' + ''.join(images) if images else ''
 
     def data_uri(self, key):
