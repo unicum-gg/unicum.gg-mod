@@ -30,7 +30,7 @@ import sharp from 'sharp'
 
 const require = createRequire(import.meta.url)
 
-const METRICS = ['wnx', 'wn8']
+const METRICS = ['wn7', 'wn8', 'wnx']
 const MAX_VALUE = 9999
 
 const HEIGHT = 12
