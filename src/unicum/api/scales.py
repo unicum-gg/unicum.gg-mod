@@ -12,7 +12,7 @@ import os
 import time
 
 from unicum import config
-from unicum.api import legacy
+from unicum.api.http import parse
 
 _logger = logging.getLogger('unicum.api')
 
@@ -61,7 +61,7 @@ class RatingScales(object):
 
         def received(response):
             self._in_flight = False
-            payload = legacy.parse(response, 'ratings/scales')
+            payload = parse(response, 'ratings/scales')
             if payload is None:
                 return
             scales = self._index(payload)

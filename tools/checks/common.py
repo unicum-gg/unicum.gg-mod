@@ -31,10 +31,5 @@ SAMPLE_CLAN = 500198413
 SAMPLE_CLAN_TAG = 'RASZ'
 
 
-# A server that predates /resolve, to exercise the fallback. Once production
-# has /resolve, this check reports that it no longer falls back.
-LEGACY_API_BASE = 'https://unicum.gg'
-
-
 # Enough to cover what those samples resolve to, without depending on it.
 FLAG_CODES = ('CZ', 'GB-UKM', 'PL', 'DE', 'FR', 'RU', 'UA', 'SK')

@@ -55,10 +55,7 @@ def _settle(bigworld, rounds=6):
 
 
 def check_lookup(bigworld, src_root, api_base, label):
-    """Drive the resolve client against a real server.
-
-    Returns the lookup so a caller can tell whether it had to fall back.
-    """
+    """Drive the resolve client against a real server."""
     if src_root not in sys.path:
         sys.path.insert(0, src_root)
     from unicum import config

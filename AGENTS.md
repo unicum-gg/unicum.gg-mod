@@ -11,7 +11,7 @@ Read `README.md` for the feature table and setup, `CONTRIBUTING.md` for commits.
   - `__init__.py`: `start()` / `stop()`. Builds the shared services and installs each surface.
   - `settings.py`: `settings.json`, the one source of truth for what is shown; every surface takes it and redraws on `on_change`. `settings_window.py` mirrors it into modsSettingsApi when that mod is installed, never as a dependency; `mods_list.py` adds the mod to modsListApi's menu the same way.
   - `runtime/session.py`: the ownership registry, see [Hot reload](#hot-reload).
-  - `api/`: the unicum.gg client. `resolve.py` (batched lookup), `entry.py` (one player or clan), `store.py` (disk cache), `scales.py` (rating colours), `legacy.py` (fallback for servers without `/resolve`, delete once production has it).
+  - `api/`: the unicum.gg client. `resolve.py` (batched lookup), `entry.py` (one player or clan), `store.py` (disk cache), `scales.py` (rating colours), `http.py` (what counts as an answer).
   - Surfaces: `lobby.py` (contacts, profile title, skirmish room), `battle.py` (players panel, Tab, loading screen), `browser.py` + `web/stronghold/*.js` (the Stronghold detachment list, a web page), `room_sort.py` (saves the skirmish room's members order), `views.py` (loads the AS3 views and reloads them when their SWF changes).
   - `textures.py`: flag PNGs, as `img://` paths for Scaleform and data URIs for web pages.
   - `local_settings.py`: gitignored, points `API_BASE` at a local server.
@@ -25,7 +25,7 @@ Read `README.md` for the feature table and setup, `CONTRIBUTING.md` for commits.
 | `python tools/install_dev.py --game "C:/Games/World_of_Tanks_EU"` | Installs the bootstrap, flag PNGs, badges and SWFs into a client. Python 3. |
 | `cd tools/flags && npm install && npm run build` | Rasterises the flags into `build/flags`. |
 | `python tools/build_as3.py --game "C:/Games/World_of_Tanks_EU"` | Fetches Apache Royale and the client's `.swc` files into `build/as3`, compiles the SWFs; `--install` copies them into the client, where a running client reloads them. Needs Java 11+. |
-| `python2.7 tools/selftest.py` | The test suite, Python 2.7, against fake client modules and a real API. Set `UNICUM_API_BASE` to a server with `/resolve` to test it; production is also used to test the fallback. |
+| `python2.7 tools/selftest.py` | The test suite, Python 2.7, against fake client modules and a real API. Set `UNICUM_API_BASE` to test against another server than production. |
 
 Logs go to `game.log` in the game directory (not `python.log`), under loggers named `unicum.*`. Read it after every change: a reload that failed says so there and nowhere else.
 

@@ -54,10 +54,6 @@ the US one elsewhere. Clan languages are declared by the clan owner; player
 languages are inferred by unicum.gg. Rating colours come from
 `GET /api/ratings/scales`, fetched at most daily (`src/unicum/api/scales.py`).
 
-A server without `/resolve` answers 404, and the mod then falls back to the
-older languages-only endpoints (`src/unicum/api/legacy.py`): flags keep
-working, ratings are absent.
-
 Images get countries, text gets languages: a country code only exists to
 name a flag file, and something like `GB-UKM` means nothing written out.
 
@@ -141,8 +137,7 @@ python2.7 tools/selftest.py
 Runs outside the game against fake client modules (`tools/checks/`): the
 edit/reload cycle, recovery from a broken save, patch restoration, every
 surface, the page script protocol, and the unicum.gg client against the live
-API. Set `UNICUM_API_BASE` to a server that has `/resolve` to test it;
-production is used to test the fallback.
+API, production unless `UNICUM_API_BASE` points elsewhere.
 
 ### Layout
 

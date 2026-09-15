@@ -9,18 +9,14 @@ ratings and win rates, so every surface of the mod reads the same entry.
 The endpoint also accepts clan tags. The Stronghold detachment list is a web
 page whose rows carry a tag and nothing else, and `tags=` maps each one to
 its clan id while putting the clan itself in the same answer.
-
-Until the endpoint is deployed everywhere, a server that answers 404 is
-talked to the old way: see legacy.py. Languages keep working; ratings are
-simply absent.
 """
 import logging
 import time
 import urllib
 
 from unicum import config
-from unicum.api import legacy
 from unicum.api import store as disk
+from unicum.api.http import parse
 from unicum.api.entry import CLANS, PLAYERS, TAGS, Entry
 
 _logger = logging.getLogger('unicum.api')
@@ -48,7 +44,6 @@ class Lookup(object):
         self._tags = {}           # TAG -> (clan id or None, fetched_at)
         self._in_flight = set()   # (kind, id or TAG)
         self._retry_at = {}       # (kind, id or TAG) -> time
-        self._legacy = False
         self._store = store if store is not None else config.RESOLVE_STORE
         self._dirty = False
         self._save_scheduled = False
@@ -144,24 +139,8 @@ class Lookup(object):
                 if outstanding[0] <= 0 and on_ready is not None:
                     on_ready()
 
-        if self._legacy:
-            legacy.fetch(self._session, self._api_base, self._region, batch, done)
-            return
-
-        def received(response):
-            code = getattr(response, 'responseCode', None)
-            if code == 404 and not self._legacy:
-                # This server predates /resolve. Every later batch goes the
-                # old way too; this one is sent again, not dropped.
-                _logger.warning('%s has no /resolve, falling back to languages only',
-                                self._api_base)
-                self._legacy = True
-            if self._legacy:
-                legacy.fetch(self._session, self._api_base, self._region, batch, done)
-                return
-            done(legacy.parse(response, 'resolve'))
-
-        self._session.fetch(self._url(batch), received, timeout=config.API_TIMEOUT)
+        self._session.fetch(self._url(batch), lambda response: done(parse(response, 'resolve')),
+                            timeout=config.API_TIMEOUT)
 
     def _url(self, batch):
         parts = []

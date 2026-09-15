@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from checks.api import check_browser_scope, check_entries, check_lookup, check_scales
 from checks.client import install_fake_client
-from checks.common import FLAG_CODES, LEGACY_API_BASE, REPO, check, render_stub
+from checks.common import FLAG_CODES, REPO, check, render_stub
 from checks.engine import FakeBigWorld
 from checks.fakes import (
     FakeContact,
@@ -153,15 +153,8 @@ def main():
         check_entries(src_root)
 
         from unicum import config
-        current = check_lookup(bigworld, src_root, config.API_BASE, 'resolve')
-        if current is not None and current._legacy:
-            print('       note: %s has no /resolve yet; set UNICUM_API_BASE to '
-                  'a server that does to test it' % config.API_BASE)
+        check_lookup(bigworld, src_root, config.API_BASE, 'resolve')
         check_scales(bigworld, src_root, config.API_BASE)
-        # The fallback, against a server known to predate /resolve.
-        old = check_lookup(bigworld, src_root, LEGACY_API_BASE, 'legacy fallback')
-        if old is not None:
-            check('a server without /resolve is talked to the old way', old._legacy)
 
         print('\nall checks passed')
     finally:
