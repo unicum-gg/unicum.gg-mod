@@ -35,6 +35,7 @@ API gives them.
 | `tankButton` | `true` | the unicum.gg button in the hangar's vehicle menu |
 | `contacts`, `profile`, `stronghold` | `{"flags": true, "rating": ...}` | whether each surface shows flags and the rating; the rating is off for contacts and profile |
 | `skirmishRoom`, `battle` | `{"flags": true, "rating": true, "average": true}` | the same, plus the detachment's or team's average |
+| `modes` | every mode `{"allies": true, "enemies": true}` | in battle, per kind of battle (`random`, `ranked`, `onslaught`, `stronghold`, `frontline`, `training`, `other`), whether the allies' and the enemies' ratings and flags show, on every battle surface |
 
 One rating for the whole mod, so a number means the same thing on every
 screen. A settings.json written by an earlier version is converted on first

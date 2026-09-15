@@ -6,7 +6,8 @@ mod (in CHAMPi's settings window too, which reads the same API), and every
 change there is written to settings.json, the one source of truth.
 
 The window only knows flat values, so each surface's switches are spelled
-<surface>Flags, <surface>Rating and <surface>Average.
+<surface>Flags, <surface>Rating and <surface>Average, and each battle mode's
+mode<Mode>Allies and mode<Mode>Enemies.
 
 Two behaviours of the API (1.7.0) shape this:
 
@@ -19,13 +20,22 @@ Two behaviours of the API (1.7.0) shape this:
 """
 import logging
 
-from unicum.settings import AVERAGED, MAX_FLAGS, METRICS, SURFACES, WINDOWS
+from unicum.settings import AVERAGED, MAX_FLAGS, METRICS, MODES, SURFACES, WINDOWS
 
 _logger = logging.getLogger('unicum.settings_window')
 
 LINKAGE = 'gg.unicum'
 
 _WINDOW_LABELS = {'recent': 'Last 30 days', 'total': 'Overall'}
+_MODE_LABELS = {
+    'random': 'Random battles',
+    'ranked': 'Ranked battles',
+    'onslaught': 'Onslaught',
+    'stronghold': 'Stronghold',
+    'frontline': 'Frontline',
+    'training': 'Training rooms',
+    'other': 'Other modes',
+}
 _SURFACE_LABELS = {
     'contacts': 'Contacts list',
     'profile': 'Profile window title',
@@ -69,7 +79,17 @@ def template(values):
     ] + [
         templates.createCheckbox(_SURFACE_LABELS[surface], surface + 'Average', window[surface + 'Average'])
         for surface in AVERAGED
+    ] + [
+        templates.createEmpty(_SPACER),
+        _heading(templates, 'Battle modes'),
     ]
+    for mode in MODES:
+        ratings.extend([
+            templates.createCheckbox('%s: allies' % _MODE_LABELS[mode], _mode_key(mode, 'allies'),
+                                     window[_mode_key(mode, 'allies')]),
+            templates.createCheckbox('%s: enemies' % _MODE_LABELS[mode], _mode_key(mode, 'enemies'),
+                                     window[_mode_key(mode, 'enemies')]),
+        ])
     flags = [
         _heading(templates, 'Flags'),
         templates.createNumericStepper('Per player or clan', 'maxFlags', window['maxFlags'], 1, MAX_FLAGS, 1),
@@ -93,6 +113,9 @@ def to_window(values):
     """What the window stores for these settings: flat, dropdowns by index."""
     window = {'enabled': values['enabled'], 'maxFlags': values['maxFlags'], 'tankButton': values['tankButton'],
               'metric': METRICS.index(values['metric']), 'window': WINDOWS.index(values['window'])}
+    for mode in MODES:
+        for team in ('allies', 'enemies'):
+            window[_mode_key(mode, team)] = values['modes'][mode][team]
     for surface in SURFACES:
         window[surface + 'Flags'] = values[surface]['flags']
         window[surface + 'Rating'] = values[surface]['rating']
@@ -121,7 +144,19 @@ def from_window(raw):
                 section[key] = value
         if section:
             changes[surface] = section
+    modes = {}
+    for mode in MODES:
+        teams = dict((team, raw[_mode_key(mode, team)]) for team in ('allies', 'enemies')
+                     if isinstance(raw.get(_mode_key(mode, team)), bool))
+        if teams:
+            modes[mode] = teams
+    if modes:
+        changes['modes'] = modes
     return changes
+
+
+def _mode_key(mode, team):
+    return 'mode%s%s' % (mode[0].upper() + mode[1:], team.capitalize())
 
 
 def _index(value, options):

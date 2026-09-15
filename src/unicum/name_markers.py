@@ -138,12 +138,15 @@ class NameMarkers(object):
         from unicum.battle import _arena
         arena = _arena()
         sent = _sent(manager)
+        from unicum import modes
+        shows = modes.team_filter(self._flags._settings)
         for vehicle_id, marker in (getattr(plugin, '_markers', None) or {}).items():
             marker_id = marker.getMarkerID()
             if marker_id not in ours:
                 continue
             vInfo = arena.getVehicleInfo(vehicle_id) if arena is not None else None
-            entry = self._entry(vInfo.player.accountDBID if vInfo is not None else None)
+            shown = vInfo is not None and shows(vInfo.team)
+            entry = self._entry(vInfo.player.accountDBID if shown else None)
             data = (self._text(entry), _TEXT_COLOR, self._images(entry))
             if sent.get(marker_id) != data:
                 manager.invokeMarker(marker_id, 'setUnicumData', *data)

@@ -17,6 +17,7 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from checks.api import check_browser_scope, check_entries, check_lookup, check_scales
+from checks.battle_options import check_battle_modes
 from checks.client import install_fake_client
 from checks.common import FLAG_CODES, REPO, check, render_stub
 from checks.engine import FakeBigWorld
@@ -99,6 +100,7 @@ def main():
         check_room_sort(workdir)
         check_settings(workdir)
         check_settings_window()
+        check_battle_modes(workdir)
         check_res_mods_version()
         check_live_settings(bigworld)
         check_tank_menu()

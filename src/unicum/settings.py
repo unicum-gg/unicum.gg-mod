@@ -8,12 +8,17 @@ also shows these settings in its window, and writes back here.
 
     {"enabled": true, "metric": "wnx", "window": "recent", "maxFlags": 3, "tankButton": true,
      "contacts": {"flags": true, "rating": false},
-     "battle": {"flags": true, "rating": true, "average": true}, ...}
+     "battle": {"flags": true, "rating": true, "average": true}, ...,
+     "modes": {"random": {"allies": true, "enemies": true}, "ranked": {...}, ...}}
 
 One rating for the whole mod, so the same number means the same thing on
 every screen. Each surface only switches its flags, its rating and, in the
 skirmish room and the battle, the average on and off. tankButton is the
 unicum.gg button in the hangar's vehicle menu.
+
+In battle, `modes` says per kind of battle (see modes.py) whose ratings and
+flags show at all: the allies', the enemies', both or neither, whatever the
+battle surface itself shows.
 
 Every change reaches the surfaces through on_change(), and each surface
 redraws what it has on screen, so nothing needs a restart.
@@ -35,6 +40,9 @@ SURFACES = ('contacts', 'profile', 'skirmishRoom', 'battle', 'stronghold')
 # Surfaces with a team or detachment to average.
 AVERAGED = ('skirmishRoom', 'battle')
 
+# Kinds of battle, as modes.py tells them apart from the arena's bonus type.
+MODES = ('random', 'ranked', 'onslaught', 'stronghold', 'frontline', 'training', 'other')
+
 # Where a rating shows unless the player says otherwise: contact rows and the
 # profile title are names first.
 _RATED_BY_DEFAULT = ('skirmishRoom', 'battle', 'stronghold')
@@ -53,6 +61,7 @@ DEFAULTS = dict({
     'window': 'recent',
     'maxFlags': MAX_FLAGS,
     'tankButton': True,
+    'modes': dict((mode, {'allies': True, 'enemies': True}) for mode in MODES),
 }, **dict((surface, _surface(surface)) for surface in SURFACES))
 
 _CHECK_SECONDS = 1.0
@@ -70,6 +79,12 @@ def validate(raw):
         'maxFlags': DEFAULTS['maxFlags'],
         'tankButton': _bool(raw.get('tankButton'), DEFAULTS['tankButton']),
     }
+    modes = raw.get('modes') if isinstance(raw.get('modes'), dict) else {}
+    values['modes'] = {}
+    for mode in MODES:
+        given = modes.get(mode) if isinstance(modes.get(mode), dict) else {}
+        values['modes'][mode] = dict((team, _bool(given.get(team), default))
+                                     for team, default in DEFAULTS['modes'][mode].items())
     max_flags = raw.get('maxFlags')
     if isinstance(max_flags, int) and not isinstance(max_flags, bool):
         values['maxFlags'] = min(max(max_flags, 1), MAX_FLAGS)
@@ -108,6 +123,14 @@ def _migrate(raw):
     return migrated
 
 
+def _merge(target, changes):
+    for key, value in changes.items():
+        if isinstance(value, dict) and isinstance(target.get(key), dict):
+            _merge(target[key], value)
+        else:
+            target[key] = value
+
+
 def _bool(value, default):
     return value if isinstance(value, bool) else default
 
@@ -136,6 +159,11 @@ class Settings(object):
 
     def shows_tank_button(self):
         return self._values['enabled'] and self._values['tankButton']
+
+    def shows_team(self, mode, ally):
+        """Whether a battle of this kind shows the allies' (or enemies') ratings and flags."""
+        teams = self._values['modes'].get(mode, self._values['modes']['other'])
+        return teams['allies' if ally else 'enemies']
 
     def shows_flags(self, surface):
         return self._values['enabled'] and self._values[surface]['flags']
@@ -174,15 +202,12 @@ class Settings(object):
     def update(self, changes):
         """Apply and save changes; listeners run only when something changed.
 
-        A surface's changes are merged into it: {'battle': {'rating': False}}
-        leaves its flags as they were.
+        Changes are merged in at every level: {'battle': {'rating': False}}
+        leaves the battle's flags as they were, and {'modes': {'ranked':
+        {'enemies': False}}} leaves the ranked allies.
         """
         merged = self.values()
-        for key, value in changes.items():
-            if isinstance(value, dict) and isinstance(merged.get(key), dict):
-                merged[key].update(value)
-            else:
-                merged[key] = value
+        _merge(merged, changes)
         values = validate(merged)
         if values == self._values:
             return

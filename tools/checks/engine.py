@@ -18,6 +18,10 @@ class FakeBigWorld(object):
     def cancelCallback(self, handle):
         self.pending.pop(handle, None)
 
+    def player(self):
+        """No player entity: the lobby, before any battle."""
+        return None
+
     def fetchURL(self, url, callback, headers, timeout, method, postData):
         """Real HTTP, delivered the way the client delivers it: deferred.
 

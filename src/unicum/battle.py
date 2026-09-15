@@ -49,7 +49,7 @@ import weakref
 from gui.Scaleform.daapi.view.battle.shared.stats_exchange.stats_ctrl import BattleStatisticsDataController
 from gui.Scaleform.daapi.view.battle.shared.stats_exchange.vehicle import VehicleInfoComponent
 
-from unicum import config, views
+from unicum import config, modes, views
 from unicum.api.entry import PLAYERS
 
 _logger = logging.getLogger('unicum.battle')
@@ -179,8 +179,9 @@ class BattleFlags(object):
             self._published = None
             return
         self._markers = {}
+        shows = modes.team_filter(self._settings)
         for vInfo in arena.getVehiclesInfoIterator():
-            if vInfo.isObserver():
+            if vInfo.isObserver() or not shows(vInfo.team):
                 continue
             flags, badge = self._marker(vInfo.player.accountDBID)
             if flags or badge:
@@ -213,8 +214,10 @@ class BattleFlags(object):
             return
         arena = controller._battleCtx.getArenaDP()
         teams = {'allyTeamName': [], 'enemyTeamName': []}
+        # A team whose players show nothing gets no average either.
+        shows = modes.team_filter(self._settings)
         for vInfo in arena.getVehiclesInfoIterator():
-            if vInfo.isObserver():
+            if vInfo.isObserver() or not shows(vInfo.team):
                 continue
             key = 'allyTeamName' if arena.isAllyTeam(vInfo.team) else 'enemyTeamName'
             teams[key].append(vInfo.player.accountDBID)
@@ -248,6 +251,8 @@ class BattleFlags(object):
     def _mark(self, component, vInfoVO):
         data = component.get()
         player = getattr(vInfoVO, 'player', None)
+        if not modes.team_filter(self._settings)(getattr(vInfoVO, 'team', None)):
+            return
         flags, badge = self._marker(getattr(player, 'accountDBID', None))
         # Beside the vehicle icon instead, drawn by the battle view.
         if views.html_team_names():
