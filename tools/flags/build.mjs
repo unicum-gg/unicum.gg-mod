@@ -12,8 +12,10 @@
  *
  * Source is the same `react-flagpack` package the site installs, so the
  * flags in game are the flags on the site, from one version of one package.
- * The `s` size is natively 16x12, which is the line height we want, so this
- * is a format change and not a resize.
+ * The `s` size is natively 16x12, the height of the rating badge
+ * (tools/badges), so this is a format change and not a resize. The corners
+ * are rounded with the badge's radius, so a flag and a badge side by side
+ * read as one set.
  *
  *   npm install && npm run build
  */
@@ -42,6 +44,17 @@ const outputDir = path.resolve(
 // for the same images; taking all three would triple the output for nothing.
 const NAME = /^([A-Z]{2}(?:-[A-Z]{3})?)\.svg$/
 
+const WIDTH = 16
+const HEIGHT = 12
+// tools/badges/build.mjs RADIUS.
+const RADIUS = 2
+
+// Keeps the flag inside a rounded rectangle, and nothing of its corners.
+const CORNERS = Buffer.from(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}">` +
+  `<rect width="${WIDTH}" height="${HEIGHT}" rx="${RADIUS}" fill="#fff"/></svg>`,
+)
+
 async function main() {
   const entries = (await readdir(flagpackRoot))
     .map((file) => [file, NAME.exec(file)])
@@ -59,8 +72,12 @@ async function main() {
 
   let written = 0
   for (const { file, code } of entries) {
-    const png = await sharp(path.join(flagpackRoot, file), { density: 384 })
-      .resize(16, 12, { fit: 'fill' })
+    const flag = await sharp(path.join(flagpackRoot, file), { density: 384 })
+      .resize(WIDTH, HEIGHT, { fit: 'fill' })
+      .ensureAlpha()
+      .toBuffer()
+    const png = await sharp(flag)
+      .composite([{ input: CORNERS, blend: 'dest-in' }])
       .png({ compressionLevel: 9 })
       .toBuffer()
     await writeFile(path.join(outputDir, `${code}.png`), png)

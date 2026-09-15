@@ -142,12 +142,12 @@ def check_team_order():
 def check_icon_markers():
     """The markers drawn beside a vehicle icon, and the width they take."""
     from unicum.battle import icon_markers, markup_width
-    flag = '<IMG SRC="img://f/fr.png" width="12" height="9" vspace="-1"/>'
+    flag = '<IMG SRC="img://f/fr.png" width="16" height="12" vspace="-3"/>'
     badge = '<IMG SRC="img://b/wnx/1234.png" width="38" height="12" vspace="-3"/>'
     check('the badge and the flags come apart, each with its width',
-          icon_markers(' ' + flag + flag, ' ' + badge) == [badge, 38, flag + flag, 24])
+          icon_markers(' ' + flag + flag, ' ' + badge) == [badge, 38, flag + flag, 32])
     check('a bare number is counted by its digits', markup_width('1234') == 28)
-    check('no badge leaves an empty badge column', icon_markers(' ' + flag, '') == ['', 0, flag, 12])
+    check('no badge leaves an empty badge column', icon_markers(' ' + flag, '') == ['', 0, flag, 16])
 
 
 def check_profile_title():

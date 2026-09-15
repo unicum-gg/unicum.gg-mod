@@ -29,15 +29,16 @@ from unicum import config
 
 _logger = logging.getLogger('unicum.textures')
 
-# One flag in a Scaleform htmlText field. 12x9 rather than the 16x12 the PNG
-# is, and nudged up with vspace. An image sets the line height, and name rows
-# are a fixed height, so a taller one makes Flash squash the whole line --
-# long names like Sofia_Lauren_de_Michelle[LOOTA] lose the most. The client's
-# own emblem template leans on vspace the same way, at 24x24 vspace=-10.
-FLAG_WIDTH = 12
-FLAG_HEIGHT = 9
+# One flag in a Scaleform htmlText field: the PNG's own 16x12, the rating
+# badge's height, nudged up with the badge's vspace so both sit on the line
+# alike. An image sets the line height, and name rows are a fixed height, so
+# anything taller than the badge makes Flash squash the whole line -- long
+# names like Sofia_Lauren_de_Michelle[LOOTA] lose the most. The client's own
+# emblem template leans on vspace the same way, at 24x24 vspace=-10.
+FLAG_WIDTH = 16
+FLAG_HEIGHT = 12
 
-_IMG = '<IMG SRC="%s" width="12" height="9" vspace="-1"/>'
+_IMG = '<IMG SRC="%%s" width="%d" height="%d" vspace="-3"/>' % (FLAG_WIDTH, FLAG_HEIGHT)
 
 
 class FlagCache(object):
