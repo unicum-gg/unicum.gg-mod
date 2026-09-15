@@ -14,6 +14,7 @@ Not affiliated with Wargaming.net.
 | Player profile window title | flag after the name (language code without the SWF) | `ProfileWindow.as_setInitDataS` |
 | Battle player panels, Tab, loading screen | flags and rating after the name; team averages after the team names | `VehicleInfoComponent.addVehicleInfo`, `BattleStatisticsDataController.as_setArenaInfoS` |
 | Skirmish room members and volunteers | flags and rating after the name; members sort dropdown (the special battles' orders, plus the rating and personal rating) and average rating beside the title | `StrongholdBattleRoom.as_setMembersS` / `as_updateRallyS`, `SortieCandidatesLegionariesDP._makePlayerVO` |
+| Hangar vehicle menu | a unicum.gg button with a menu for the selected tank, opened in the browser: its tabs on unicum.gg (specifications, performances, marks, history, videos, community), handing its page to ChatGPT, Claude or Scira AI as the site's own menu does, and opening the build as the site's `?setup=` link (with openwg_gameface) | `VehicleMenuPresenter._getChildComponents`, `res/gui/gameface/mods/unicum/TankButton/` |
 | Stronghold detachment list (web page) | flags after the clan tag; a rating column; "Places" folded into "Members"; sort by personal rating or rating | `src/unicum/web/stronghold/`, injected by `src/unicum/browser.py` |
 
 Every surface shows a player's or clan's flags, up to three, in the order the
@@ -30,6 +31,7 @@ API gives them.
 | `metric` | `"wnx"` | the one rating shown everywhere: `"wn7"`, `"wn8"` or `"wnx"` |
 | `window` | `"recent"` | its period: `"recent"` (last 30 days, lifetime while not computed) or `"total"` |
 | `maxFlags` | `3` | flags per player or clan, 1 to 3 |
+| `tankButton` | `true` | the unicum.gg button in the hangar's vehicle menu |
 | `contacts`, `profile`, `stronghold` | `{"flags": true, "rating": ...}` | whether each surface shows flags and the rating; the rating is off for contacts and profile |
 | `skirmishRoom`, `battle` | `{"flags": true, "rating": true, "average": true}` | the same, plus the detachment's or team's average |
 
@@ -42,8 +44,8 @@ izeberg's modsSettingsApi installed, the same settings also appear in its
 window, and in anything that reads that API (`src/unicum/settings_window.py`);
 nothing else is required. With poliroid's modsListApi installed, the mod also
 has an entry with its icon in the "Open settings" menu, which opens that
-window (`src/unicum/mods_list.py`). The icon is `assets/icon.svg`, rendered by
-`cd tools/badges && npm run icon`.
+window (`src/unicum/mods_list.py`). The icons, for that menu and the hangar
+button, are `assets/icon.svg` rendered by `cd tools/badges && npm run icon`.
 
 Everything comes from `GET /api/{region}/resolve` on unicum.gg: languages
 and flags, lifetime and 30-day ratings, win rates and a player's clan, for
@@ -99,8 +101,10 @@ python tools/build_as3.py --game "C:/Games/World_of_Tanks_EU"
 python tools/install_dev.py --game "C:/Games/World_of_Tanks_EU"
 ```
 
-That installs the bootstrap into `mods/<version>/`, and the flags, badges and
-SWFs into `res_mods/<version>/`. Start the client once; after that,
+That installs the bootstrap into `mods/<version>/`, and the flags, badges,
+icons, SWFs and `res/` (the hangar button's Gameface files and `res_map` entry)
+into `res_mods/<version>/`. openwg_gameface restarts the client by itself the
+first time it finds a new `res_map` entry. Start the client once; after that,
 saving a file under `src/` reloads the mod in place within half a second.
 
 `build_as3.py` downloads Apache Royale (about 200 MB) and `playerglobal.swc`
