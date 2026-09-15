@@ -131,7 +131,7 @@ class BattleFlags(object):
             value = self._settings.rating(entry, 'battle')
             if value is not None:
                 values.append(value)
-        return sum(values) / len(values) if values else None
+        return sum(values) / float(len(values)) if values else None
 
     def _mark(self, component, vInfoVO):
         data = component.get()
