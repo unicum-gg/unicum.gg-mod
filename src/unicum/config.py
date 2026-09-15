@@ -57,6 +57,9 @@ FLAGS_RES_PATH = 'gui/maps/icons/unicum/flags'
 # tools/badges. Indexed at startup like the flags.
 BADGES_RES_PATH = 'gui/maps/icons/unicum/badges'
 
+# The mod's icon in the modsListApi menu, rendered by tools/badges/icon.mjs.
+ICON_RES_PATH = 'gui/maps/icons/unicum/icon.png'
+
 
 def _res_mods_dir(res_path):
     """Where resource files live on disk, relative to the client's directory.

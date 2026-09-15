@@ -156,6 +156,8 @@ def install_flags(game: Path, version: str) -> int:
 
 
 AS3_BUILD = REPO / 'build' / 'as3'
+ICON_BUILD = REPO / 'build' / 'icon' / 'unicum.png'
+ICON_SUBPATH = Path('gui') / 'maps' / 'icons' / 'unicum' / 'icon.png'
 BADGES_BUILD = REPO / 'build' / 'badges'
 BADGES_SUBPATH = Path('gui') / 'maps' / 'icons' / 'unicum' / 'badges'
 
@@ -173,6 +175,16 @@ def install_badges(game: Path, version: str) -> int:
         shutil.rmtree(target)
     shutil.copytree(BADGES_BUILD, target, ignore=shutil.ignore_patterns('*.json'))
     return sum(1 for p in target.iterdir() if p.is_dir())
+
+
+def install_icon(game: Path, version: str) -> Path | None:
+    """Copy the modsListApi menu icon; indexed at startup like the flags."""
+    if not ICON_BUILD.is_file():
+        return None
+    target = game / 'res_mods' / version / ICON_SUBPATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ICON_BUILD, target)
+    return target
 
 
 def install_swfs(game: Path, version: str) -> list[Path]:
@@ -229,6 +241,12 @@ def main() -> None:
             print(f'badges   {bands} metrics -> res_mods/{version}/{BADGES_SUBPATH}')
         else:
             print('badges   none built yet (cd tools/badges && npm install && npm run build)')
+
+        icon = install_icon(game, version)
+        if icon:
+            print(f'icon     {icon}')
+        else:
+            print('icon     none built yet (cd tools/badges && npm run icon)')
 
         swfs = install_swfs(game, version)
         for swf in swfs:

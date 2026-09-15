@@ -10,7 +10,7 @@ is nothing more than stop() followed by a fresh start().
 """
 import logging
 
-from unicum import battle, browser, config, lobby, room_sort, settings_window, views
+from unicum import battle, browser, config, lobby, mods_list, room_sort, settings_window, views
 from unicum.badges import Badges
 from unicum.api.resolve import Lookup
 from unicum.api.scales import RatingScales
@@ -40,6 +40,7 @@ def start(generation=0):
         settings = Settings(_session)
         settings.install()
         settings_window.install(_session, settings)
+        mods_list.install(_session)
         lookup = Lookup(_session, config.REGION)
         scales = RatingScales(_session)
         flags = FlagCache(_session)

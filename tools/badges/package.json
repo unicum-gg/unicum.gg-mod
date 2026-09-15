@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Renders the rating badge pieces the Scaleform UI assembles into a coloured number.",
   "scripts": {
-    "build": "node build.mjs"
+    "build": "node build.mjs",
+    "icon": "node icon.mjs"
   },
   "dependencies": {
     "@fontsource/roboto-condensed": "^5.3.0",

@@ -40,7 +40,10 @@ read.
 The file is checked every second and changes apply to what is on screen. With
 izeberg's modsSettingsApi installed, the same settings also appear in its
 window, and in anything that reads that API (`src/unicum/settings_window.py`);
-nothing else is required.
+nothing else is required. With poliroid's modsListApi installed, the mod also
+has an entry with its icon in the "Open settings" menu, which opens that
+window (`src/unicum/mods_list.py`). The icon is `assets/icon.svg`, rendered by
+`cd tools/badges && npm run icon`.
 
 Everything comes from `GET /api/{region}/resolve` on unicum.gg: languages
 and flags, lifetime and 30-day ratings, win rates and a player's clan, for

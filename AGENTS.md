@@ -9,7 +9,7 @@ Read `README.md` for the feature table and setup, `CONTRIBUTING.md` for commits.
 - **`dev/mod_unicum_dev.py.in`**, the bootstrap. The only file the client loads, packaged once as a `.wotmod`. It watches `src/` and reloads the package in place. Changing it needs a client restart; nothing else in the repo does, except the resource files below.
 - **`src/unicum/`**, everything reloadable.
   - `__init__.py`: `start()` / `stop()`. Builds the shared services and installs each surface.
-  - `settings.py`: `settings.json`, the one source of truth for what is shown; every surface takes it and redraws on `on_change`. `settings_window.py` mirrors it into modsSettingsApi when that mod is installed, never as a dependency.
+  - `settings.py`: `settings.json`, the one source of truth for what is shown; every surface takes it and redraws on `on_change`. `settings_window.py` mirrors it into modsSettingsApi when that mod is installed, never as a dependency; `mods_list.py` adds the mod to modsListApi's menu the same way.
   - `runtime/session.py`: the ownership registry, see [Hot reload](#hot-reload).
   - `api/`: the unicum.gg client. `resolve.py` (batched lookup), `entry.py` (one player or clan), `store.py` (disk cache), `scales.py` (rating colours), `legacy.py` (fallback for servers without `/resolve`, delete once production has it).
   - Surfaces: `lobby.py` (contacts, profile title, skirmish room), `battle.py` (players panel, Tab, loading screen), `browser.py` + `web/stronghold/*.js` (the Stronghold detachment list, a web page), `room_sort.py` (saves the skirmish room's members order), `views.py` (loads the AS3 views and reloads them when their SWF changes).
