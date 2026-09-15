@@ -23,18 +23,19 @@ def check_browser_scope(src_root):
     # javascript: URLs are percent-decoded, and '#' would start a fragment.
     import base64
     from unicum.browser import NEED_PREFIX
-    script = content_script(7)
+    script = content_script(7, '30d WN8', False)
     check('the content script survives being a URL',
           '%' not in script and '#' not in script)
     decoded = base64.b64decode(script.split("atob('", 1)[1].split("')", 1)[0])
-    check('the content script carries its generation',
-          decoded.startswith('(function(GENERATION){') and decoded.endswith('})(7);'))
+    check('the content script carries its generation and settings',
+          decoded.startswith('(function(GENERATION, RATING_TITLE, SHOW_RATING){')
+          and decoded.endswith('})(7, "30d WN8", false);'))
     check('the page and python agree on how tags are asked for',
           ("'%s'" % NEED_PREFIX) in decoded)
     pushed = answers_script({
         'RASZ': {'flags': ['data:image/png;base64,iVBOR+/w=='],
-                 'wnx': {'value': 1792.2, 'color': '#6D9521'}},
-        'TENTS': {'flags': [], 'wnx': None}})
+                 'score': {'value': 1792.2, 'color': '#6D9521'}},
+        'TENTS': {'flags': [], 'score': None}})
     check('the answers script survives being a URL, colours included',
           '%' not in pushed and '#' not in pushed)
 

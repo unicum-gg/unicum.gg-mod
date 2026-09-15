@@ -36,7 +36,9 @@ from checks.surfaces import (
     check_battle_panels,
     check_contacts_redraw,
     check_profile_title,
+    check_room_sort,
     check_skirmish_room)
+from checks.settings import check_live_settings, check_settings, check_settings_window
 
 
 def main():
@@ -89,6 +91,10 @@ def main():
         check_profile_title()
         check_battle_panels()
         check_badges(workdir)
+        check_room_sort(workdir)
+        check_settings(workdir)
+        check_settings_window()
+        check_live_settings(bigworld)
 
         first_hook = target.__dict__['addVehicleInfo']
         generation_before = stub._generation

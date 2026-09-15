@@ -13,6 +13,7 @@ from checks.fakes import (
     FakeResMgr,
     FakeSortieCandidatesLegionariesDP,
     FakeStrongholdBattleRoom,
+    FakeStatisticsController,
     FakeVehicleInfoComponent)
 from checks.surfaces import check_profile_title
 
@@ -52,6 +53,11 @@ def install_fake_client(bigworld):
     exchange.VehicleInfoComponent = FakeVehicleInfoComponent
     _attach('gui.Scaleform.daapi.view.battle.shared.stats_exchange',
             'gui.Scaleform.daapi.view.battle.shared.stats_exchange.vehicle', exchange)
+    stats_ctrl = types.ModuleType(
+        'gui.Scaleform.daapi.view.battle.shared.stats_exchange.stats_ctrl')
+    stats_ctrl.BattleStatisticsDataController = FakeStatisticsController
+    _attach('gui.Scaleform.daapi.view.battle.shared.stats_exchange',
+            'gui.Scaleform.daapi.view.battle.shared.stats_exchange.stats_ctrl', stats_ctrl)
 
     for name in ('gui.Scaleform.daapi.view.lobby.profile',
                  'gui.Scaleform.daapi.view.lobby.fortifications',
@@ -60,19 +66,20 @@ def install_fake_client(bigworld):
                  'messenger.gui.Scaleform.data'):
         _package(name)
 
-    # titles.py. The SWF starts out missing, so install() stands down and
+    # views.py. The SWFs start out missing, so install() stands down and
     # profile titles keep their language code; check_profile_title adds it.
     sys.modules['ResMgr'] = FakeResMgr
     _package('frameworks')
     wulf = types.ModuleType('frameworks.wulf')
     wulf.WindowLayer = type('WindowLayer', (object,), {'SERVICE_LAYOUT': 'service'})
+    wulf.WindowStatus = type('WindowStatus', (object,), {'DESTROYING': 4, 'DESTROYED': 5})
     _attach('frameworks', 'frameworks.wulf', wulf)
     for name in ('gui.app_loader', 'gui.Scaleform.framework',
                  'gui.Scaleform.framework.entities',
                  'gui.Scaleform.framework.managers', 'gui.shared'):
         _package(name)
     app_settings = types.ModuleType('gui.app_loader.settings')
-    app_settings.APP_NAME_SPACE = type('APP_NAME_SPACE', (object,), {'SF_LOBBY': 'lobby'})
+    app_settings.APP_NAME_SPACE = type('APP_NAME_SPACE', (object,), {'SF_LOBBY': 'lobby', 'SF_BATTLE': 'battle'})
     _attach('gui.app_loader', 'gui.app_loader.settings', app_settings)
     framework = sys.modules['gui.Scaleform.framework']
     framework.ScopeTemplates = type('ScopeTemplates', (object,), {'GLOBAL_SCOPE': 'global'})
@@ -83,6 +90,10 @@ def install_fake_client(bigworld):
     view_module.ViewKey = lambda alias, name=None: (alias, name or alias)
     _attach('gui.Scaleform.framework.entities',
             'gui.Scaleform.framework.entities.View', view_module)
+    sf_window = types.ModuleType('gui.Scaleform.framework.entities.sf_window')
+    sf_window.SFWindow = type('SFWindow', (object,), {})
+    _attach('gui.Scaleform.framework.entities',
+            'gui.Scaleform.framework.entities.sf_window', sf_window)
     loaders = types.ModuleType('gui.Scaleform.framework.managers.loaders')
     loaders.SFViewLoadParams = lambda alias, parent=None: alias
     _attach('gui.Scaleform.framework.managers',
@@ -109,6 +120,20 @@ def install_fake_client(bigworld):
     profile.ProfileWindow = FakeProfileWindow
     _attach('gui.Scaleform.daapi.view.lobby.profile',
             'gui.Scaleform.daapi.view.lobby.profile.ProfileWindow', profile)
+
+    # room_sort.py: the client's translations of its sort orders.
+    _package('gui.impl')
+    backport = types.ModuleType('gui.impl.backport')
+    backport.text = lambda resource: 'client %s' % resource
+    _attach('gui.impl', 'gui.impl.backport', backport)
+    gen = types.ModuleType('gui.impl.gen')
+    sort = type('Sort', (object,), dict(
+        (name, staticmethod(lambda name=name: name))
+        for name in ('byOrder', 'byVehicles', 'byStatus', 'byName')))
+    gen.R = type('R', (object,), {'strings': type('Strings', (object,), {
+        'prebattle': type('Prebattle', (object,), {
+            'labels': type('Labels', (object,), {'sort': sort})})})})
+    _attach('gui.impl', 'gui.impl.gen', gen)
 
     contacts = types.ModuleType(
         'messenger.gui.Scaleform.data.contacts_vo_converter')

@@ -41,6 +41,28 @@ class Comp7VehicleInfoComponent(FakeVehicleInfoComponent):
 ORIGINAL_ADD_VEHICLE_INFO = FakeVehicleInfoComponent.__dict__['addVehicleInfo']
 
 
+class FakeStatisticsController(object):
+    """The battle's statistics controller, with one player on each side."""
+
+    def __init__(self, ally, enemy):
+        def vehicle(account_id, team):
+            return type('VInfo', (object,), {
+                'team': team, 'isObserver': lambda self: False,
+                'player': type('Player', (object,), {'accountDBID': account_id})()})()
+        vehicles = [vehicle(ally, 1), vehicle(enemy, 2)]
+        arena = type('ArenaDP', (object,), {
+            'getVehiclesInfoIterator': lambda self: iter(vehicles),
+            'isAllyTeam': lambda self, team: team == 1})()
+        self._battleCtx = type('BattleCtx', (object,), {'getArenaDP': lambda self: arena})()
+        self.arena_info = None
+
+    def as_setArenaInfoS(self, data):
+        self.arena_info = data
+
+    def invalidateArenaInfo(self):
+        self.as_setArenaInfoS({'allyTeamName': 'DOUBT', 'enemyTeamName': 'SMTHG'})
+
+
 class FakeLobbyContext(object):
 
     def getRegionCode(self, dbID):
@@ -130,6 +152,9 @@ class FakeStrongholdBattleRoom(FakeBaseRallyRoomViewMeta):
     def _rebuildCandidatesDP(self):
         self.candidate_rebuilds += 1
 
+    def _dispose(self):
+        self.disposed = True
+
     def member_region(self):
         return self.sent[0]['player']['region']
 
@@ -177,7 +202,7 @@ class FakeOpenProfile(FakeProfileWindow):
 
 
 class FakeResMgr(object):
-    """Which files the client indexed at startup; titles.py asks for its SWF."""
+    """Which files the client indexed at startup; views.py asks for its SWFs."""
 
     files = set()
 
