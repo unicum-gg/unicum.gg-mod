@@ -74,18 +74,23 @@ def find_version(game: Path) -> str:
         f'cannot tell which version to use, pass --version: {versions}')
 
 
-def find_python27(explicit: str | None) -> Path:
+def find_python27(explicit: str | None) -> list[str]:
+    """The command running Python 2.7, checked: a stub compiled by any other
+    Python has the wrong magic and the client will not load it."""
     if explicit:
-        path = Path(explicit)
-        if not path.is_file():
-            raise SystemExit(f'no such interpreter: {path}')
-        return path
-    for candidate in PYTHON27_CANDIDATES:
-        if candidate.is_file():
-            return candidate
-    found = shutil.which('py')
-    if found:
-        return Path(found)
+        if not Path(explicit).is_file():
+            raise SystemExit(f'no such interpreter: {explicit}')
+        candidates = [[explicit]]
+    else:
+        candidates = [[str(path)] for path in PYTHON27_CANDIDATES if path.is_file()]
+        launcher = shutil.which('py')
+        if launcher:
+            candidates.append([launcher, '-2.7'])
+    for command in candidates:
+        result = subprocess.run(command + ['-c', 'import sys; print(sys.version_info[:2] == (2, 7))'],
+                                capture_output=True, text=True)
+        if result.returncode == 0 and result.stdout.strip() == 'True':
+            return command
     raise SystemExit('no Python 2.7 found, pass --python27')
 
 
@@ -96,13 +101,13 @@ def render_stub() -> str:
         '__SRC_ROOT__', SRC.as_posix())
 
 
-def compile_stub(python27: Path, stub: Path) -> Path:
+def compile_stub(python27: list[str], stub: Path) -> Path:
     """Byte-compile with the client's own Python, so the magic matches."""
     pyc = stub.with_suffix('.pyc')
     if pyc.exists():
         pyc.unlink()
     result = subprocess.run(
-        [str(python27), '-c',
+        python27 + ['-c',
          'import py_compile, sys; py_compile.compile(sys.argv[1], '
          'cfile=sys.argv[2], doraise=True)',
          str(stub), str(pyc)],
