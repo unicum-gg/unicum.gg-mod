@@ -62,6 +62,11 @@ BADGES_RES_PATH = 'gui/maps/icons/unicum/badges'
 ICON_RES_PATH = 'gui/maps/icons/unicum/icon.png'
 
 
+def _version_key(name):
+    """2.10.0.0 after 2.9.0.0, which a plain string sort gets backwards."""
+    return [int(part) if part.isdigit() else part for part in name.split('.')]
+
+
 def _res_mods_dir(res_path):
     """Where resource files live on disk, relative to the client's directory.
 
@@ -70,8 +75,8 @@ def _res_mods_dir(res_path):
     """
     root = 'res_mods'
     try:
-        versions = sorted(name for name in os.listdir(root)
-                          if os.path.isdir(os.path.join(root, name)))
+        versions = sorted((name for name in os.listdir(root)
+                           if os.path.isdir(os.path.join(root, name))), key=_version_key)
     except OSError:
         versions = []
     if not versions:
