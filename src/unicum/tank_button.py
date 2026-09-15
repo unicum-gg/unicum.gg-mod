@@ -21,7 +21,9 @@ Links go to https://unicum.gg/<region>/tanks/<intCD>[/<tab>]: the site
 redirects an id to the tank's page, keeping the path and the query. Each
 carries UTM parameters, since a page opened from another application has no
 Referer. "Open build" adds the vehicle's setup as the site's `setup` token
-(build.py). The AI entries do what the site's own "Open in" menu does
+(build.py); "Share build" copies that link instead of opening it, tagged
+apart so a shared link's visits can be told from the player's own. The AI
+entries do what the site's own "Open in" menu does
 (apps/web/src/components/page-ai-actions.tsx in unicum-gg/unicum.gg): every
 page has a Markdown twin at <path>.md, and the model is handed that, with the
 setup too, which the twin renders.
@@ -104,9 +106,9 @@ def _utm(content):
     return 'utm_source=wot-mod&utm_medium=hangar&utm_campaign=tank-menu&utm_content=%s' % content
 
 
-def tank_url(int_cd, tab='specifications', setup=None, region=config.REGION):
+def tank_url(int_cd, tab='specifications', setup=None, content=None, region=config.REGION):
     """A tank page on unicum.gg, by the tank's id."""
-    query = ('setup=%s&' % setup if setup else '') + _utm('build' if setup else tab)
+    query = ('setup=%s&' % setup if setup else '') + _utm(content or ('build' if setup else tab))
     return '%s/%s/tanks/%d%s?%s' % (SITE_BASE, region, int_cd, TABS[tab], query)
 
 
@@ -114,9 +116,9 @@ def item_url(item, vehicle):
     """The link a menu entry opens for this gui Vehicle, or None for an unknown entry."""
     if item in TABS:
         return tank_url(vehicle.intCD, item)
-    if item == 'build':
-        setup = build.setup_token(vehicle)
-        return tank_url(vehicle.intCD, setup=setup) if setup else tank_url(vehicle.intCD, 'specifications')
+    if item in ('build', 'share'):
+        content = 'share-build' if item == 'share' else 'build'
+        return tank_url(vehicle.intCD, setup=build.setup_token(vehicle), content=content)
     if item in AI:
         base, query = AI[item]
         page = markdown_url(vehicle.intCD, build.setup_token(vehicle))
@@ -147,8 +149,25 @@ def open_item(item):
     if url is None:
         _logger.warning('unknown tank menu entry %r', item)
         return
+    if item == 'share':
+        _share(url)
+        return
     _logger.info('opening %s', url)
     BigWorld.wg_openWebBrowser(url)
+
+
+def _share(url):
+    """The build link in the clipboard, and a system message saying so."""
+    from gui import SystemMessages
+    from gui.shared.notifications import NotificationPriorityLevel
+    from gui.shared.utils import copyToClipboard
+    copyToClipboard(url)
+    _logger.info('copied %s', url)
+    # Medium, as the game's own information messages: without a priority the
+    # message only lands in the notification centre, with no popup.
+    SystemMessages.pushMessage(u'unicum.gg: build link copied to the clipboard.',
+                               type=SystemMessages.SM_TYPE.Information,
+                               priority=NotificationPriorityLevel.MEDIUM)
 
 
 class TankButtonModel(ViewModel):

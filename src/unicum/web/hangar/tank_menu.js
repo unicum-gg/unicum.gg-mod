@@ -100,6 +100,7 @@ const MENU = [
     ],
     [
         ["build", "Open build", GAME_ICON("easyEquip")],
+        ["share", "Share build", ICONS.share],
     ],
 ];
 

@@ -54,6 +54,7 @@ const GLYPHS = {
   history: join(PHOSPHOR, 'clock-counter-clockwise-fill.svg'),
   videos: join(PHOSPHOR, 'video-camera-fill.svg'),
   community: join(PHOSPHOR, 'users-three-fill.svg'),
+  share: join(PHOSPHOR, 'share-network-fill.svg'),
 }
 mkdirSync(MENU_ICONS, { recursive: true })
 for (const [name, source] of Object.entries(GLYPHS)) {
