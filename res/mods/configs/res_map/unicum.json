@@ -1,0 +1,12 @@
+[
+    {
+        "type": "Layout",
+        "path": "coui://gui/gameface/mods/unicum/TankButton/TankButton.html",
+        "parameters": {
+            "extension": "",
+            "entrance": "UnicumTankButton",
+            "impl": "gameface"
+        },
+        "itemID": "UnicumTankButton"
+    }
+]

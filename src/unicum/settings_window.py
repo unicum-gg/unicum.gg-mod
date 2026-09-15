@@ -77,6 +77,13 @@ def template(values):
     ] + [
         templates.createCheckbox(_SURFACE_LABELS[surface], surface + 'Flags', window[surface + 'Flags'])
         for surface in SURFACES
+    ] + [
+        templates.createEmpty(_SPACER),
+        _heading(templates, 'Hangar'),
+        templates.createCheckbox('Tank menu button', 'tankButton', window['tankButton'],
+                                 tooltip='{HEADER}Tank menu button{/HEADER}{BODY}A unicum.gg button beside the '
+                                         'vehicle menu, with links for the selected tank: its unicum.gg tabs, '
+                                         'AI assistants and its build.{/BODY}'),
     ]
     return {'modDisplayName': 'unicum.gg', 'enabled': values['enabled'],
             'column1': ratings, 'column2': flags}
@@ -84,7 +91,7 @@ def template(values):
 
 def to_window(values):
     """What the window stores for these settings: flat, dropdowns by index."""
-    window = {'enabled': values['enabled'], 'maxFlags': values['maxFlags'],
+    window = {'enabled': values['enabled'], 'maxFlags': values['maxFlags'], 'tankButton': values['tankButton'],
               'metric': METRICS.index(values['metric']), 'window': WINDOWS.index(values['window'])}
     for surface in SURFACES:
         window[surface + 'Flags'] = values[surface]['flags']
@@ -97,8 +104,9 @@ def to_window(values):
 def from_window(raw):
     """settings.json changes from what the window sends back."""
     changes = {}
-    if isinstance(raw.get('enabled'), bool):
-        changes['enabled'] = raw['enabled']
+    for key in ('enabled', 'tankButton'):
+        if isinstance(raw.get(key), bool):
+            changes[key] = raw[key]
     if _index(raw.get('metric'), METRICS) is not None:
         changes['metric'] = METRICS[raw['metric']]
     if _index(raw.get('window'), WINDOWS) is not None:

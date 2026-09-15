@@ -6,13 +6,14 @@ with the defaults on first start, can be edited by hand while the client runs
 required. When izeberg's modsSettingsApi is installed, settings_window.py
 also shows these settings in its window, and writes back here.
 
-    {"enabled": true, "metric": "wnx", "window": "recent", "maxFlags": 3,
+    {"enabled": true, "metric": "wnx", "window": "recent", "maxFlags": 3, "tankButton": true,
      "contacts": {"flags": true, "rating": false},
      "battle": {"flags": true, "rating": true, "average": true}, ...}
 
 One rating for the whole mod, so the same number means the same thing on
 every screen. Each surface only switches its flags, its rating and, in the
-skirmish room and the battle, the average on and off.
+skirmish room and the battle, the average on and off. tankButton is the
+unicum.gg button in the hangar's vehicle menu.
 
 Every change reaches the surfaces through on_change(), and each surface
 redraws what it has on screen, so nothing needs a restart.
@@ -51,6 +52,7 @@ DEFAULTS = dict({
     'metric': 'wnx',
     'window': 'recent',
     'maxFlags': MAX_FLAGS,
+    'tankButton': True,
 }, **dict((surface, _surface(surface)) for surface in SURFACES))
 
 _CHECK_SECONDS = 1.0
@@ -66,6 +68,7 @@ def validate(raw):
         'metric': raw.get('metric') if raw.get('metric') in METRICS else DEFAULTS['metric'],
         'window': raw.get('window') if raw.get('window') in WINDOWS else DEFAULTS['window'],
         'maxFlags': DEFAULTS['maxFlags'],
+        'tankButton': _bool(raw.get('tankButton'), DEFAULTS['tankButton']),
     }
     max_flags = raw.get('maxFlags')
     if isinstance(max_flags, int) and not isinstance(max_flags, bool):
@@ -128,6 +131,9 @@ class Settings(object):
 
     def values(self):
         return json.loads(json.dumps(self._values))
+
+    def shows_tank_button(self):
+        return self._values['enabled'] and self._values['tankButton']
 
     def shows_flags(self, surface):
         return self._values['enabled'] and self._values[surface]['flags']

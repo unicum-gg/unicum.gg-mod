@@ -10,7 +10,7 @@ is nothing more than stop() followed by a fresh start().
 """
 import logging
 
-from unicum import battle, browser, config, lobby, mods_list, room_sort, settings_window, views
+from unicum import battle, browser, config, lobby, mods_list, room_sort, settings_window, tank_button, views
 from unicum.badges import Badges
 from unicum.api.resolve import Lookup
 from unicum.api.scales import RatingScales
@@ -50,6 +50,7 @@ def start(generation=0):
         views.install(_session)
         lobby.install(_session, lookup, flags, badges, settings)
         room_sort.install(_session, settings)
+        tank_button.install(_session, settings)
     except Exception:
         # A feature that fails halfway leaves the ones before it installed.
         # Without this the session is orphaned: the loader sees start() fail

@@ -57,7 +57,8 @@ FLAGS_RES_PATH = 'gui/maps/icons/unicum/flags'
 # tools/badges. Indexed at startup like the flags.
 BADGES_RES_PATH = 'gui/maps/icons/unicum/badges'
 
-# The mod's icon in the modsListApi menu, rendered by tools/badges/icon.mjs.
+# The mod's icon in the modsListApi menu, rendered by tools/badges/icon.mjs
+# like the hangar button's, in gui/maps/icons/unicum/tankButton.
 ICON_RES_PATH = 'gui/maps/icons/unicum/icon.png'
 
 

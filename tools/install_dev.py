@@ -156,8 +156,9 @@ def install_flags(game: Path, version: str) -> int:
 
 
 AS3_BUILD = REPO / 'build' / 'as3'
-ICON_BUILD = REPO / 'build' / 'icon' / 'unicum.png'
-ICON_SUBPATH = Path('gui') / 'maps' / 'icons' / 'unicum' / 'icon.png'
+ICON_BUILD = REPO / 'build' / 'icon'
+ICONS_SUBPATH = Path('gui') / 'maps' / 'icons' / 'unicum'
+RES = REPO / 'res'
 BADGES_BUILD = REPO / 'build' / 'badges'
 BADGES_SUBPATH = Path('gui') / 'maps' / 'icons' / 'unicum' / 'badges'
 
@@ -177,14 +178,34 @@ def install_badges(game: Path, version: str) -> int:
     return sum(1 for p in target.iterdir() if p.is_dir())
 
 
-def install_icon(game: Path, version: str) -> Path | None:
-    """Copy the modsListApi menu icon; indexed at startup like the flags."""
-    if not ICON_BUILD.is_file():
-        return None
-    target = game / 'res_mods' / version / ICON_SUBPATH
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(ICON_BUILD, target)
-    return target
+def install_icons(game: Path, version: str) -> int:
+    """Copy the menu icon and the hangar button's; indexed at startup like the flags."""
+    if not (ICON_BUILD / 'unicum.png').is_file():
+        return 0
+    target = game / 'res_mods' / version / ICONS_SUBPATH
+    target.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ICON_BUILD / 'unicum.png', target / 'icon.png')
+    count = 1
+    for icon in sorted((ICON_BUILD / 'tankButton').glob('*.png')):
+        (target / 'tankButton').mkdir(exist_ok=True)
+        shutil.copy2(icon, target / 'tankButton' / icon.name)
+        count += 1
+    return count
+
+
+def install_res(game: Path, version: str) -> int:
+    """Copy res/ as it is: the hangar button's Gameface files and its res_map entry.
+
+    openwg_gameface merges res_map entries into the client's resource map at
+    startup, and restarts the client once when that map changes.
+    """
+    count = 0
+    for source in sorted(p for p in RES.rglob('*') if p.is_file()):
+        target = game / 'res_mods' / version / source.relative_to(RES)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+        count += 1
+    return count
 
 
 def install_swfs(game: Path, version: str) -> list[Path]:
@@ -242,11 +263,12 @@ def main() -> None:
         else:
             print('badges   none built yet (cd tools/badges && npm install && npm run build)')
 
-        icon = install_icon(game, version)
-        if icon:
-            print(f'icon     {icon}')
+        icons = install_icons(game, version)
+        if icons:
+            print(f'icons    {icons} -> res_mods/{version}/{ICONS_SUBPATH}')
         else:
-            print('icon     none built yet (cd tools/badges && npm run icon)')
+            print('icons    none built yet (cd tools/badges && npm run icon)')
+        print(f'res      {install_res(game, version)} files -> res_mods/{version}')
 
         swfs = install_swfs(game, version)
         for swf in swfs:
