@@ -50,9 +50,24 @@ def check_settings(workdir):
     with open(store, 'rb') as handle:
         check('and saved', json.load(handle)['contacts']['rating'] is True)
 
+    with open(store, 'wb') as handle:
+        handle.write('{"metric": "wn8",')
+    typo = Settings(Session(generation=0), store=store)
+    with open(store, 'rb') as handle:
+        check('a settings.json that does not parse is left as it is', handle.read() == '{"metric": "wn8",')
+    check('and the defaults are used meanwhile', typo.metric('battle') == 'wnx')
+    settings._check()
+    check('a hand edit that does not parse keeps the settings on screen', settings.metric('contacts') == 'wn8')
+
     settings.update({'enabled': False})
     check('the master switch turns every surface off',
           not settings.shows('contacts') and not settings.shows_flags('battle'))
+
+
+def check_res_mods_version():
+    """The newest res_mods folder is picked by version, not by spelling."""
+    from unicum.config import _version_key
+    check('2.10 is newer than 2.9', max(['2.9.0.0', '2.10.0.0', '2.4.0.0'], key=_version_key) == '2.10.0.0')
 
 
 def check_settings_window():

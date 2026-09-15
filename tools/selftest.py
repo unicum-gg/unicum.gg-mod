@@ -38,7 +38,7 @@ from checks.surfaces import (
     check_profile_title,
     check_room_sort,
     check_skirmish_room)
-from checks.settings import check_live_settings, check_settings, check_settings_window
+from checks.settings import check_live_settings, check_res_mods_version, check_settings, check_settings_window
 from checks.tank_menu import check_tank_menu
 
 
@@ -95,6 +95,7 @@ def main():
         check_room_sort(workdir)
         check_settings(workdir)
         check_settings_window()
+        check_res_mods_version()
         check_live_settings(bigworld)
         check_tank_menu()
 
