@@ -20,8 +20,18 @@ it:
   k  crew skills, "memberIndex:skill"; the site numbers members in the order
      of the vehicle's crew definition with same-role members grouped
 
+And what the page's 3D view shows of the vehicle:
+
+  n  the 2D style worn, by its style id, in the season the garage shows
+  w  that season, winter or desert, for a style that differs by season
+  t  the 3D style worn, by its models set, which names the site's folder
+  x  the marks of excellence on the gun, unless the player hides them
+
 Left out: the crew level (the client no longer has one below 100, which is
 the site's default) and the driving mode, which a garage setup does not hold.
+A camouflage, paint or decal applied by hand, outside a style, cannot travel:
+the site dresses a vehicle in whole styles only, and shows its factory paint
+instead. So do the parts of an edited style and a progressive style's level.
 Every field is read on its own, and one the client cannot give is skipped: the
 site opens on whatever parts of a token it understands.
 """
@@ -32,13 +42,20 @@ _logger = logging.getLogger('unicum.build')
 
 _PAIR_SIDES = {0: 'first', 1: 'second'}
 
+# c11n_constants.SeasonType values, and how the site names the two it reads.
+_WINTER = 1
+_SUMMER = 2
+_DESERT = 4
+_SEASON_NAMES = {_WINTER: 'winter', _DESERT: 'desert'}
+
 
 def setup_token(vehicle):
     """The token for this gui Vehicle, or None for a stock, empty setup."""
     parts = []
     for key, reader in (('s', _shell), ('m', _modules), ('e', _equipment), ('r', _role_slot),
                         ('c', _consumables), ('d', _directives), ('f', _field_mod_level),
-                        ('p', _field_mod_pairs), ('u', _skill_tree), ('k', _crew_skills)):
+                        ('p', _field_mod_pairs), ('u', _skill_tree), ('k', _crew_skills),
+                        ('n', _style_2d), ('w', _style_season), ('t', _style_3d), ('x', _marks)):
         try:
             value = reader(vehicle)
         except Exception:
@@ -129,6 +146,62 @@ def _skill_tree(vehicle):
     if not steps or not progression.isVehSkillTree():
         return None
     return ','.join(str(step.stepID) for step in steps)
+
+
+def active_season(vehicle):
+    """The season the garage dresses this vehicle in, as the hangar picks it."""
+    from gui import g_tankActiveCamouflage
+    return g_tankActiveCamouflage.get(vehicle.intCD, vehicle.getAnyOutfitSeason())
+
+
+def marks_on_gun(vehicle):
+    """The marks of excellence the garage paints on the gun: 0 when hidden."""
+    from dossiers2.ui.achievements import MARK_ON_GUN_RECORD
+    from helpers import dependency
+    from skeletons.account_helpers.settings_core import ISettingsCore
+    from skeletons.gui.shared import IItemsCache
+    if not dependency.instance(ISettingsCore).getSetting('showMarksOnGun'):
+        return 0
+    dossier = dependency.instance(IItemsCache).items.getVehicleDossier(vehicle.intCD)
+    achievement = dossier.getRandomStats().getAchievement(MARK_ON_GUN_RECORD) if dossier else None
+    return achievement.getValue() if achievement else 0
+
+
+def _worn_style(vehicle):
+    """(outfit, style, season) of what the garage shows, or Nones."""
+    season = active_season(vehicle)
+    outfit = vehicle.getOutfit(season)
+    style = outfit.style if outfit is not None else None
+    return outfit, style, season
+
+
+def _style_2d(vehicle):
+    outfit, style, _ = _worn_style(vehicle)
+    # isHiddenInUI is a method on the client's StyleItem: the bound method
+    # itself is always true, which hid every style.
+    if style is None or style.is3D or 'c11n2D' not in style.tags or style.isHiddenInUI():
+        return None
+    return str(outfit.id)
+
+
+def _style_season(vehicle):
+    _, style, season = _worn_style(vehicle)
+    if style is None or style.is3D or season not in _SEASON_NAMES:
+        return None
+    # A style with one outfit for every season holds the same object for each.
+    if style.outfits.get(season) is style.outfits.get(_SUMMER):
+        return None
+    return _SEASON_NAMES[season]
+
+
+def _style_3d(vehicle):
+    _, style, _ = _worn_style(vehicle)
+    return style.modelsSet if style is not None and style.is3D and style.modelsSet else None
+
+
+def _marks(vehicle):
+    count = marks_on_gun(vehicle)
+    return str(count) if count > 0 else None
 
 
 def crew_member_indexes(crew_roles):
