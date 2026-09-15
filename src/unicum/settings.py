@@ -119,7 +119,9 @@ class Settings(object):
         self._store = store
         self._listeners = []
         self._values, self._stamp = self._read()
-        if self._stamp is None or self._values != self._raw:
+        # Written when missing, or to normalise what was read; never over a
+        # file that did not parse, which holds the player's edits.
+        if self._stamp is None or (self._raw is not None and self._values != self._raw):
             self._write()
 
     def install(self):
@@ -194,6 +196,9 @@ class Settings(object):
         if stamp is None or stamp == self._stamp:
             return
         values, self._stamp = self._read()
+        if self._raw is None:
+            # A typo mid-edit: keep what is on screen until the file parses.
+            return
         if values != self._values:
             self._values = values
             _logger.info('settings.json changed: %s', values)
@@ -216,7 +221,8 @@ class Settings(object):
             with open(self._store, 'rb') as handle:
                 self._raw = json.load(handle)
         except (IOError, ValueError):
-            _logger.exception('could not read %s, using the defaults', self._store)
+            _logger.exception('could not read %s, using the defaults and leaving the file as it is',
+                              self._store)
             return validate({}), stamp
         return validate(self._raw), stamp
 
