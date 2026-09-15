@@ -108,8 +108,17 @@ def _utm(content):
 
 def tank_url(int_cd, tab='specifications', setup=None, content=None, region=config.REGION):
     """A tank page on unicum.gg, by the tank's id."""
-    query = ('setup=%s&' % setup if setup else '') + _utm(content or ('build' if setup else tab))
+    query = ('setup=%s&' % setup if setup else '') + _client() + _utm(content or ('build' if setup else tab))
     return '%s/%s/tanks/%d%s?%s' % (SITE_BASE, region, int_cd, TABS[tab], query)
+
+
+def _client():
+    """`client=ct&` on the Common Test client, whose vehicles the site keeps apart."""
+    try:
+        from constants import IS_CT
+    except ImportError:
+        return ''
+    return 'client=ct&' if IS_CT else ''
 
 
 def item_url(item, vehicle):
