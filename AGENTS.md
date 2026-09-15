@@ -9,21 +9,22 @@ Read `README.md` for the feature table and setup, `CONTRIBUTING.md` for commits.
 - **`dev/mod_unicum_dev.py.in`**, the bootstrap. The only file the client loads, packaged once as a `.wotmod`. It watches `src/` and reloads the package in place. Changing it needs a client restart; nothing else in the repo does, except the resource files below.
 - **`src/unicum/`**, everything reloadable.
   - `__init__.py`: `start()` / `stop()`. Builds the shared services and installs each surface.
+  - `settings.py`: `settings.json`, the one source of truth for what is shown; every surface takes it and redraws on `on_change`. `settings_window.py` mirrors it into modsSettingsApi when that mod is installed, never as a dependency.
   - `runtime/session.py`: the ownership registry, see [Hot reload](#hot-reload).
   - `api/`: the unicum.gg client. `resolve.py` (batched lookup), `entry.py` (one player or clan), `store.py` (disk cache), `scales.py` (rating colours), `legacy.py` (fallback for servers without `/resolve`, delete once production has it).
-  - Surfaces: `lobby.py` (contacts, profile title, skirmish room), `battle.py` (players panel, Tab, loading screen), `browser.py` + `web/stronghold/*.js` (the Stronghold detachment list, a web page), `titles.py` (loads the AS3 view that makes window titles HTML).
+  - Surfaces: `lobby.py` (contacts, profile title, skirmish room), `battle.py` (players panel, Tab, loading screen), `browser.py` + `web/stronghold/*.js` (the Stronghold detachment list, a web page), `room_sort.py` (saves the skirmish room's members order), `views.py` (loads the AS3 views and reloads them when their SWF changes).
   - `textures.py`: flag PNGs, as `img://` paths for Scaleform and data URIs for web pages.
   - `local_settings.py`: gitignored, points `API_BASE` at a local server.
-- **`as3/`**, one AS3 view (`TitleHtml.as`), built into `unicum.titles.swf`.
+- **`as3/`**, one AS3 view per app: `LobbyView.as` (made of `TitleHtml.as`, and `RoomTools.as` + `MembersSection.as` for the skirmish room's members sort and average) built into `unicum.lobby.swf`, `TeamNamesHtml.as` into `unicum.battle.swf`. One per app because a second view in an app's service layer destroys the first.
 - **`tools/`**: `install_dev.py`, `build_as3.py`, `flags/` (Flagpack SVG to PNG), `selftest.py` + `checks/`.
 
 # Commands
 
 | Command | What it does |
 |---|---|
-| `python tools/install_dev.py --game "C:/Games/World_of_Tanks_EU"` | Installs the bootstrap, flag PNGs and title SWF into a client. Python 3. |
+| `python tools/install_dev.py --game "C:/Games/World_of_Tanks_EU"` | Installs the bootstrap, flag PNGs, badges and SWFs into a client. Python 3. |
 | `cd tools/flags && npm install && npm run build` | Rasterises the flags into `build/flags`. |
-| `python tools/build_as3.py --game "C:/Games/World_of_Tanks_EU"` | Fetches Apache Royale and the client's `.swc` files into `build/as3`, compiles the SWF. Needs Java 11+. |
+| `python tools/build_as3.py --game "C:/Games/World_of_Tanks_EU"` | Fetches Apache Royale and the client's `.swc` files into `build/as3`, compiles the SWFs; `--install` copies them into the client, where a running client reloads them. Needs Java 11+. |
 | `python2.7 tools/selftest.py` | The test suite, Python 2.7, against fake client modules and a real API. Set `UNICUM_API_BASE` to a server with `/resolve` to test it; production is also used to test the fallback. |
 
 Logs go to `game.log` in the game directory (not `python.log`), under loggers named `unicum.*`. Read it after every change: a reload that failed says so there and nowhere else.
@@ -45,7 +46,7 @@ The whole design rests on one property: after `stop()`, every game function is b
 - contacts: `ContactConverter.makeBaseUserProps`
 - skirmish room: `StrongholdBattleRoom.as_setMembersS` **and** `as_updateRallyS` (going into battle redraws through the second one)
 - battle: `VehicleInfoComponent.addVehicleInfo`, not `player_format.getRegionCode`, which also feeds the damage panel
-- profile title: `ProfileWindow.as_setInitDataS`, and only when `titles.html_titles()` says the SWF made the title HTML
+- profile title: `ProfileWindow.as_setInitDataS`, and only when `views.html_titles()` says the SWF made the title HTML
 
 **Leave a field untouched when there is nothing to add.** Some VOs type `region` as Object, and `''` is a cast error where `None` is not. Onslaught logs `incorrect cast value` for a string there but assigns it anyway, so flags still draw.
 

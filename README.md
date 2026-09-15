@@ -2,7 +2,7 @@
 
 World of Tanks client mod for [unicum.gg](https://unicum.gg). Shows where
 players and clans come from, with the same Flagpack flags as the site, and
-their WNx painted with the site's colour scale.
+their WN7, WN8 or WNX painted with the site's colour scale.
 
 Not affiliated with Wargaming.net.
 
@@ -12,12 +12,35 @@ Not affiliated with Wargaming.net.
 |---|---|---|
 | Contacts list | flag after the name | `ContactConverter.makeBaseUserProps` |
 | Player profile window title | flag after the name (language code without the SWF) | `ProfileWindow.as_setInitDataS` |
-| Battle player panels, Tab, loading screen | flag after the name | `VehicleInfoComponent.addVehicleInfo` |
-| Skirmish room members and volunteers | flag and WNx after the name | `StrongholdBattleRoom.as_setMembersS` / `as_updateRallyS`, `SortieCandidatesLegionariesDP._makePlayerVO` |
-| Stronghold detachment list (web page) | flags after the clan tag; a WNx column; "Places" folded into "Members"; sort by rating or WNx | `src/unicum/web/stronghold/`, injected by `src/unicum/browser.py` |
+| Battle player panels, Tab, loading screen | flags and rating after the name; team averages after the team names | `VehicleInfoComponent.addVehicleInfo`, `BattleStatisticsDataController.as_setArenaInfoS` |
+| Skirmish room members and volunteers | flags and rating after the name; members sort dropdown (the special battles' orders, plus the rating and personal rating) and average rating beside the title | `StrongholdBattleRoom.as_setMembersS` / `as_updateRallyS`, `SortieCandidatesLegionariesDP._makePlayerVO` |
+| Stronghold detachment list (web page) | flags after the clan tag; a rating column; "Places" folded into "Members"; sort by personal rating or rating | `src/unicum/web/stronghold/`, injected by `src/unicum/browser.py` |
 
-Every surface shows all of a player's or clan's flags, up to three
-(`config.MAX_FLAGS`), in the order the API gives them.
+Every surface shows a player's or clan's flags, up to three, in the order the
+API gives them.
+
+### Settings
+
+`mods/configs/unicum/settings.json`, written with the defaults on first start
+(`src/unicum/settings.py`):
+
+| Key | Default | |
+|---|---|---|
+| `enabled` | `true` | the whole mod |
+| `metric` | `"wnx"` | the one rating shown everywhere: `"wn7"`, `"wn8"` or `"wnx"` |
+| `window` | `"recent"` | its period: `"recent"` (last 30 days, lifetime while not computed) or `"total"` |
+| `maxFlags` | `3` | flags per player or clan, 1 to 3 |
+| `contacts`, `profile`, `stronghold` | `{"flags": true, "rating": ...}` | whether each surface shows flags and the rating; the rating is off for contacts and profile |
+| `skirmishRoom`, `battle` | `{"flags": true, "rating": true, "average": true}` | the same, plus the detachment's or team's average |
+
+One rating for the whole mod, so a number means the same thing on every
+screen. A settings.json written by an earlier version is converted on first
+read.
+
+The file is checked every second and changes apply to what is on screen. With
+izeberg's modsSettingsApi installed, the same settings also appear in its
+window, and in anything that reads that API (`src/unicum/settings_window.py`);
+nothing else is required.
 
 Everything comes from `GET /api/{region}/resolve` on unicum.gg: languages
 and flags, lifetime and 30-day ratings, win rates and a player's clan, for
@@ -58,9 +81,9 @@ site serves PNGs there.
 
 A window title is plain text unless its AS3 `Window` has `titleUseHtml` on,
 and the profile window never turns it on. Python cannot reach the `Window`
-through the GFx proxy, so `as3/src/unicum/TitleHtml.as` does it: a view with
-no display, loaded once into the lobby's service layer by
-`src/unicum/titles.py`, that flips the switch on every profile window. What
+through the GFx proxy, so `as3/src/unicum/TitleHtml.as` does it, as part of
+the lobby view that `src/unicum/views.py` loads into the lobby's service
+layer: it flips the switch on every profile window. What
 the title says is still decided in Python and still hot reloads.
 
 Without the SWF in the resource tree, titles fall back to the language code.
@@ -77,8 +100,8 @@ python tools/build_as3.py --game "C:/Games/World_of_Tanks_EU"
 python tools/install_dev.py --game "C:/Games/World_of_Tanks_EU"
 ```
 
-That installs the bootstrap into `mods/<version>/`, and the flags and the
-title SWF into `res_mods/<version>/`. Start the client once; after that,
+That installs the bootstrap into `mods/<version>/`, and the flags, badges and
+SWFs into `res_mods/<version>/`. Start the client once; after that,
 saving a file under `src/` reloads the mod in place within half a second.
 
 `build_as3.py` downloads Apache Royale (about 200 MB) and `playerglobal.swc`
@@ -87,7 +110,11 @@ files, taken from its `gui-part*.pkg` packages.
 
 Logs go to `game.log` in the game directory, under loggers named `unicum.*`.
 
-Still needs a restart: the bootstrap itself, any new flag PNG, and the SWF.
+A SWF rebuilt with `build_as3.py --install` is reloaded in place too: its
+view is destroyed and loaded again within a second.
+
+Still needs a restart: the bootstrap itself, any new flag PNG or badge, and a
+SWF that did not exist when the client started.
 
 ### Why the reload works
 
