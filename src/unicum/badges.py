@@ -61,12 +61,19 @@ class Badges(object):
 
     def markup(self, metric, value):
         """htmlText for a rating badge, or None when it cannot draw."""
+        image = self.image(metric, value)
+        if image is None:
+            return None
+        return _IMG % (self._res_path, metric, int(round(value)), image[1], image[2])
+
+    def image(self, metric, value):
+        """(resource path, width, height) of a rating's badge, or None when it cannot draw."""
         if metric not in self._metrics or value is None:
             return None
         value = int(round(value))
         if not 0 <= value <= MAX_VALUE:
             return None
-        return _IMG % (self._res_path, metric, value, badge_width(value), _HEIGHT)
+        return '%s/%s/%d.png' % (self._res_path, metric, value), badge_width(value), _HEIGHT
 
     def _scan(self):
         """Metrics whose badges are on disk and known to the resource manager.

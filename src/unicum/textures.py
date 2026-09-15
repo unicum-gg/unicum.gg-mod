@@ -34,6 +34,9 @@ _logger = logging.getLogger('unicum.textures')
 # are a fixed height, so a taller one makes Flash squash the whole line --
 # long names like Sofia_Lauren_de_Michelle[LOOTA] lose the most. The client's
 # own emblem template leans on vspace the same way, at 24x24 vspace=-10.
+FLAG_WIDTH = 12
+FLAG_HEIGHT = 9
+
 _IMG = '<IMG SRC="%s" width="12" height="9" vspace="-1"/>'
 
 
@@ -64,6 +67,13 @@ class FlagCache(object):
         if key not in self._failed and key not in self._in_flight:
             self._download(key)
         return None
+
+    def image(self, key):
+        """(resource path, width, height) of a flag the client can resolve, else None."""
+        source = self.source(key)
+        if source is None:
+            return None
+        return source[len('img://'):], FLAG_WIDTH, FLAG_HEIGHT
 
     def markup(self, entry, limit=None):
         """' <IMG .../><IMG .../>' for an entry's flags, or '' when none draw.

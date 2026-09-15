@@ -216,13 +216,16 @@ def install_res(game: Path, version: str) -> int:
 def install_swfs(game: Path, version: str) -> list[Path]:
     """Copy the AS3 views where the lobby and battle load SWFs from.
 
-    Indexed at startup like the flags, so a new or rebuilt SWF needs a
-    client restart. Without them, profile titles keep a language code and
-    team averages stay plain numbers.
+    Indexed at startup like the flags, so a new SWF needs a client restart.
+    Without them, profile titles keep a language code, team averages stay
+    plain numbers, and no rating shows by the names above vehicles. The
+    boot SWF is only an input to the patched markers app, never loaded.
     """
     target_dir = game / 'res_mods' / version / 'gui' / 'flash'
     installed = []
-    for swf in sorted(AS3_BUILD.glob('unicum.*.swf')):
+    swfs = [swf for swf in AS3_BUILD.glob('unicum.*.swf') if not swf.name.endswith('.boot.swf')]
+    swfs += list(AS3_BUILD.glob('battleVehicleMarkersApp.swf'))
+    for swf in sorted(swfs):
         target_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy2(swf, target_dir / swf.name)
         installed.append(target_dir / swf.name)

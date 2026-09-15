@@ -12,6 +12,9 @@ What they do lives on AS3 objects the GFx proxy does not hand to Python:
     VehicleMarkers.as  ratings and flags by the vehicle icons, see
                     battle.BattleFlags._publish
 
+The vehicle markers above the tanks are a movie of their own, patched at
+build time rather than loaded here: see name_markers.py.
+
 One view per app: they load into the app's service layer, a single-view
 container where loading a second view destroys the first.
 

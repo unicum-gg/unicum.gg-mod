@@ -12,10 +12,10 @@ Read `README.md` for the feature table and setup, `CONTRIBUTING.md` for commits.
   - `settings.py`: `settings.json`, the one source of truth for what is shown; every surface takes it and redraws on `on_change`. `settings_window.py` mirrors it into modsSettingsApi when that mod is installed, never as a dependency; `mods_list.py` adds the mod to modsListApi's menu the same way, and `tank_button.py` adds a button and menu to the hangar's vehicle menu through openwg_gameface (its Gameface files and `res_map` entry are in `res/`); `build.py` writes the vehicle's setup as the site's `setup` token, whose format lives in unicum-gg/unicum.gg `config-url.ts`.
   - `runtime/session.py`: the ownership registry, see [Hot reload](#hot-reload).
   - `api/`: the unicum.gg client. `resolve.py` (batched lookup), `entry.py` (one player or clan), `store.py` (disk cache), `scales.py` (rating colours), `http.py` (what counts as an answer).
-  - Surfaces: `lobby.py` (contacts, profile title, skirmish room), `battle.py` (players panel, Tab, loading screen), `browser.py` + `web/stronghold/*.js` (the Stronghold detachment list, a web page), `room_sort.py` (saves the skirmish room's members order), `views.py` (loads the AS3 views and reloads them when their SWF changes).
+  - Surfaces: `lobby.py` (contacts, profile title, skirmish room), `battle.py` (players panel, Tab, loading screen), `name_markers.py` (the vehicle markers above tanks), `browser.py` + `web/stronghold/*.js` (the Stronghold detachment list, a web page), `room_sort.py` (saves the skirmish room's members order), `views.py` (loads the AS3 views and reloads them when their SWF changes).
   - `textures.py`: flag PNGs, as `img://` paths for Scaleform and data URIs for web pages.
   - `local_settings.py`: gitignored, points `API_BASE` at a local server.
-- **`as3/`**, one AS3 view per app: `LobbyView.as` (made of `TitleHtml.as`, and `RoomTools.as` + `MembersSection.as` for the skirmish room's members sort and average) built into `unicum.lobby.swf`, `TeamNamesHtml.as` (with `VehicleMarkers.as`, the icon columns) into `unicum.battle.swf`. One per app because a second view in an app's service layer destroys the first.
+- **`as3/`**, one AS3 view per app: `LobbyView.as` (made of `TitleHtml.as`, and `RoomTools.as` + `MembersSection.as` for the skirmish room's members sort and average) built into `unicum.lobby.swf`, `TeamNamesHtml.as` (with `VehicleMarkers.as`, the icon columns) into `unicum.battle.swf`. `markers/` is added to the client's `battleVehicleMarkersApp.swf` (`UnicumMarkersApp.as`, `MarkersBoot.as`) and built into `unicum.markers.classes.swf` (the marker subclasses), `NameMarkerView.as` into `unicum.markers.swf`; `stubs/` stands in for client classes at compile time only. One per app because a second view in an app's service layer destroys the first.
 - **`tools/`**: `install_dev.py`, `build_as3.py`, `flags/` (Flagpack SVG to PNG), `selftest.py` + `checks/`.
 
 # Commands
@@ -24,7 +24,7 @@ Read `README.md` for the feature table and setup, `CONTRIBUTING.md` for commits.
 |---|---|
 | `python tools/install_dev.py --game "C:/Games/World_of_Tanks_EU"` | Installs the bootstrap, flag PNGs, badges and SWFs into a client. Python 3. |
 | `cd tools/flags && npm install && npm run build` | Rasterises the flags into `build/flags`. |
-| `python tools/build_as3.py --game "C:/Games/World_of_Tanks_EU"` | Fetches Apache Royale and the client's `.swc` files into `build/as3`, compiles the SWFs; `--install` copies them into the client, where a running client reloads them. Needs Java 11+. |
+| `python tools/build_as3.py --game "C:/Games/World_of_Tanks_EU"` | Fetches Apache Royale and the client's `.swc` files into `build/as3`, compiles the SWFs and the patched `battleVehicleMarkersApp.swf` (from the client's own packages); `--install` copies them into the client, where a running client reloads them, except the patched app, which needs a restart. Needs Java 11+. |
 | `python2.7 tools/selftest.py` | The test suite, Python 2.7, against fake client modules and a real API. Set `UNICUM_API_BASE` to test against another server than production. |
 
 Logs go to `game.log` in the game directory (not `python.log`), under loggers named `unicum.*`. Read it after every change: a reload that failed says so there and nowhere else.
@@ -46,9 +46,12 @@ The whole design rests on one property: after `stop()`, every game function is b
 - contacts: `ContactConverter.makeBaseUserProps`
 - skirmish room: `StrongholdBattleRoom.as_setMembersS` **and** `as_updateRallyS` (going into battle redraws through the second one)
 - battle: `VehicleInfoComponent.addVehicleInfo`, not `player_format.getRegionCode`, which also feeds the damage panel
+- vehicle markers: `MarkersManager.createMarker`, swapping the client's marker symbol for our subclass of it
 - profile title: `ProfileWindow.as_setInitDataS`, and only when `views.html_titles()` says the SWF made the title HTML
 
 **Leave a field untouched when there is nothing to add.** Some VOs type `region` as Object, and `''` is a cast error where `None` is not. Onslaught logs `incorrect cast value` for a string there but assigns it anyway, so flags still draw.
+
+**The vehicle markers movie is its own world.** `battleVehicleMarkersApp.swf` is a separate movie, not the battle app, and the engine's canvas makes markers only from classes defined in it, calling into them natively: a marker that is not a real subclass of the client's marker symbol classes brings the client down. Those classes come from libraries the app loads after it starts, so a class extending them only verifies once they are in: ours load from `UnicumMarkersApp.onLibsLoadingComplete`, before the app registers with Python. `WG.doLog` rejects calls from mod code; report through an `ExternalInterface` callback Python logs. Images there load with a `Loader` and a path relative to `gui/flash` (`../maps/...`).
 
 **Scaleform images must exist when the client starts.** `img://` resolves through ResMgr, indexed at boot. A URL is treated as a SWF export name and never fetched; a memory texture (`wg_addScaleformTexture`) draws only one image at a time.
 

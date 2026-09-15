@@ -13,6 +13,7 @@ Not affiliated with Wargaming.net.
 | Contacts list | flag after the name | `ContactConverter.makeBaseUserProps` |
 | Player profile window title | flag after the name (language code without the SWF) | `ProfileWindow.as_setInitDataS` |
 | Battle players panel, Tab, loading screen | rating and flags beside each vehicle icon, lined up in a column per team; in the Tab, the team average in that column on the team name's line | `VehicleInfoComponent.addVehicleInfo`, `BattleStatisticsDataController` (team order, `as_setArenaInfoS`), the battle SWF |
+| Vehicle markers above the tanks | rating badge and flags right of the player's name | `MarkersManager.createMarker`, a patched `battleVehicleMarkersApp.swf` |
 | Skirmish room members and volunteers | flags and rating after the name; members sort dropdown (the special battles' orders, plus the rating and personal rating) and average rating beside the title | `StrongholdBattleRoom.as_setMembersS` / `as_updateRallyS`, `SortieCandidatesLegionariesDP._makePlayerVO` |
 | Hangar vehicle menu | a unicum.gg button with a menu for the selected tank, opened in the browser: its tabs on unicum.gg (specifications, performances, marks, history, videos, community), handing its page to ChatGPT, Claude or Scira AI as the site's own menu does, and opening or copying the build as the site's `?setup=` link (with openwg_gameface) | `VehicleMenuPresenter._getChildComponents`, `res/gui/gameface/mods/unicum/TankButton/` |
 | Stronghold detachment list (web page) | flags after the clan tag; a rating column; "Places" folded into "Members"; sort by personal rating or rating | `src/unicum/web/stronghold/`, injected by `src/unicum/browser.py` |
@@ -116,8 +117,17 @@ Logs go to `game.log` in the game directory, under loggers named `unicum.*`.
 A SWF rebuilt with `build_as3.py --install` is reloaded in place too: its
 view is destroyed and loaded again within a second.
 
-Still needs a restart: the bootstrap itself, any new flag PNG or badge, and a
-SWF that did not exist when the client started.
+Still needs a restart: the bootstrap itself, any new flag PNG or badge, a
+SWF that did not exist when the client started, and the patched
+`battleVehicleMarkersApp.swf` (the drawing by the names above vehicles,
+`unicum.markers.swf`, reloads in place).
+
+The badges above vehicles come from a copy of the client's own
+`battleVehicleMarkersApp.swf` that `build_as3.py` makes from the installed
+client's packages and puts in `res_mods`: the client's code is kept as it
+is, with ours added next to it. Rebuild and reinstall it after a client
+update. Another mod that replaces the same file takes the place of ours, and
+the client's plain markers are drawn.
 
 ### Why the reload works
 
@@ -146,7 +156,7 @@ API, production unless `UNICUM_API_BASE` points elsewhere.
 ### Layout
 
 ```
-as3/      the AS3 views: lobby and battle
+as3/      the AS3 views: lobby, battle, and what the vehicle markers add
 dev/      bootstrap template, packaged into the game once
 src/      everything reloadable; the only thing you edit
 tools/    installer, flag rasteriser, AS3 build, selftest

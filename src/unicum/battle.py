@@ -337,4 +337,16 @@ def _default_order(arena):
 
 
 def install(session, lookup, flags, badges, settings):
-    BattleFlags(session, lookup, flags, badges, settings).install()
+    battle_flags = BattleFlags(session, lookup, flags, badges, settings)
+    battle_flags.install()
+    try:
+        from gui.Scaleform.daapi.view.battle.shared.markers2d import manager  # the client has them
+    except ImportError:
+        _logger.info('no vehicle markers in this client, no badge by the names above vehicles')
+        return
+    try:
+        from unicum import name_markers
+        name_markers.install(session, battle_flags)
+    except Exception:
+        # The rest of the battle surfaces stay.
+        _logger.exception('could not install the badges by the names above vehicles')
