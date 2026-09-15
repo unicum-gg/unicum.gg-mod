@@ -58,6 +58,10 @@ _CONTENT_SCRIPT_DIR = os.path.join(os.path.dirname(__file__), 'web', 'stronghold
 # earlier ones define, and lifecycle.js runs the first scan.
 _CONTENT_SCRIPT_FILES = ('core.js', 'table.js', 'sorting.js', 'flags.js', 'lifecycle.js')
 
+# Before asking again for tags whose request failed: past the lookup's own
+# retry delay, which would otherwise answer from nothing.
+_RETRY_SECONDS = 65.0
+
 _STOP_SCRIPT = (
     "javascript:(function(){var U=window.__unicum;"
     "if(U&&U.stop){U.stop();}})();void(0);"
@@ -201,8 +205,18 @@ class BrowserBridge(object):
         self._lookup.prefetch(tags=tags, on_ready=lambda: self._answer(ref, tags))
 
     def _answer(self, ref, tags):
+        # A tag the server never answered, because the request failed, is not
+        # "no clan": the page would take an empty answer as final and never
+        # ask again. It is asked for again later instead.
+        failed = [tag for tag in tags if not self._lookup.knows_tag(tag)]
+        if failed:
+            _logger.info('no answer for %s clans, asking again in %ds', len(failed), _RETRY_SECONDS)
+            self._session.callback(_RETRY_SECONDS, lambda: self._lookup.prefetch(
+                tags=failed, on_ready=lambda: self._answer(ref, failed)))
         answers = {}
         for tag in tags:
+            if tag in failed:
+                continue
             clan_id = self._lookup.clan_id(tag)
             entry = self._lookup.get(CLANS, clan_id) if clan_id else None
             codes = []
@@ -215,6 +229,8 @@ class BrowserBridge(object):
                 'score': None if value is None else {
                     'value': value, 'color': self._scales.color(self._settings.metric('stronghold'), value)},
             }
+        if not answers:
+            return
         _logger.info('sending %s clans, %s with %s', len(answers),
                      sum(1 for a in answers.values() if a['score']), self._settings.label('stronghold'))
         self._run(ref, answers_script(answers))

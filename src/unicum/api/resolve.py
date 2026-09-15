@@ -65,6 +65,10 @@ class Lookup(object):
         found = self._tags.get(_tag_key(tag))
         return found[0] if found else None
 
+    def knows_tag(self, tag):
+        """Whether the server has answered for this tag, clan or no clan."""
+        return _tag_key(tag) in self._tags
+
     def needs_fetch(self, kind, entity_id):
         """Whether an id should be asked for: never answered, or gone stale.
 
