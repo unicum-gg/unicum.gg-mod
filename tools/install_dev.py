@@ -155,7 +155,7 @@ def install_flags(game: Path, version: str) -> int:
     return count
 
 
-TITLES_SWF = REPO / 'build' / 'as3' / 'unicum.titles.swf'
+AS3_BUILD = REPO / 'build' / 'as3'
 BADGES_BUILD = REPO / 'build' / 'badges'
 BADGES_SUBPATH = Path('gui') / 'maps' / 'icons' / 'unicum' / 'badges'
 
@@ -175,18 +175,20 @@ def install_badges(game: Path, version: str) -> int:
     return sum(1 for p in target.iterdir() if p.is_dir())
 
 
-def install_swf(game: Path, version: str) -> Path | None:
-    """Copy the AS3 title view where the lobby loads SWFs from.
+def install_swfs(game: Path, version: str) -> list[Path]:
+    """Copy the AS3 views where the lobby and battle load SWFs from.
 
     Indexed at startup like the flags, so a new or rebuilt SWF needs a
-    client restart. Without it, profile titles keep a language code.
+    client restart. Without them, profile titles keep a language code and
+    team averages stay plain numbers.
     """
-    if not TITLES_SWF.is_file():
-        return None
-    target = game / 'res_mods' / version / 'gui' / 'flash' / TITLES_SWF.name
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(TITLES_SWF, target)
-    return target
+    target_dir = game / 'res_mods' / version / 'gui' / 'flash'
+    installed = []
+    for swf in sorted(AS3_BUILD.glob('unicum.*.swf')):
+        target_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(swf, target_dir / swf.name)
+        installed.append(target_dir / swf.name)
+    return installed
 
 
 def main() -> None:
@@ -228,10 +230,10 @@ def main() -> None:
         else:
             print('badges   none built yet (cd tools/badges && npm install && npm run build)')
 
-        swf = install_swf(game, version)
-        if swf:
+        swfs = install_swfs(game, version)
+        for swf in swfs:
             print(f'swf      {swf}')
-        else:
+        if not swfs:
             print('swf      none built yet (python tools/build_as3.py --game ...)')
 
     if args.shape in ('both', 'wotmod'):

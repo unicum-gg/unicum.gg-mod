@@ -1,54 +1,46 @@
 package unicum
 {
+   import flash.display.Sprite;
    import flash.events.Event;
    import net.wg.gui.components.windows.Window;
    import net.wg.gui.lobby.window.ProfileWindow;
-   import net.wg.infrastructure.base.AbstractView;
 
    // Lets the profile window's title render HTML, so the Python half of the
-   // mod can put a flag image in it.
+   // mod can put a flag image in it. Part of LobbyView.
    //
    // Window has a titleUseHtml switch that the vehicle info, buy and chat
    // windows turn on and the profile window never does, and Python cannot
-   // reach the Window from the view to flip it. This view does nothing else:
-   // it has no DAAPI calls and no display, and deciding what the title says
-   // stays in Python, where it hot reloads. Loaded once, into the lobby's
-   // service layer, by src/unicum/titles.py.
+   // reach the Window from the view to flip it. Deciding what the title says
+   // stays in Python, where it hot reloads.
    //
    // Titles are plain player names and clan tags, which have no characters
    // HTML would read differently, so switching the mode changes nothing about
    // a title the mod has not marked.
-   public class TitleHtml extends AbstractView
+   public class TitleHtml
    {
       // The Window is added before its content is attached, so a window is
       // checked again on the following frames until it has one.
       private static const MAX_FRAMES:int = 120;
 
+      private var _host:Sprite;
+
       private var _pending:Vector.<Window> = new Vector.<Window>();
 
       private var _frames:int = 0;
 
-      public function TitleHtml()
+      public function TitleHtml(host:Sprite)
       {
-         super();
-      }
-
-      override protected function configUI() : void
-      {
-         super.configUI();
-         mouseEnabled = false;
-         mouseChildren = false;
+         this._host = host;
          // Capture phase on the stage sees every window, whichever layer
          // container it is added to.
          App.stage.addEventListener(Event.ADDED, this.onAdded, true, 0, true);
       }
 
-      override protected function onDispose() : void
+      public function dispose() : void
       {
          App.stage.removeEventListener(Event.ADDED, this.onAdded, true);
-         removeEventListener(Event.ENTER_FRAME, this.onFrame);
+         this._host.removeEventListener(Event.ENTER_FRAME, this.onFrame);
          this._pending.length = 0;
-         super.onDispose();
       }
 
       private function onAdded(event:Event) : void
@@ -60,7 +52,7 @@ package unicum
          }
          this._pending.push(window);
          this._frames = 0;
-         addEventListener(Event.ENTER_FRAME, this.onFrame);
+         this._host.addEventListener(Event.ENTER_FRAME, this.onFrame);
       }
 
       private function onFrame(event:Event) : void
@@ -75,7 +67,7 @@ package unicum
          if(this._pending.length == 0 || ++this._frames > MAX_FRAMES)
          {
             this._pending.length = 0;
-            removeEventListener(Event.ENTER_FRAME, this.onFrame);
+            this._host.removeEventListener(Event.ENTER_FRAME, this.onFrame);
          }
       }
 

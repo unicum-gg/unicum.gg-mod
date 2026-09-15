@@ -1,6 +1,6 @@
-"""Build the AS3 half of the mod into build/as3/unicum.titles.swf.
+"""Build the AS3 half of the mod into build/as3/unicum.*.swf.
 
-    python tools/build_as3.py --game "C:/Games/World_of_Tanks_EU"
+    python tools/build_as3.py --game "C:/Games/World_of_Tanks_EU" [--install]
 
 Fetches what the compile needs into build/as3 on first run, then compiles:
 
@@ -13,6 +13,10 @@ Fetches what the compile needs into build/as3 on first run, then compiles:
 
 The client's .swc files are re-extracted on every run, so a client update is
 picked up by rebuilding.
+
+With --install, each SWF is also copied into the client's res_mods, where a
+running client with the mod loaded picks it up without a restart -- as long
+as that SWF already existed when the client started (see src/unicum/views.py).
 
 Runs on Python 3.
 """
@@ -30,8 +34,12 @@ AS3 = REPO / 'as3'
 WORK = REPO / 'build' / 'as3'
 LIBS = WORK / 'libs'
 ROYALE = WORK / 'royale'
-OUTPUT = WORK / 'unicum.titles.swf'
-ENTRY = Path('src') / 'unicum' / 'TitleHtml.as'
+# One SWF per app: a view loaded into an app's service layer replaces the
+# one already there.
+VIEWS = (
+    (Path('src') / 'unicum' / 'LobbyView.as', WORK / 'unicum.lobby.swf'),
+    (Path('src') / 'unicum' / 'TeamNamesHtml.as', WORK / 'unicum.battle.swf'),
+)
 
 ROYALE_URL = ('https://archive.apache.org/dist/royale/0.9.12/binaries/'
               'apache-royale-0.9.12-bin-js-swf.zip')
@@ -73,7 +81,7 @@ def fetch_libs(game: Path) -> None:
     print(f'libs     {found} client .swc files')
 
 
-def compile_swf() -> None:
+def compile_swf(entry: Path, output: Path) -> None:
     java = shutil.which('java')
     if java is None:
         raise SystemExit('java not found on PATH (Java 11 or later)')
@@ -84,23 +92,35 @@ def compile_swf() -> None:
         [java, '-Dsun.io.useCanonCaches=false', '-Xmx512m',
          f'-Droyalelib={frameworks}', '-jar', str(MXMLC_JAR),
          '--targets=SWF', '-load-config+=build-config.xml',
-         f'-output={OUTPUT}', str(ENTRY)],
+         f'-output={output}', str(entry)],
         cwd=AS3, capture_output=True, text=True, errors='replace')
-    if result.returncode != 0 or not OUTPUT.is_file():
+    if result.returncode != 0 or not output.is_file():
         raise SystemExit(f'compile failed:\n{result.stdout}\n{result.stderr}')
-    print(f'swf      {OUTPUT} ({OUTPUT.stat().st_size} bytes)')
+    print(f'swf      {output} ({output.stat().st_size} bytes)')
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--game', required=True, type=Path,
                         help='World of Tanks install directory, for its .swc files')
+    parser.add_argument('--install', action='store_true',
+                        help="copy the SWFs into the client's res_mods too")
     args = parser.parse_args()
+    game = args.game.resolve()
     fetch_royale()
-    fetch_libs(args.game.resolve())
-    if OUTPUT.exists():
-        OUTPUT.unlink()
-    compile_swf()
+    fetch_libs(game)
+    for entry, output in VIEWS:
+        if output.exists():
+            output.unlink()
+        compile_swf(entry, output)
+    if args.install:
+        for folder in sorted((game / 'res_mods').iterdir()):
+            if folder.is_dir():
+                target = folder / 'gui' / 'flash'
+        target.mkdir(parents=True, exist_ok=True)
+        for _, output in VIEWS:
+            shutil.copy2(output, target / output.name)
+            print(f'install  {target / output.name}')
 
 
 if __name__ == '__main__':

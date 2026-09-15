@@ -75,6 +75,11 @@ def _res_mods_dir(res_path):
     return os.path.join(root, versions[-1], *res_path.split('/'))
 
 
+def res_mods_file(res_path):
+    """A resource file's path on disk, or None without a res_mods folder."""
+    return _res_mods_dir(res_path)
+
+
 CACHE_DIR = _res_mods_dir(FLAGS_RES_PATH)
 BADGES_DIR = _res_mods_dir(BADGES_RES_PATH)
 
