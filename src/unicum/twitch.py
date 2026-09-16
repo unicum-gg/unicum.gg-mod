@@ -37,10 +37,15 @@ _CHECK_SECONDS = 2.0
 _RETRY_SECONDS = 30.0
 
 # Shown at most this many a tick, from a queue this long: a burst of chat
-# neither floods the battle chat nor lags far behind it.
+# neither floods the battle chat nor lags far behind it. The queue also holds
+# what is said while a battle loads, when the battle chat does not exist yet
+# and a message handed to it would be dropped; past _BACKLOG waiting, it
+# catches up faster.
 _FLUSH_SECONDS = 0.5
 _PER_FLUSH = 2
-_QUEUE = 10
+_PER_FLUSH_BEHIND = 5
+_BACKLOG = 10
+_QUEUE = 40
 
 # Kept for the garage, newest last.
 _HISTORY = 50
@@ -188,7 +193,8 @@ class ChatQueue(object):
 
     def take(self):
         taken = []
-        while self.pending and len(taken) < _PER_FLUSH:
+        count = _PER_FLUSH_BEHIND if len(self.pending) > _BACKLOG else _PER_FLUSH
+        while self.pending and len(taken) < count:
             taken.append(self.pending.popleft())
         return taken
 
@@ -380,8 +386,10 @@ class TwitchChat(object):
         from helpers import isPlayerAvatar
         self._echoes.expect(text, BigWorld.time())
         message = own_message(self._self, self._channel or '', text)
-        self._queue.add(message, False)
-        if isPlayerAvatar() and self._settings.shows_twitch_in_battle():
+        in_battle = isPlayerAvatar() and self._settings.shows_twitch_in_battle()
+        # While the battle loads, it waits in the queue like the others.
+        self._queue.add(message, in_battle and not _battle_chat_shown())
+        if in_battle and _battle_chat_shown():
             self._show([message])
 
     def _remember_self(self, message):
@@ -396,8 +404,12 @@ class TwitchChat(object):
             _logger.debug('could not save how the player looks in chat', exc_info=True)
 
     def _flush(self):
-        if not self._settings.shows_twitch_in_battle():
+        # Out of battle, what waited is stale for the next one (the garage
+        # has it all in the history).
+        if not self._settings.shows_twitch_in_battle() or not _in_battle():
             self._queue.pending.clear()
+            return
+        if not _battle_chat_shown():
             return
         taken = self._queue.take()
         if taken:
@@ -423,6 +435,18 @@ class TwitchChat(object):
                 client.terminate()
             except Exception:
                 _logger.exception('could not close the Twitch chat connection')
+
+
+def _battle_chat_shown():
+    """Whether the battle chat is on screen: until then, BattleEntry drops client messages."""
+    try:
+        from messenger import MessengerEntry
+        from messenger.m_constants import MESSENGER_SCOPE
+        entry = MessengerEntry.g_instance.gui.getEntry(MESSENGER_SCOPE.BATTLE)
+        view = getattr(entry, '_BattleEntry__view', None)
+        return view is not None and view() is not None
+    except Exception:
+        return False
 
 
 def _in_battle():
