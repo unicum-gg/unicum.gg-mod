@@ -46,7 +46,6 @@ import base64
 import functools
 import json
 import logging
-import os
 import urllib
 import weakref
 import zlib
@@ -58,23 +57,24 @@ from gui.impl.gen_utils import INVALID_RES_ID
 from gui.impl.lobby.hangar.presenters.vehicle_menu_presenter import VehicleMenuPresenter
 from gui.impl.pub.view_component import ViewComponent
 
-from unicum import build, config
+from unicum import build, config, resources
 
 _logger = logging.getLogger('unicum.tank_button')
 
 FEATURE = 'UnicumTankButton'
 _MODULE = 'coui://gui/gameface/mods/unicum/TankButton/TankButton.js'
 
-_SOURCES = os.path.join(os.path.dirname(__file__), 'web', 'hangar')
-_SCRIPT = os.path.join(_SOURCES, 'tank_menu.js')
-_STYLE = os.path.join(_SOURCES, 'tank_menu.css')
-_PANEL_SCRIPT = os.path.join(_SOURCES, 'twitch_panel.js')
-_PANEL_STYLE = os.path.join(_SOURCES, 'twitch_panel.css')
-_CARD_SCRIPT = os.path.join(_SOURCES, 'account_card.js')
-_CARD_STYLE = os.path.join(_SOURCES, 'account_card.css')
-_ICONS = os.path.join(_SOURCES, 'icons')
+# Package resources (resources.py): beside the code in development, inside the .wotmod once released.
+_SOURCES = 'web/hangar'
+_SCRIPT = _SOURCES + '/tank_menu.js'
+_STYLE = _SOURCES + '/tank_menu.css'
+_PANEL_SCRIPT = _SOURCES + '/twitch_panel.js'
+_PANEL_STYLE = _SOURCES + '/twitch_panel.css'
+_CARD_SCRIPT = _SOURCES + '/account_card.js'
+_CARD_STYLE = _SOURCES + '/account_card.css'
+_ICONS = _SOURCES + '/icons'
 _ICONS_MARK = '__MENU_ICONS__'
-_PANEL_ICONS = os.path.join(_SOURCES, 'panel_icons')
+_PANEL_ICONS = _SOURCES + '/panel_icons'
 _PANEL_ICONS_MARK = '__PANEL_ICONS__'
 _CHECK_SECONDS = 1.0
 
@@ -281,7 +281,8 @@ class TankButton(object):
         icons = _pngs(_ICONS)
         panel_icons = _pngs(_PANEL_ICONS)
         paths = [_SCRIPT, _STYLE, _PANEL_SCRIPT, _PANEL_STYLE, _CARD_SCRIPT, _CARD_STYLE] + icons + panel_icons
-        stamps = tuple((path, os.path.getmtime(path)) for path in paths if os.path.isfile(path))
+        # Inside a release every stamp is None, and the code is read once.
+        stamps = tuple((path, resources.stamp(path)) for path in paths)
         if stamps == self._stamps:
             return
         self._stamps = stamps
@@ -334,24 +335,21 @@ class TankButton(object):
 
 
 def _pngs(folder):
-    if not os.path.isdir(folder):
-        return []
-    return sorted(os.path.join(folder, name) for name in os.listdir(folder) if name.endswith('.png'))
+    return ['%s/%s' % (folder, name) for name in resources.listdir(folder) if name.endswith('.png')]
 
 
 def _read(path):
-    if not os.path.isfile(path):
-        return u''
-    with open(path, 'rb') as handle:
-        return handle.read().decode('utf-8')
+    data = resources.read(path)
+    return data.decode('utf-8') if data is not None else u''
 
 
 def _data_uris(paths):
     """{name: data URI} for the menu's own icons, inlined in its script."""
     uris = {}
     for path in paths:
-        with open(path, 'rb') as handle:
-            uris[os.path.splitext(os.path.basename(path))[0]] = 'data:image/png;base64,' + base64.b64encode(handle.read())
+        data = resources.read(path)
+        if data is not None:
+            uris[path.rsplit('/', 1)[-1][:-len('.png')]] = 'data:image/png;base64,' + base64.b64encode(data)
     return uris
 
 

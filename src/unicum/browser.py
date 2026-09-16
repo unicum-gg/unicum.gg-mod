@@ -32,12 +32,12 @@ of them are ours to script.
 import base64
 import json
 import logging
-import os
 import weakref
 
 from helpers import dependency
 from skeletons.gui.game_control import IBrowserController
 
+from unicum import resources
 from unicum.api.entry import CLANS
 
 _logger = logging.getLogger('unicum.browser')
@@ -52,7 +52,8 @@ NEED_PREFIX = '[unicum] need '
 # nothing sent may contain '%' or '#'. The content script lives in its own
 # file and travels base64-encoded, which has neither; the short scripts below
 # and every value spliced into them -- tags, base64 -- stay clear of both.
-_CONTENT_SCRIPT_DIR = os.path.join(os.path.dirname(__file__), 'web', 'stronghold')
+# A package resource folder (resources.py).
+_CONTENT_SCRIPT_DIR = 'web/stronghold'
 
 # One script in several files, joined in this order: later files use what
 # earlier ones define, and lifecycle.js runs the first scan.
@@ -76,16 +77,18 @@ def content_script(generation, rating_title='30d WNX', show_rating=True,
                    directory=_CONTENT_SCRIPT_DIR):
     """web/stronghold/*.js, joined and ready to run as a javascript: URL.
 
-    Read from disk each time, so reopening the Stronghold window picks up an
-    edit to the script without a client restart; the bootstrap only watches
+    Read each time, so in development reopening the Stronghold window picks up
+    an edit to the script without a client restart; the bootstrap only watches
     .py files. The joined body is wrapped in a function, which gives it its
     arguments and lets it `return` early. The title travels as a JSON string,
     inside the base64 like the rest.
     """
     chunks = []
     for name in _CONTENT_SCRIPT_FILES:
-        with open(os.path.join(directory, name), 'rb') as handle:
-            chunks.append(handle.read().decode('ascii'))
+        data = resources.read('%s/%s' % (directory, name))
+        if data is None:
+            raise IOError('no %s/%s' % (directory, name))
+        chunks.append(data.decode('ascii'))
     body = '\n'.join(chunks)
     source = '(function(GENERATION, RATING_TITLE, SHOW_RATING){\n%s\n})(%d, %s, %s);' % (
         body, int(generation), json.dumps(str(rating_title)), 'true' if show_rating else 'false')

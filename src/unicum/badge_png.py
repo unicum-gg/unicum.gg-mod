@@ -15,7 +15,6 @@ the client's Python has no imaging library.
 Plain Python, so tools/checks can compare it with the images it replaces.
 """
 import json
-import os
 import struct
 import zlib
 
@@ -24,14 +23,15 @@ PADDING = 3
 DIGIT_WIDTH = 6
 GROUP_WIDTH = 2
 
-_GLYPHS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'badge_glyphs.json')
+# A package resource (resources.py).
+_GLYPHS = 'badge_glyphs.json'
 _masks = []
 
 
 def _load():
     if not _masks:
-        with open(_GLYPHS) as handle:
-            _masks.append(json.load(handle))
+        from unicum import resources
+        _masks.append(json.loads(resources.read(_GLYPHS)))
     return _masks[0]
 
 

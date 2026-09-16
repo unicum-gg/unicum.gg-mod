@@ -54,6 +54,8 @@ class FlagCache(object):
         # "is the file there now" but "was it there when ResMgr indexed".
         # Anything downloaded later is on disk and still unusable today.
         self._available = self._scan()
+        # key -> whether the resource tree has it though the disk does not.
+        self._packaged_keys = {}
         _logger.info('%s images usable from %s', len(self._available),
                      os.path.abspath(self._dir) if self._dir else '<none>')
 
@@ -63,7 +65,7 @@ class FlagCache(object):
         Never blocks: callers run inside view builders, so a flag that is not
         ready yet is simply absent this session.
         """
-        if key in self._available:
+        if key in self._available or self._packaged(key):
             return 'img://%s/%s.png' % (self._res_path, key)
         if key not in self._failed and key not in self._in_flight:
             self._download(key)
@@ -95,16 +97,32 @@ class FlagCache(object):
         bot challenge that an <img> request cannot pass, so the bytes already
         on disk are handed over instead: no request, nothing to be blocked.
         """
-        if key not in self._available:
-            return None
-        path = os.path.join(self._dir, '%s.png' % key)
-        try:
-            with open(path, 'rb') as handle:
-                data = handle.read()
-        except IOError:
-            _logger.exception('could not read %s', path)
+        if key in self._available:
+            path = os.path.join(self._dir, '%s.png' % key)
+            try:
+                with open(path, 'rb') as handle:
+                    data = handle.read()
+            except IOError:
+                _logger.exception('could not read %s', path)
+                return None
+        elif self._packaged(key):
+            import ResMgr
+            data = ResMgr.openSection('%s/%s.png' % (self._res_path, key)).asBinary
+        else:
             return None
         return 'data:image/png;base64,' + base64.b64encode(data)
+
+    def _packaged(self, key):
+        """Whether a flag ships inside the released .wotmod, where no listing of the disk finds it."""
+        known = self._packaged_keys.get(key)
+        if known is None:
+            try:
+                import ResMgr
+                known = bool(ResMgr.isFile('%s/%s.png' % (self._res_path, key)))
+            except ImportError:
+                known = False
+            self._packaged_keys[key] = known
+        return known
 
     def _scan(self):
         if not self._dir or not os.path.isdir(self._dir):

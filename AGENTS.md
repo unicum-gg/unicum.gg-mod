@@ -23,6 +23,7 @@ Read `README.md` for the feature table and setup, `CONTRIBUTING.md` for commits.
 | Command | What it does |
 |---|---|
 | `python tools/install_dev.py --game "C:/Games/World_of_Tanks_EU"` | Installs the bootstrap, flag PNGs and SWFs into a client, and creates the folder the client draws rating badges into. Python 3. |
+| `python tools/build_release.py --version x.y.z` | Builds the released `dist/gg.unicum_<version>.wotmod` (entry `dev/mod_unicum.py.in`, the package compiled with Python 2.7, SWFs, flags, icons, `res/`). Package resources must be read through `resources.py`, never `open()` beside `__file__`: inside a `.wotmod` they are only in the client's virtual tree. |
 | `cd tools/flags && npm install && npm run build` | Rasterises the flags into `build/flags`. |
 | `python tools/build_as3.py --game "C:/Games/World_of_Tanks_EU"` | Fetches Apache Royale and the client's `.swc` files into `build/as3`, compiles the SWFs and the patched `battleVehicleMarkersApp.swf` (from the client's own packages); `--install` copies them into the client, where a running client reloads them, except the patched app, which needs a restart. Needs Java 11+. |
 | `python2.7 tools/selftest.py` | The test suite, Python 2.7, against fake client modules and a real API. Set `UNICUM_API_BASE` to test against another server than production. |

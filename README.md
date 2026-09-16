@@ -105,6 +105,22 @@ the title says is still decided in Python and still hot reloads.
 
 Without the SWF in the resource tree, titles fall back to the language code.
 
+## Release
+
+```
+cd tools/flags && npm install && npm run build && cd ../..
+cd tools/badges && npm install && npm run icon && cd ../..
+python tools/build_as3.py --game "C:/Games/World_of_Tanks_EU"
+python tools/build_release.py --version 1.0.0
+```
+
+That writes `dist/gg.unicum_<version>.wotmod`, the one file a player drops
+into `mods/<game version>/`: the package compiled for the client's Python,
+its resources (read through ResMgr inside the package, `src/unicum/resources.py`),
+the SWFs, flags, icons and `res/`. It needs openwg_gameface for the hangar
+features; modsSettingsApi and modsListApi are optional. Never install it
+beside the dev bootstrap: both would load.
+
 ## Development
 
 The client loads one file from this repo: a bootstrap, packaged as a
