@@ -56,7 +56,7 @@ def start(generation=0):
         room_sort.install(_session, settings)
         tank_button.install(_session, settings)
         auto_reload.install(_session, settings)
-        chat = twitch.install(_session, settings)
+        chat = twitch.install(_session, settings, link)
         window.follow_twitch(chat)
         sender = twitch_send.install(_session, link, chat)
         twitch_panel.install(_session, settings, chat, link, sender)

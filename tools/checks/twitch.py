@@ -144,8 +144,11 @@ def check_twitch_send():
     check('the Wargaming web token rides in the fragment, which no server receives',
           url.split('#')[1] == 'account_id=1001&token=wgtoken' and 'region=na' in url.split('#')[0]
           and 'wgtoken' not in url.split('#')[0])
-    check('the account answer gives its name and Twitch access, a refusal nothing',
-          read_me(Response(200, '{"name": "Winnie", "twitch": "ready"}')) == ('Winnie', 'ready')
+    check('the account answer gives its name, Twitch access and channel, a refusal nothing',
+          read_me(Response(200, '{"name": "Winnie", "twitch": "ready", "twitchLogin": "License__"}'))
+          == ('Winnie', 'ready', 'license__')
+          and read_me(Response(200, '{"name": "Winnie", "twitch": "not_linked", "twitchLogin": null}'))
+          == ('Winnie', 'not_linked', None)
           and read_me(Response(401, '{"error": "not_linked"}')) is None)
 
 
@@ -191,6 +194,8 @@ def check_own_message():
     shown = own_message(appearance_of(seen), 'license__', u'gg')
     check('then with the name, colour and badges Twitch last showed them with',
           shown == Message('License__', '#FF4500', u'gg', ('broadcaster/1', 'subscriber/12'), 'license__'))
+    check('while the channel is unknown, the message still has a name',
+          own_message(None, '', u'gg').name == 'You')
     check('an appearance from another channel is not used',
           own_message(appearance_of(seen), 'other', u'gg').badges == ('broadcaster/1',))
 

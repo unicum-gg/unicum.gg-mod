@@ -54,7 +54,7 @@ _MAX_TEXT = 200
 
 # The linked channel is asked for once a session; a failed answer again after
 # this long. The player's page can take seconds to build when it is cold.
-_LINKED_RETRY_SECONDS = 300.0
+_LINKED_RETRY_SECONDS = 60.0
 _LINKED_TIMEOUT = 30.0
 
 _TWITCH_COLOR = '#9146FF'
@@ -160,6 +160,9 @@ SELF_STORE = os.path.join('mods', 'configs', 'unicum', 'twitch_self.json')
 
 # Before any of their own messages was seen: it is their channel.
 _OWNER_BADGES = ('broadcaster/1',)
+# The name on the player's own message while their channel is not known yet.
+_OWN_NAME = 'You'
+
 
 
 def own_message(appearance, channel, text):
@@ -167,7 +170,7 @@ def own_message(appearance, channel, text):
     if appearance and appearance.get('login') == channel:
         return Message(appearance.get('name') or channel, appearance.get('color'), text,
                        tuple(appearance.get('badges') or ()), channel)
-    return Message(channel, None, text, _OWNER_BADGES, channel)
+    return Message(channel or _OWN_NAME, None, text, _OWNER_BADGES, channel)
 
 
 def appearance_of(message):
@@ -255,9 +258,12 @@ class LinkedChannel(object):
 
 class TwitchChat(object):
 
-    def __init__(self, session, settings):
+    def __init__(self, session, settings, link=None):
         self._session = session
         self._settings = settings
+        # The unicum.gg account link, which knows the linked channel without
+        # the player page, the slowest the site serves.
+        self._link = link
         self._client = None
         self._channel = None
         self._opened = False
@@ -295,13 +301,18 @@ class TwitchChat(object):
         import BigWorld
         wanted = self._settings.twitch_channel()
         if not wanted and self._settings['enabled']:
-            wanted = self._settings.twitch_channel(self._linked.get())
+            wanted = self._settings.twitch_channel(self._linked_channel())
         if wanted != self._channel:
             self._close()
             self._retry_at = 0.0
         if not wanted or self._client is not None or BigWorld.time() < self._retry_at:
             return
         self._open(wanted)
+
+    def _linked_channel(self):
+        if self._link is not None and self._link.twitch_login:
+            return self._link.twitch_login
+        return self._linked.get()
 
     def _open(self, channel):
         import websocket
@@ -457,8 +468,8 @@ def _in_battle():
         return False
 
 
-def install(session, settings):
-    chat = TwitchChat(session, settings)
+def install(session, settings, link=None):
+    chat = TwitchChat(session, settings, link)
     chat.install()
     return chat
 

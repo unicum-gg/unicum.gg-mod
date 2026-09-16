@@ -45,6 +45,8 @@ ME_PATH = '%s/api/game/me'
 
 # How often a linked game asks the site who it is, so a link revoked elsewhere shows.
 _REFRESH_SECONDS = 600.0
+# How soon it asks again when the site did not answer.
+_RETRY_SECONDS = 30.0
 # How often the account logged in is looked at, to follow a switch.
 _ACCOUNT_SECONDS = 2.0
 
@@ -79,7 +81,7 @@ def bearer(secret):
 
 
 def read_me(response):
-    """(name, twitch access) from GET /api/game/me; None when not linked or unreadable."""
+    """(name, twitch access, twitch login) from GET /api/game/me; None when not linked or unreadable."""
     if getattr(response, 'responseCode', None) != 200:
         return None
     try:
@@ -88,7 +90,9 @@ def read_me(response):
         return None
     if not isinstance(payload, dict):
         return None
-    return payload.get('name'), payload.get('twitch')
+    login = payload.get('twitchLogin')
+    login = str(login).lower() if isinstance(login, basestring) and login else None
+    return payload.get('name'), payload.get('twitch'), login
 
 
 def current_account_id():
@@ -137,9 +141,11 @@ class GameLink(object):
         # The account last seen logged in, kept through a battle, where the
         # avatar carries no database id.
         self._account = None
-        # What the account answered last: its name and Twitch access.
+        # What the account answered last: its name, Twitch access and channel.
         self.name = None
         self.twitch = None
+        self.twitch_login = None
+        self._retrying = False
         self._listeners = []
 
     @property
@@ -180,13 +186,17 @@ class GameLink(object):
             # account the game first logs in with; refresh() drops it if not.
             self._links.setdefault(account, self._links.pop(None))
             self._save()
-        self.name = self.twitch = None
+        self.name = self.twitch = self.twitch_login = None
         _logger.info('account %s, %s', account, 'linked' if self.secret else 'not linked')
         self._changed()
         self.refresh()
 
     def refresh(self):
-        """Ask the account who it is; a link the site no longer knows is forgotten."""
+        """Ask the account who it is; a link the site no longer knows is forgotten.
+
+        When the site does not answer, it is asked again soon rather than at the
+        next refresh: the name and the Twitch channel shown wait on it.
+        """
         secret, account = self.secret, self._account
         if not secret:
             return
@@ -200,9 +210,18 @@ class GameLink(object):
             elif getattr(response, 'responseCode', None) == 401:
                 _logger.info('the site no longer knows this link, forgetting it')
                 self._forget()
+            elif not self._retrying:
+                _logger.info('the site did not answer who this account is (HTTP %s), asking again soon',
+                             getattr(response, 'responseCode', None))
+                self._retrying = True
+                self._session.callback(_RETRY_SECONDS, self._retry)
 
         self._session.fetch(ME_PATH % config.API_BASE.rstrip('/'), answered, headers=bearer(secret),
                             timeout=config.API_TIMEOUT)
+
+    def _retry(self):
+        self._retrying = False
+        self.refresh()
 
     def unlink(self, done=None):
         """Revoke this account's link on the site and forget it here, whatever the site answers."""
@@ -221,14 +240,14 @@ class GameLink(object):
         self._session.fetch(ME_PATH % config.API_BASE.rstrip('/'), answered, headers=bearer(secret),
                             timeout=config.API_TIMEOUT, method='DELETE', post_data='')
 
-    def _set(self, name, twitch):
-        if (name, twitch) != (self.name, self.twitch):
-            self.name, self.twitch = name, twitch
+    def _set(self, name, twitch, twitch_login=None):
+        if (name, twitch, twitch_login) != (self.name, self.twitch, self.twitch_login):
+            self.name, self.twitch, self.twitch_login = name, twitch, twitch_login
             self._changed()
 
     def _forget(self):
         self._links.pop(self._account, None)
-        self.name = self.twitch = None
+        self.name = self.twitch = self.twitch_login = None
         self._save()
         self._changed()
 
@@ -273,15 +292,15 @@ class GameLink(object):
 
         requester.request(timeout=10.0)(received)
 
-    def _linked(self, account, secret, name, twitch):
+    def _linked(self, account, secret, name, twitch, twitch_login=None):
         self._links[account] = secret
         if account in self._hidden:
             # Linked again: the card shows who it is linked to until closed again.
             self._hidden.remove(account)
         self._save()
         if account == self._account:
-            self.name, self.twitch = None, None
-            self._set(name, twitch)
+            self.name = self.twitch = self.twitch_login = None
+            self._set(name, twitch, twitch_login)
 
     def _ended(self):
         self._attempt = None
@@ -348,13 +367,13 @@ class _Attempt(object):
         me = read_me(response)
         if me is None:
             return
-        name, twitch = me
+        name, twitch, twitch_login = me
         if not self._linked:
             self._linked = True
-            self._link._linked(self._account, self._secret, name, twitch)
+            self._link._linked(self._account, self._secret, name, twitch, twitch_login)
             _logger.info('linking: linked to %s', name)
         elif self._account == self._link.account:
-            self._link._set(name, twitch)
+            self._link._set(name, twitch, twitch_login)
         if twitch == TWITCH_READY or not self._twitch:
             self._finish(name, twitch)
 
