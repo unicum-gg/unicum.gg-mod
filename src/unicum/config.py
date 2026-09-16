@@ -52,6 +52,9 @@ REFRESH_SECONDS = 1800
 MAX_FLAGS = 3
 
 API_TIMEOUT = 10.0
+# Resolving a battle's players can take the site longer than the rest, and a
+# timeout leaves the whole batch without ratings until it is asked again.
+RESOLVE_TIMEOUT = 30.0
 
 # Downloaded images, kept between sessions, inside the resource tree.
 #

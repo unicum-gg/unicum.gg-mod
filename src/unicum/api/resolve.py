@@ -144,7 +144,7 @@ class Lookup(object):
                     on_ready()
 
         self._session.fetch(self._url(batch), lambda response: done(parse(response, 'resolve')),
-                            timeout=config.API_TIMEOUT)
+                            timeout=config.RESOLVE_TIMEOUT)
 
     def _url(self, batch):
         parts = []
