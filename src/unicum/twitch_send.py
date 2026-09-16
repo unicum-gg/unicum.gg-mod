@@ -184,4 +184,6 @@ class TwitchSender(object):
 
 
 def install(session, link, chat=None):
-    TwitchSender(session, link, chat).install()
+    sender = TwitchSender(session, link, chat)
+    sender.install()
+    return sender

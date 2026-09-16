@@ -45,7 +45,10 @@ unicum.gg account: Connect, beside the Twitch channel in the settings window,
 opens the player's browser on a sign-in that uses the game's own Wargaming
 web token (nothing to type) and links Twitch with the chat permission. The
 battle chat then has a TO TWITCH receiver, reached with Tab like TO TEAM, and
-`!t message` does the same from any receiver. The link's secret is kept in
+`!t message` does the same from any receiver. In the garage, a panel under the
+mission widgets shows the chat and has a field to write in it; it can be
+dragged anywhere and put back with its reset button (`twitch.garage`,
+`twitch.garageCollapsed`, `twitch.garagePosition`). The link's secret is kept in
 `mods/configs/unicum/account.json`.
 
 One rating for the whole mod, so a number means the same thing on every

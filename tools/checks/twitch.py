@@ -188,3 +188,44 @@ def check_own_message():
           shown == Message('License__', '#FF4500', u'gg', ('broadcaster/1', 'subscriber/12'), 'license__'))
     check('an appearance from another channel is not used',
           own_message(appearance_of(seen), 'other', u'gg').badges == ('broadcaster/1',))
+
+
+def check_twitch_panel():
+    from unicum.twitch import Message
+    from unicum.twitch_panel import state
+
+    class Settings(object):
+        def __getitem__(self, key):
+            return {'garageCollapsed': True, 'garagePosition': None}
+
+        def shows_twitch_in_garage(self):
+            return True
+
+    class Chat(object):
+        channel = 'license__'
+        history = [Message('Viewer', '#FF0000', u'gg', ('moderator/1',), 'viewer'),
+                   Message('license__', None, u'thanks', (), 'license__')]
+
+        def badge_sources(self, badges):
+            return ['gui/maps/icons/unicum/twitch/badges/global.%s.png' % key.replace('/', '.') for key in badges]
+
+    class Link(object):
+        secret = None
+
+    data = state(Settings(), Chat(), Link(), 'img://gui/maps/icons/unicum/twitch.png')
+    check('the garage panel gets the chat with its badges as images, and the player own lines marked',
+          data['messages'][0]['badges'] == ['img://gui/maps/icons/unicum/twitch/badges/global.moderator.1.png']
+          and not data['messages'][0]['own'] and data['messages'][1]['own']
+          and data['collapsed'] and not data['linked'] and data['channel'] == 'license__')
+
+
+def check_panel_position():
+    from unicum.settings import validate
+    from unicum.twitch_panel import parse_position
+
+    check('a dragged panel position is read in rem, and anything else puts it back in its place',
+          parse_position('1200.4,310') == [1200, 310] and parse_position('') is None
+          and parse_position('a,b') is None and parse_position(None) is None)
+    check('the panel position survives the settings file, and a bad one is dropped',
+          validate({'twitch': {'garagePosition': [40, 50]}})['twitch']['garagePosition'] == [40, 50]
+          and validate({'twitch': {'garagePosition': 'left'}})['twitch']['garagePosition'] is None)

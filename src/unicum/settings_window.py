@@ -120,6 +120,7 @@ def template(values):
                                       'instead of your team.{/BODY}',
                               button=templates.createButton(width=90, height=24, text='Connect')),
         templates.createCheckbox('Twitch chat in battle', 'twitchBattleChat', window['twitchBattleChat']),
+        templates.createCheckbox('Twitch chat in the garage', 'twitchGarage', window['twitchGarage']),
         templates.createCheckbox('Announce reloading', 'autoReload', window['autoReload'],
                                  tooltip='{HEADER}Announce reloading{/HEADER}{BODY}Sends the "Reloading!" '
                                          'message to your team by itself, as F8 does: after each shot, or '
@@ -135,6 +136,7 @@ def to_window(values):
     window = {'enabled': values['enabled'], 'maxFlags': values['maxFlags'], 'tankButton': values['tankButton'],
               'autoReload': values['autoReload'],
               'twitchChannel': values['twitch']['channel'], 'twitchBattleChat': values['twitch']['battleChat'],
+              'twitchGarage': values['twitch']['garage'],
               'metric': METRICS.index(values['metric']), 'window': WINDOWS.index(values['window'])}
     for mode in MODES:
         for team in ('allies', 'enemies'):
@@ -158,6 +160,8 @@ def from_window(raw):
         twitch['channel'] = raw['twitchChannel']
     if isinstance(raw.get('twitchBattleChat'), bool):
         twitch['battleChat'] = raw['twitchBattleChat']
+    if isinstance(raw.get('twitchGarage'), bool):
+        twitch['garage'] = raw['twitchGarage']
     if twitch:
         changes['twitch'] = twitch
     if _index(raw.get('metric'), METRICS) is not None:

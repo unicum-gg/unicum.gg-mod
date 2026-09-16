@@ -28,6 +28,11 @@ entries do what the site's own "Open in" menu does
 page has a Markdown twin at <path>.md, and the model is handed that, with the
 setup too, which the twin renders.
 
+The same loader runs the garage's Twitch chat panel (twitch_panel.py): its
+script and style are put in the model after the menu's, each script wrapped
+in a function of its own, and the panel's state rides in the model's `twitch`
+string.
+
 Optional: without openwg_gameface, or before the client has restarted with
 the layout in its resource map, there is no button and nothing else changes.
 
@@ -63,8 +68,12 @@ _MODULE = 'coui://gui/gameface/mods/unicum/TankButton/TankButton.js'
 _SOURCES = os.path.join(os.path.dirname(__file__), 'web', 'hangar')
 _SCRIPT = os.path.join(_SOURCES, 'tank_menu.js')
 _STYLE = os.path.join(_SOURCES, 'tank_menu.css')
+_PANEL_SCRIPT = os.path.join(_SOURCES, 'twitch_panel.js')
+_PANEL_STYLE = os.path.join(_SOURCES, 'twitch_panel.css')
 _ICONS = os.path.join(_SOURCES, 'icons')
 _ICONS_MARK = '__MENU_ICONS__'
+_PANEL_ICONS = os.path.join(_SOURCES, 'panel_icons')
+_PANEL_ICONS_MARK = '__PANEL_ICONS__'
 _CHECK_SECONDS = 1.0
 
 # Where live button models are kept across reloads of this package.
@@ -100,6 +109,7 @@ _ENABLED = 1
 _REVISION = 2
 _SCRIPT_TEXT = 3
 _STYLE_TEXT = 4
+_TWITCH = 5
 
 
 def _utm(content):
@@ -141,12 +151,45 @@ def markdown_url(int_cd, setup=None, region=config.REGION):
 
 
 def on_item(args):
-    """A message from the menu: an entry picked, or a line for the log."""
+    """A message from the menu or the Twitch panel: an entry picked, or a line for the log."""
     item = args.get('item') if isinstance(args, dict) else None
     if item == 'log':
         _logger.info('menu: %s', args.get('text'))
         return
+    if isinstance(item, basestring) and item.startswith('twitch'):
+        from unicum import twitch_panel
+        twitch_panel.on_item(args)
+        return
     open_item(item)
+
+
+def live_models():
+    """The loader models on screen, including those made by an earlier load of this package."""
+    models = getattr(VehicleMenuPresenter, _REGISTRY, None)
+    return list(models) if models is not None else []
+
+
+def set_twitch(model, text):
+    """Hand the Twitch panel its state; False on a model older than the property."""
+    try:
+        model._setString(_TWITCH, text)
+        return True
+    except Exception:
+        _logger.debug('a loader model without the twitch property', exc_info=True)
+        return False
+
+
+def compose(parts):
+    """One loader script from several, each in its own function, stopped together."""
+    body = [u'var __parts = [];']
+    for name, script in parts:
+        body.append(u'try { __parts.push(["%s", (function () {\n%s\n})()]); } '
+                    u'catch (error) { api.report("%s: " + error + " " + (error && error.stack)); }'
+                    % (name, script, name))
+    body.append(u'return { stop: function () { __parts.forEach(function (part) { '
+                u'try { if (part[1]) { part[1].stop(); } } catch (error) { api.report(part[0] + " stop: " + error); } '
+                u'}); } };')
+    return u'\n'.join(body)
 
 
 def open_item(item):
@@ -182,7 +225,7 @@ def _share(url):
 class TankButtonModel(ViewModel):
     __slots__ = ('onItemClick', )
 
-    def __init__(self, properties=5, commands=1):
+    def __init__(self, properties=6, commands=1):
         super(TankButtonModel, self).__init__(properties=properties, commands=commands)
 
     def _initialize(self):
@@ -193,6 +236,7 @@ class TankButtonModel(ViewModel):
         self._addNumberProperty('revision', 0)
         self._addStringProperty('script', '')
         self._addStringProperty('style', '')
+        self._addStringProperty('twitch', '')
         self.onItemClick = self._addCommand('onItemClick')
 
 
@@ -232,17 +276,17 @@ class TankButton(object):
 
     def _check_sources(self):
         """Put the menu's code in every button when it or its icons change on disk."""
-        icons = sorted(os.path.join(_ICONS, name) for name in os.listdir(_ICONS)
-                       if name.endswith('.png')) if os.path.isdir(_ICONS) else []
-        paths = [_SCRIPT, _STYLE] + icons
+        icons = _pngs(_ICONS)
+        panel_icons = _pngs(_PANEL_ICONS)
+        paths = [_SCRIPT, _STYLE, _PANEL_SCRIPT, _PANEL_STYLE] + icons + panel_icons
         stamps = tuple((path, os.path.getmtime(path)) for path in paths if os.path.isfile(path))
         if stamps == self._stamps:
             return
         self._stamps = stamps
-        with open(_SCRIPT, 'rb') as handle:
-            self._script = handle.read().decode('utf-8').replace(_ICONS_MARK, json.dumps(_data_uris(icons)))
-        with open(_STYLE, 'rb') as handle:
-            self._style = handle.read().decode('utf-8')
+        menu = _read(_SCRIPT).replace(_ICONS_MARK, json.dumps(_data_uris(icons)))
+        panel = _read(_PANEL_SCRIPT).replace(_PANEL_ICONS_MARK, json.dumps(_data_uris(panel_icons)))
+        self._script = compose([('tank menu', menu)] + ([('twitch panel', panel)] if panel else []))
+        self._style = _read(_STYLE) + u'\n' + _read(_PANEL_STYLE)
         # From the content, not the files' times: the icons can change what
         # the script says while its own file stays untouched.
         self._revision = zlib.crc32((self._script + self._style).encode('utf-8')) & 0x3fffffff
@@ -282,6 +326,19 @@ class TankButton(object):
                 model._setBool(_ENABLED, shown)
             except Exception:
                 _logger.exception('could not update a tank page button')
+
+
+def _pngs(folder):
+    if not os.path.isdir(folder):
+        return []
+    return sorted(os.path.join(folder, name) for name in os.listdir(folder) if name.endswith('.png'))
+
+
+def _read(path):
+    if not os.path.isfile(path):
+        return u''
+    with open(path, 'rb') as handle:
+        return handle.read().decode('utf-8')
 
 
 def _data_uris(paths):

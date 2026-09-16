@@ -70,7 +70,8 @@ DEFAULTS = dict({
     'maxFlags': MAX_FLAGS,
     'tankButton': True,
     'autoReload': True,
-    'twitch': {'channel': '', 'battleChat': True},
+    'twitch': {'channel': '', 'battleChat': True, 'garage': True, 'garageCollapsed': False,
+               'garagePosition': None},
     'modes': dict((mode, {'allies': True, 'enemies': True}) for mode in MODES),
 }, **dict((surface, _surface(surface)) for surface in SURFACES))
 
@@ -92,7 +93,11 @@ def validate(raw):
     }
     twitch = raw.get('twitch') if isinstance(raw.get('twitch'), dict) else {}
     values['twitch'] = {'channel': twitch_channel(twitch.get('channel')),
-                        'battleChat': _bool(twitch.get('battleChat'), DEFAULTS['twitch']['battleChat'])}
+                        'battleChat': _bool(twitch.get('battleChat'), DEFAULTS['twitch']['battleChat']),
+                        'garage': _bool(twitch.get('garage'), DEFAULTS['twitch']['garage']),
+                        'garageCollapsed': _bool(twitch.get('garageCollapsed'),
+                                                 DEFAULTS['twitch']['garageCollapsed']),
+                        'garagePosition': _position(twitch.get('garagePosition'))}
     modes = raw.get('modes') if isinstance(raw.get('modes'), dict) else {}
     values['modes'] = {}
     for mode in MODES:
@@ -153,6 +158,14 @@ def _merge(target, changes):
             target[key] = value
 
 
+def _position(value):
+    """[left, top] in rem where the player dragged the garage panel, or None for its own place."""
+    if (isinstance(value, list) and len(value) == 2
+            and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in value)):
+        return [max(0, min(10000, int(v))) for v in value]
+    return None
+
+
 def _bool(value, default):
     return value if isinstance(value, bool) else default
 
@@ -197,6 +210,9 @@ class Settings(object):
 
     def shows_twitch_in_battle(self):
         return self._values['enabled'] and self._values['twitch']['battleChat']
+
+    def shows_twitch_in_garage(self):
+        return self._values['enabled'] and self._values['twitch']['garage']
 
     def shows_team(self, mode, ally):
         """Whether a battle of this kind shows the allies' (or enemies') ratings and flags."""

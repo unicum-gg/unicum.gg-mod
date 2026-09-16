@@ -108,12 +108,11 @@ class ChatBadges(object):
 
     def markup(self, badges):
         """The <IMG> tags for a message's badges that can draw now."""
-        images = []
-        for key in badges:
-            source = self._source(key)
-            if source:
-                images.append(_IMG % (source, _SIZE, _SIZE))
-        return ''.join(images)
+        return ''.join(_IMG % (source, _SIZE, _SIZE) for source in self.sources(badges))
+
+    def sources(self, badges):
+        """The resource paths of a message's badges that can draw now."""
+        return [source for source in (self._source(key) for key in badges) if source]
 
     def _source(self, key):
         login = self._login

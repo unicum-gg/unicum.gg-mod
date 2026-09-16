@@ -176,9 +176,13 @@ class ChatQueue(object):
     def __init__(self):
         self.pending = collections.deque(maxlen=_QUEUE)
         self.history = collections.deque(maxlen=_HISTORY)
+        # Moves whenever the history does, for the garage to follow.
+        self.revision = 0
 
-    def add(self, message, in_battle):
-        self.history.append(message)
+    def add(self, message, in_battle, keep=True):
+        if keep:
+            self.history.append(message)
+            self.revision += 1
         if in_battle:
             self.pending.append(message)
 
@@ -261,6 +265,18 @@ class TwitchChat(object):
     @property
     def history(self):
         return list(self._queue.history)
+
+    @property
+    def revision(self):
+        return self._queue.revision
+
+    @property
+    def channel(self):
+        return self._channel or ''
+
+    def badge_sources(self, badges):
+        """The resource paths of a message's badges that can draw now."""
+        return self._badges.sources(badges)
 
     def install(self):
         self._session.repeat(_CHECK_SECONDS, self._check)
@@ -355,15 +371,18 @@ class TwitchChat(object):
             echo = self._echoes.consume(value.login, self._channel, value.text, BigWorld.time())
             if self._channel and value.login == self._channel:
                 self._remember_self(value)
-            self._queue.add(value, _in_battle() and not echo)
+            # The player's own message is already in the history, from echo().
+            self._queue.add(value, _in_battle() and not echo, keep=not echo)
 
     def echo(self, text):
         """Show a message the player just sent to their chat, before Twitch sends it back."""
         import BigWorld
-        if not self._settings.shows_twitch_in_battle():
-            return
+        from helpers import isPlayerAvatar
         self._echoes.expect(text, BigWorld.time())
-        self._show([own_message(self._self, self._channel or '', text)])
+        message = own_message(self._self, self._channel or '', text)
+        self._queue.add(message, False)
+        if isPlayerAvatar() and self._settings.shows_twitch_in_battle():
+            self._show([message])
 
     def _remember_self(self, message):
         appearance = appearance_of(message)

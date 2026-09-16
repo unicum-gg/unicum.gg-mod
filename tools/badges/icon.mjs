@@ -41,6 +41,26 @@ for (const [name, size] of ICONS) {
   console.log(`wrote ${file}`)
 }
 
+// The garage Twitch panel's own icons, drawn edge to edge in the panel's light purple
+// and shown at 16px; inlined in its script like the menu's
+// (src/unicum/web/hangar/panel_icons).
+const PANEL_ICONS = join(REPO, 'src', 'unicum', 'web', 'hangar', 'panel_icons')
+const PHOSPHOR_BOLD = join(dirname(fileURLToPath(import.meta.url)), 'node_modules', '@phosphor-icons', 'core', 'assets', 'bold')
+mkdirSync(PANEL_ICONS, { recursive: true })
+for (const [name, source] of Object.entries({
+  reset: 'arrow-counter-clockwise-bold.svg',
+  collapse: 'minus-bold.svg',
+  expand: 'plus-bold.svg',
+})) {
+  const svg = readFileSync(join(PHOSPHOR_BOLD, source), 'utf8').replace(/currentColor/g, '#C8B6FF')
+  const file = join(PANEL_ICONS, `${name}.png`)
+  await sharp(Buffer.from(svg), { density: 600 })
+    .resize(32, 32, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toFile(file)
+  console.log(`wrote ${file}`)
+}
+
 {
   const file = join(OUTPUT, 'twitch.png')
   await sharp(join(REPO, 'assets', 'brands', 'twitch.svg'), { density: 600 })
