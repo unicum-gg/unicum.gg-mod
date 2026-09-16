@@ -1,7 +1,22 @@
 """Settings that differ between a dev machine and a released mod."""
 import os
 
-REGION = 'eu'
+# The unicum.gg region this client plays on, from the client's own realm.
+# unicum.gg covers the Wargaming servers only; anything else (a test server,
+# a sandbox) reads as EU rather than guessing.
+_REALM_REGIONS = {'EU': 'eu', 'NA': 'na', 'ASIA': 'asia'}
+
+
+def region_of(realm):
+    return _REALM_REGIONS.get(realm, 'eu')
+
+
+try:
+    from constants import CURRENT_REALM as _REALM
+except ImportError:
+    _REALM = None
+
+REGION = region_of(_REALM)
 
 _DEFAULT_API_BASE = 'https://unicum.gg'
 
