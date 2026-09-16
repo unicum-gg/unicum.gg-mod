@@ -42,7 +42,8 @@ def start(generation=0):
         settings = Settings(_session)
         settings.install()
         link = GameLink(_session)
-        settings_window.install(_session, settings, link)
+        link.install()
+        window = settings_window.install(_session, settings, link)
         mods_list.install(_session)
         lookup = Lookup(_session, config.REGION)
         scales = RatingScales(_session)
@@ -56,6 +57,7 @@ def start(generation=0):
         tank_button.install(_session, settings)
         auto_reload.install(_session, settings)
         chat = twitch.install(_session, settings)
+        window.follow_twitch(chat)
         sender = twitch_send.install(_session, link, chat)
         twitch_panel.install(_session, settings, chat, link, sender)
     except Exception:

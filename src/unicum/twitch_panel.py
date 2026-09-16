@@ -12,8 +12,9 @@ script the chat as it stands, as JSON in the loader model's `twitch` string:
 
 and acts on what the panel sends back through the model's onItemClick
 command: twitchSend (a message typed in the panel, sent like the battle
-chat's TO TWITCH), twitchConnect (links the game, see game_link.py) and
-twitchCollapse.
+chat's TO TWITCH), twitchConnect (links the game, see game_link.py),
+twitchCollapse, twitchMove (dragged, or back to its place) and twitchClose
+(turns the panel off, as the settings window's checkbox does).
 """
 import json
 import logging
@@ -46,6 +47,9 @@ def state(settings, chat, link, icon=None):
         'position': settings['twitch']['garagePosition'],
         'channel': channel,
         'linked': bool(link.secret),
+        # The account card above the panel (account_card.js) reads this too.
+        'account': {'linked': bool(link.secret), 'name': getattr(link, 'name', None),
+                    'hidden': bool(getattr(link, 'card_hidden', False))},
         'icon': icon,
         'messages': messages,
     }
@@ -90,18 +94,43 @@ class TwitchPanel(object):
                 self._published[model] = text
 
     def on_item(self, args):
+        self._act(args)
+        # Answer the panel now rather than on the next tick.
+        self._publish()
+
+    def _act(self, args):
         item = args.get('item')
         if item == 'twitchSend':
             text = args.get('text')
             if isinstance(text, basestring) and text.strip() and self._sender is not None:
                 self._sender.send(text.strip()[:500])
+        elif item == 'accountSettings':
+            from unicum import mods_list
+            mods_list.open_settings()
+        elif item == 'accountHide':
+            self._link.hide_card()
+        elif item == 'accountConnect':
+            from unicum.settings_window import _linked_notice
+            self._link.connect(_linked_notice, twitch=False)
         elif item == 'twitchConnect':
             from unicum.settings_window import _linked_notice
             self._link.connect(_linked_notice)
         elif item == 'twitchCollapse':
             self._settings.update({'twitch': {'garageCollapsed': args.get('text') == '1'}})
+        elif item == 'twitchClose':
+            self._settings.update({'twitch': {'garage': False}})
+            _closed_notice()
         elif item == 'twitchMove':
             self._settings.update({'twitch': {'garagePosition': parse_position(args.get('text'))}})
+
+
+def _closed_notice():
+    from gui import SystemMessages
+    from gui.shared.notifications import NotificationPriorityLevel
+    SystemMessages.pushMessage(u'unicum.gg: the Twitch chat panel is off. Turn it back on with '
+                               u'"Twitch chat in the garage" in the unicum.gg settings.',
+                               type=SystemMessages.SM_TYPE.Information,
+                               priority=NotificationPriorityLevel.MEDIUM)
 
 
 def parse_position(text):

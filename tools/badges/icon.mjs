@@ -41,7 +41,7 @@ for (const [name, size] of ICONS) {
   console.log(`wrote ${file}`)
 }
 
-// The garage Twitch panel's own icons, drawn edge to edge in the panel's light purple
+// The garage Twitch panel's own icons, drawn edge to edge in the hangar's own off-white (#EEEDE9, the colour of its text and icons)
 // and shown at 16px; inlined in its script like the menu's
 // (src/unicum/web/hangar/panel_icons).
 const PANEL_ICONS = join(REPO, 'src', 'unicum', 'web', 'hangar', 'panel_icons')
@@ -51,10 +51,22 @@ for (const [name, source] of Object.entries({
   reset: 'arrow-counter-clockwise-bold.svg',
   collapse: 'minus-bold.svg',
   expand: 'plus-bold.svg',
+  close: 'x-bold.svg',
+  settings: 'gear-six-bold.svg',
 })) {
-  const svg = readFileSync(join(PHOSPHOR_BOLD, source), 'utf8').replace(/currentColor/g, '#C8B6FF')
+  const svg = readFileSync(join(PHOSPHOR_BOLD, source), 'utf8').replace(/currentColor/g, '#EEEDE9')
   const file = join(PANEL_ICONS, `${name}.png`)
   await sharp(Buffer.from(svg), { density: 600 })
+    .resize(32, 32, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toFile(file)
+  console.log(`wrote ${file}`)
+}
+
+// The garage's unicum.gg account card shows the site's own mark, in its colours.
+{
+  const file = join(PANEL_ICONS, 'unicum.png')
+  await sharp(SOURCE, { density: 600 })
     .resize(32, 32, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .png()
     .toFile(file)

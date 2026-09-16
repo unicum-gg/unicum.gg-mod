@@ -49,10 +49,14 @@ reset.className = "UnicumTwitchPanel_reset";
 reset.style.backgroundImage = `url(${PANEL_ICONS.reset})`;
 const toggle = document.createElement("div");
 toggle.className = "UnicumTwitchPanel_toggle";
+const close = document.createElement("div");
+close.className = "UnicumTwitchPanel_close";
+close.style.backgroundImage = `url(${PANEL_ICONS.close})`;
 header.appendChild(logo);
 header.appendChild(title);
 header.appendChild(reset);
 header.appendChild(toggle);
+header.appendChild(close);
 
 const list = document.createElement("div");
 list.className = "UnicumTwitchPanel_list";
@@ -138,7 +142,9 @@ function onDragEnd(event) {
         const rect = root.getBoundingClientRect();
         send("twitchMove", `${Math.round(toRem(rect.left))},${Math.round(toRem(rect.top))}`);
     } else if (state.data) {
-        send("twitchCollapse", state.data.collapsed ? "0" : "1");
+        state.data.collapsed = !state.data.collapsed;
+        renderFrame(state.data);
+        send("twitchCollapse", state.data.collapsed ? "1" : "0");
     }
 }
 
@@ -157,20 +163,38 @@ function onResetMouseDown(event) {
 
 function onResetClick(event) {
     event.stopPropagation();
+    if (state.data) {
+        state.data.position = null;
+        renderFrame(state.data);
+    }
     send("twitchMove", "");
 }
 
-// Where the player put the panel, or its own place from the stylesheet.
+// Turns the panel off in the settings; the settings window turns it back on.
+function onCloseClick(event) {
+    event.stopPropagation();
+    root.style.display = "none";
+    send("twitchClose");
+}
+
+// The gap the hangar leaves between two mission cards.
+const CARD_GAP = 8;
+
+// Where the player put the panel, or its own place: right under the account
+// card when it is on screen (its height changes with the link), else the
+// stylesheet's.
 function place(position) {
     if (position) {
         root.style.left = `${position[0]}rem`;
         root.style.top = `${position[1]}rem`;
         root.style.right = "auto";
-    } else {
-        root.style.left = "";
-        root.style.top = "";
-        root.style.right = "";
+        return;
     }
+    root.style.left = "";
+    root.style.right = "";
+    const card = document.querySelector(".UnicumAccountCard");
+    const rect = card && card.style.display !== "none" ? card.getBoundingClientRect() : null;
+    root.style.top = rect && rect.height > 0 ? `${Math.round(toRem(rect.bottom)) + CARD_GAP}rem` : "";
 }
 
 function onConnectClick(event) {
@@ -233,6 +257,8 @@ input.addEventListener("input", onInput);
 header.addEventListener("mousedown", onHeaderMouseDown);
 reset.addEventListener("mousedown", onResetMouseDown);
 reset.addEventListener("click", onResetClick);
+close.addEventListener("mousedown", onResetMouseDown);
+close.addEventListener("click", onCloseClick);
 connect.addEventListener("click", onConnectClick);
 input.addEventListener("keydown", onKeyDown);
 input.addEventListener("keyup", stop);
@@ -262,7 +288,9 @@ function line(message) {
     return row;
 }
 
-function render(data) {
+// The panel's frame alone: shown, folded, where. What a click changes, drawn
+// at once rather than after the round trip through Python.
+function renderFrame(data) {
     root.style.display = data.shown ? "" : "none";
     root.className = "UnicumTwitchPanel" + (data.collapsed ? " UnicumTwitchPanel__collapsed" : "") +
         (state.drag && state.drag.moved ? " UnicumTwitchPanel__dragging" : "");
@@ -275,7 +303,10 @@ function render(data) {
     toggle.style.backgroundImage = `url(${data.collapsed ? PANEL_ICONS.expand : PANEL_ICONS.collapse})`;
     input.style.display = data.linked ? "" : "none";
     connect.style.display = data.linked ? "none" : "";
+}
 
+function render(data) {
+    renderFrame(data);
     while (lines.firstChild) {
         lines.removeChild(lines.firstChild);
     }
@@ -300,6 +331,10 @@ function poll() {
     const current = model.model;
     const json = current && current.twitch;
     if (!json || json === state.json) {
+        // The account card can change height on its own: follow it.
+        if (state.data && !state.data.position && !state.drag) {
+            place(null);
+        }
         return;
     }
     state.json = json;
@@ -327,6 +362,8 @@ return {
         header.removeEventListener("mousedown", onHeaderMouseDown);
         reset.removeEventListener("mousedown", onResetMouseDown);
         reset.removeEventListener("click", onResetClick);
+        close.removeEventListener("mousedown", onResetMouseDown);
+        close.removeEventListener("click", onCloseClick);
         document.removeEventListener("mousemove", onDragMove);
         document.removeEventListener("mouseup", onDragEnd);
         connect.removeEventListener("click", onConnectClick);

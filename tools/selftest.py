@@ -17,7 +17,7 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from checks.api import check_browser_scope, check_entries, check_lookup, check_scales
-from checks.battle_options import check_battle_modes, check_reload_announcer
+from checks.battle_options import check_alt_only, check_battle_modes, check_reload_announcer
 from checks.client import install_fake_client
 from checks.common import FLAG_CODES, REPO, check, render_stub
 from checks.engine import FakeBigWorld
@@ -43,7 +43,7 @@ from checks.surfaces import (
     check_skirmish_room)
 from checks.settings import check_live_settings, check_res_mods_version, check_settings, check_settings_window
 from checks.tank_menu import check_tank_menu
-from checks.twitch import check_echo_guard, check_panel_position, check_own_message, check_twitch_panel, check_regions, check_twitch, check_twitch_badges, check_twitch_receiver, check_twitch_send
+from checks.twitch import check_links_per_account, check_channel_label, check_echo_guard, check_panel_position, check_own_message, check_twitch_panel, check_regions, check_twitch, check_twitch_badges, check_twitch_receiver, check_twitch_send
 
 
 def main():
@@ -103,6 +103,7 @@ def main():
         check_settings_window()
         check_battle_modes(workdir)
         check_reload_announcer()
+        check_alt_only()
         check_twitch()
         check_twitch_badges()
         check_twitch_send()
@@ -112,6 +113,8 @@ def main():
         check_own_message()
         check_twitch_panel()
         check_panel_position()
+        check_channel_label()
+        check_links_per_account(workdir)
         check_res_mods_version()
         check_live_settings(bigworld)
         check_tank_menu()

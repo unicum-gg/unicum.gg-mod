@@ -32,12 +32,16 @@ def check_twitch():
     check('a long message is cut', len(format_message(Message('a', None, u'x' * 500))) < 400)
 
     queue = ChatQueue()
-    for index in range(15):
+    for index in range(4):
+        queue.add(Message('a', None, str(index)), in_battle=True)
+    check('a few messages are shown two at a time', [m.text for m in queue.take()] == ['0', '1'])
+    queue = ChatQueue()
+    for index in range(45):
         queue.add(Message('a', None, str(index)), in_battle=True)
     queue.add(Message('a', None, 'garage'), in_battle=False)
     taken = queue.take()
-    check('a burst is shown a few at a time, the oldest dropped past the queue',
-          [m.text for m in taken] == ['5', '6'] and len(queue.pending) == 8)
+    check('what a battle loading held is caught up faster, the oldest dropped past the queue',
+          [m.text for m in taken] == ['5', '6', '7', '8', '9'] and len(queue.pending) == 35)
     check('messages outside a battle are kept but not queued', queue.history[-1].text == 'garage')
 
     check('a channel is read from a name, "#Name" or its link',
@@ -135,10 +139,11 @@ def check_twitch_send():
           len(secret) == 64 and connect_url('https://unicum.gg/', 'eu', secret)
           == 'https://unicum.gg/api/connect/game/%s?region=eu' % hashlib.sha256(secret).hexdigest()
           and secret not in connect_url('https://unicum.gg', 'eu', secret) and len(secret_hash(secret)) == 64)
-    url = connect_url('https://unicum.gg', 'na', secret, '1001', 'abc')
+    # A token no hex secret can contain, so its absence before the fragment means something.
+    url = connect_url('https://unicum.gg', 'na', secret, '1001', 'wgtoken')
     check('the Wargaming web token rides in the fragment, which no server receives',
-          url.split('#')[1] == 'account_id=1001&token=abc' and 'region=na' in url.split('#')[0]
-          and 'abc' not in url.split('#')[0])
+          url.split('#')[1] == 'account_id=1001&token=wgtoken' and 'region=na' in url.split('#')[0]
+          and 'wgtoken' not in url.split('#')[0])
     check('the account answer gives its name and Twitch access, a refusal nothing',
           read_me(Response(200, '{"name": "Winnie", "twitch": "ready"}')) == ('Winnie', 'ready')
           and read_me(Response(401, '{"error": "not_linked"}')) is None)
@@ -229,3 +234,50 @@ def check_panel_position():
     check('the panel position survives the settings file, and a bad one is dropped',
           validate({'twitch': {'garagePosition': [40, 50]}})['twitch']['garagePosition'] == [40, 50]
           and validate({'twitch': {'garagePosition': 'left'}})['twitch']['garagePosition'] is None)
+
+
+def check_channel_label():
+    from unicum.settings_window import channel_label
+
+    check('the Twitch section names the channel followed, and says when writing needs Connect',
+          channel_label(u'license__', True) == u'Channel: license__'
+          and channel_label(u'license__', False) == u'Channel: license__ (Connect to write in it)'
+          and channel_label(u'', False) == u'Channel: not linked')
+
+
+
+def check_links_per_account(workdir):
+    import json
+    import os
+    from unicum.game_link import GameLink, connect_url, read_store
+
+    class Session(object):
+        def repeat(self, interval, callback):
+            pass
+
+        def fetch(self, *args, **kwargs):
+            pass
+
+    secret_a, secret_b = 'a' * 64, 'b' * 64
+    store = os.path.join(workdir, 'account-links.json')
+    with open(store, 'w') as handle:
+        json.dump({'secret': secret_a}, handle)
+    logged_in = ['1001']
+    link = GameLink(Session(), store=store, account_id=lambda: logged_in[0])
+    link._follow_account()
+    check('a link saved before links were per account goes to the first account logged in',
+          link.secret == secret_a and read_store(json.load(open(store)))[0] == {'1001': secret_a})
+    logged_in[0] = '2002'
+    link._follow_account()
+    check('another account logged in reads as not linked', link.secret is None)
+    link._linked('2002', secret_b, 'Other', 'ready')
+    link.hide_card()
+    logged_in[0] = '1001'
+    link._follow_account()
+    check('switching back finds the first account link, and its card still shown',
+          link.secret == secret_a and not link.card_hidden)
+    logged_in[0] = '2002'
+    link._follow_account()
+    check('the card closed on one account stays closed for it', link.card_hidden and link.secret == secret_b)
+    check('the site is told which account the game is logged in with',
+          '&account=2002' in connect_url('https://unicum.gg', 'eu', secret_b, '2002', 't').split('#')[0])

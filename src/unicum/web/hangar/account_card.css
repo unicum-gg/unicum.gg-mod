@@ -1,0 +1,81 @@
+/* The garage's unicum.gg account card (account_card.js), under the mission
+   widgets and above the Twitch panel, drawn like them. The hangar's mission
+   cards have no fill of their own (the dark is the hangar's vignette) and only a
+   faint 1rem border, so these cards keep to a light veil and a faint border. */
+
+.UnicumAccountCard {
+    position: absolute;
+    right: 46rem;
+    top: 830rem;
+    width: 322rem;
+    height: 52rem;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 0 10rem;
+    background-color: rgba(23, 23, 23, 0.2);
+    border: 1rem solid rgba(255, 255, 255, 0.12);
+    font-family: PFDINMax, sans-serif;
+    color: #e6e2d8;
+    pointer-events: auto;
+}
+
+.UnicumAccountCard__linked {
+    height: 40rem;
+}
+
+.UnicumAccountCard_logo {
+    flex-shrink: 0;
+    width: 22rem;
+    height: 22rem;
+    margin-right: 10rem;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+.UnicumAccountCard_text {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.UnicumAccountCard_title {
+    font-size: 15rem;
+    line-height: 18rem;
+    color: #e9e4d6;
+}
+
+.UnicumAccountCard_subtitle {
+    font-size: 12rem;
+    line-height: 16rem;
+    color: #9a968c;
+}
+
+/* The settings gear and the close cross: the Twitch panel's icons, one size,
+   in the hangar's off-white at 0.9, full on hover. */
+.UnicumAccountCard_button {
+    opacity: 0.9;
+    flex-shrink: 0;
+    width: 14rem;
+    height: 14rem;
+    margin-left: 12rem;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    cursor: pointer;
+}
+
+.UnicumAccountCard_connect {
+    flex-shrink: 0;
+    height: 26rem;
+    line-height: 26rem;
+    padding: 0 14rem;
+    background-color: rgba(242, 83, 34, 0.85);
+    color: #ffffff;
+    font-size: 13rem;
+    cursor: pointer;
+}
+
+.UnicumAccountCard_button:hover {
+    opacity: 1;
+}

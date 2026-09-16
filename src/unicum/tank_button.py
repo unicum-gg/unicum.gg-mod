@@ -28,10 +28,10 @@ entries do what the site's own "Open in" menu does
 page has a Markdown twin at <path>.md, and the model is handed that, with the
 setup too, which the twin renders.
 
-The same loader runs the garage's Twitch chat panel (twitch_panel.py): its
-script and style are put in the model after the menu's, each script wrapped
-in a function of its own, and the panel's state rides in the model's `twitch`
-string.
+The same loader runs the garage's Twitch chat panel and the unicum.gg
+account card above it (twitch_panel.py): their scripts and styles are put in
+the model after the menu's, each script wrapped in a function of its own, and
+their state rides in the model's `twitch` string.
 
 Optional: without openwg_gameface, or before the client has restarted with
 the layout in its resource map, there is no button and nothing else changes.
@@ -70,6 +70,8 @@ _SCRIPT = os.path.join(_SOURCES, 'tank_menu.js')
 _STYLE = os.path.join(_SOURCES, 'tank_menu.css')
 _PANEL_SCRIPT = os.path.join(_SOURCES, 'twitch_panel.js')
 _PANEL_STYLE = os.path.join(_SOURCES, 'twitch_panel.css')
+_CARD_SCRIPT = os.path.join(_SOURCES, 'account_card.js')
+_CARD_STYLE = os.path.join(_SOURCES, 'account_card.css')
 _ICONS = os.path.join(_SOURCES, 'icons')
 _ICONS_MARK = '__MENU_ICONS__'
 _PANEL_ICONS = os.path.join(_SOURCES, 'panel_icons')
@@ -156,7 +158,7 @@ def on_item(args):
     if item == 'log':
         _logger.info('menu: %s', args.get('text'))
         return
-    if isinstance(item, basestring) and item.startswith('twitch'):
+    if isinstance(item, basestring) and item.startswith(('twitch', 'account')):
         from unicum import twitch_panel
         twitch_panel.on_item(args)
         return
@@ -278,15 +280,18 @@ class TankButton(object):
         """Put the menu's code in every button when it or its icons change on disk."""
         icons = _pngs(_ICONS)
         panel_icons = _pngs(_PANEL_ICONS)
-        paths = [_SCRIPT, _STYLE, _PANEL_SCRIPT, _PANEL_STYLE] + icons + panel_icons
+        paths = [_SCRIPT, _STYLE, _PANEL_SCRIPT, _PANEL_STYLE, _CARD_SCRIPT, _CARD_STYLE] + icons + panel_icons
         stamps = tuple((path, os.path.getmtime(path)) for path in paths if os.path.isfile(path))
         if stamps == self._stamps:
             return
         self._stamps = stamps
         menu = _read(_SCRIPT).replace(_ICONS_MARK, json.dumps(_data_uris(icons)))
-        panel = _read(_PANEL_SCRIPT).replace(_PANEL_ICONS_MARK, json.dumps(_data_uris(panel_icons)))
-        self._script = compose([('tank menu', menu)] + ([('twitch panel', panel)] if panel else []))
-        self._style = _read(_STYLE) + u'\n' + _read(_PANEL_STYLE)
+        uris = json.dumps(_data_uris(panel_icons))
+        panel = _read(_PANEL_SCRIPT).replace(_PANEL_ICONS_MARK, uris)
+        card = _read(_CARD_SCRIPT).replace(_PANEL_ICONS_MARK, uris)
+        self._script = compose([('tank menu', menu)] + [(name, script) for name, script in
+                                                        (('account card', card), ('twitch panel', panel)) if script])
+        self._style = u'\n'.join((_read(_STYLE), _read(_CARD_STYLE), _read(_PANEL_STYLE)))
         # From the content, not the files' times: the icons can change what
         # the script says while its own file stays untouched.
         self._revision = zlib.crc32((self._script + self._style).encode('utf-8')) & 0x3fffffff

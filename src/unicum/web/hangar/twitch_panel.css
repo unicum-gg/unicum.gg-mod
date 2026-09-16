@@ -1,6 +1,7 @@
 /* The garage's Twitch chat panel (twitch_panel.js). Sizes in rem, which the
    hangar scales with the interface. On the right, under the hangar's mission
-   widgets, and drawn like them: a dark translucent card with a faint border.
+   widgets and the unicum.gg account card, and drawn like them: a dark
+   translucent card with a faint border.
 
    Gameface lays spans and inline-blocks out one under the other, so a line is
    a row of flex items: badges and name at their own size, then the text,
@@ -9,13 +10,14 @@
 .UnicumTwitchPanel {
     position: absolute;
     right: 46rem;
-    top: 830rem;
+    top: 890rem;
     width: 322rem;
-    height: 270rem;
+    height: 220rem;
     display: flex;
     flex-direction: column;
-    background-color: rgba(16, 16, 18, 0.78);
-    border: 1rem solid rgba(255, 255, 255, 0.1);
+    /* As the mission cards and the account card: a light veil, a faint border. */
+    background-color: rgba(23, 23, 23, 0.2);
+    border: 1rem solid rgba(255, 255, 255, 0.12);
     font-family: PFDINMax, sans-serif;
     font-size: 14rem;
     color: #e6e2d8;
@@ -66,9 +68,12 @@
     color: #e9e4d6;
 }
 
-/* The header's two buttons: icons of one set, one size, one light purple. */
+/* The header's buttons: icons of one set, one size, in the hangar's off-white,
+   at the 0.9 its text and icons are drawn with, full on hover. */
 .UnicumTwitchPanel_reset,
-.UnicumTwitchPanel_toggle {
+.UnicumTwitchPanel_toggle,
+.UnicumTwitchPanel_close {
+    opacity: 0.9;
     flex-shrink: 0;
     width: 14rem;
     height: 14rem;
@@ -78,7 +83,8 @@
     cursor: pointer;
 }
 
-.UnicumTwitchPanel_reset {
+.UnicumTwitchPanel_reset,
+.UnicumTwitchPanel_toggle {
     margin-right: 12rem;
 }
 
@@ -150,4 +156,10 @@
     background-color: rgba(145, 70, 255, 0.55);
     color: #ffffff;
     cursor: pointer;
+}
+
+.UnicumTwitchPanel_reset:hover,
+.UnicumTwitchPanel_toggle:hover,
+.UnicumTwitchPanel_close:hover {
+    opacity: 1;
 }
