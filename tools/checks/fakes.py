@@ -71,6 +71,12 @@ class FakeStatisticsController(object):
     def as_updateVehicleStatusS(self, data):
         pass
 
+    def as_setFragsS(self, data):
+        pass
+
+    def as_updateVehiclesStatsS(self, data):
+        pass
+
     def invalidateArenaInfo(self):
         self.as_setArenaInfoS({'allyTeamName': 'DOUBT', 'enemyTeamName': 'SMTHG'})
 

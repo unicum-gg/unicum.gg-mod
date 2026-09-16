@@ -68,9 +68,11 @@ _IMG = re.compile(r'<IMG[^>]*>', re.IGNORECASE)
 _SPACE_WIDTH = 4
 _DIGIT_WIDTH = 7
 
-# The statistics controller's methods whose data can carry each team's order.
+# The statistics controller's methods whose data can carry each team's order:
+# every exchange it adds sort ids to (stats_ctrl.py). Frags re-sort the teams
+# too, in the Tab of a mode that orders by them.
 _ORDERED = ('as_setVehiclesDataS', 'as_addVehiclesInfoS', 'as_updateVehiclesInfoS',
-            'as_updateVehicleStatusS')
+            'as_updateVehicleStatusS', 'as_setFragsS', 'as_updateVehiclesStatsS')
 
 
 def markup_width(markup):

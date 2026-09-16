@@ -138,6 +138,10 @@ def check_team_order():
     check('an empty team from the client is an order too', flags._order['leftItemsIDs'] == []
           and 'leftItemsIDs' in flags._received)
 
+    from unicum.battle import _ORDERED
+    check('every exchange the client sorts is read, frags included',
+          set(['as_setFragsS', 'as_updateVehiclesStatsS', 'as_updateVehicleStatusS']) <= set(_ORDERED))
+
 
 def check_icon_markers():
     """The markers drawn beside a vehicle icon, and the width they take."""
