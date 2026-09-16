@@ -38,7 +38,7 @@ API gives them.
 | `modes` | every mode `{"allies": true, "enemies": true}` | in battle, per kind of battle (`random`, `ranked`, `onslaught`, `stronghold`, `frontline`, `training`, `other`), whether the allies' and the enemies' ratings and flags show, on every battle surface |
 | `autoReload` | `true` | sends the "Reloading!" chat command by itself, as F8 does: after each shot of a single-shot gun, once a magazine is empty; not for reloads under the chat's 5-second limit |
 | `twitch.channel` | `""` | the Twitch channel whose chat shows in the battle chat, as a name, `#name` or link; left empty, the channel linked to the account on unicum.gg |
-| `twitch.battleChat` | `true` | shows that chat's messages in the battle chat, on this screen only |
+| `twitch.battleChat` | `true` | shows that chat's messages in the battle chat, on this screen only, behind the Twitch logo and each viewer's badges (downloaded from the channel's set as they appear) |
 
 One rating for the whole mod, so a number means the same thing on every
 screen. A settings.json written by an earlier version is converted on first

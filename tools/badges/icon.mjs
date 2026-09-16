@@ -7,6 +7,8 @@
  *   build/icon/tankButton/small.png       56x56  \
  *   build/icon/tankButton/large.png       64x64   } the hangar button, in the
  *   build/icon/tankButton/upscale.png    128x128 /  sizes the hangar's own use
+ *   build/icon/twitch.png                 14x14, before Twitch messages in the
+ *                                         battle chat (assets/brands/twitch.svg)
  *
  *   node icon.mjs
  *
@@ -34,6 +36,15 @@ for (const [name, size] of ICONS) {
   mkdirSync(dirname(file), { recursive: true })
   await sharp(SOURCE, { density: 600 })
     .resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toFile(file)
+  console.log(`wrote ${file}`)
+}
+
+{
+  const file = join(OUTPUT, 'twitch.png')
+  await sharp(join(REPO, 'assets', 'brands', 'twitch.svg'), { density: 600 })
+    .resize(14, 14, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .png()
     .toFile(file)
   console.log(`wrote ${file}`)

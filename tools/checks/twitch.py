@@ -25,6 +25,10 @@ def check_twitch():
     html = format_message(Message('A<b>', None, 'x & <font>'))
     check('names and text cannot inject markup',
           'A&lt;b&gt;' in html and 'x &amp; &lt;font&gt;' in html and '<b>' not in html)
+    check('the Glitch stands before the name when the icon is installed, else the word',
+          format_message(Message('a', None, 'b'), icon=True).startswith(
+              '<IMG SRC="img://gui/maps/icons/unicum/twitch.png"')
+          and '>Twitch</font>' in format_message(Message('a', None, 'b')))
     check('a long message is cut', len(format_message(Message('a', None, u'x' * 500))) < 400)
 
     queue = ChatQueue()
@@ -62,3 +66,43 @@ def check_twitch():
     settings.update({'enabled': False})
     check('the mod off follows no channel', settings.twitch_channel('linked') == ''
           and not settings.shows_twitch_in_battle())
+
+
+def check_twitch_badges():
+    from unicum.twitch import Message, format_message, parse_line
+    from unicum.twitch_badges import ChatBadges, badges_url, parse_badges, read_badges, res_path
+
+    line = '@badges=subscriber/12,moderator/1;display-name=M :m!m@m PRIVMSG #c :hey'
+    check('a chat line names its badges', parse_line(line)[1].badges == ('subscriber/12', 'moderator/1'))
+    check('a badge that cannot be a file name is left out',
+          parse_badges('subscriber/12,../x/1,vip/,a.b/1,broadcaster/1') == ('subscriber/12', 'broadcaster/1'))
+    check('no badges tag, no badges', parse_line(':v!v@v PRIVMSG #c :hi')[1].badges == ())
+
+    badges = read_badges({'badges': [
+        {'set': 'subscriber', 'version': '12', 'image1x': 'https://static-cdn.jtvnw.net/a/1', 'channel': True},
+        {'set': 'moderator', 'version': '1', 'image1x': 'https://static-cdn.jtvnw.net/b/1', 'channel': False},
+        {'set': 'evil', 'version': '1', 'image1x': 'file:///c:/x', 'channel': False},
+        {'set': '..', 'version': '1', 'image1x': 'https://x/y', 'channel': False},
+    ]})
+    check('the badges answer keeps the images it can fetch and file',
+          badges == {'subscriber/12': ('https://static-cdn.jtvnw.net/a/1', True),
+                     'moderator/1': ('https://static-cdn.jtvnw.net/b/1', False)})
+    check('every badge lies in the one folder, a channel image under its login, a global one once for all',
+          res_path('license__', 'subscriber/12', True) == 'gui/maps/icons/unicum/twitch/badges/license__.subscriber.12.png'
+          and res_path('license__', 'moderator/1', False) == 'gui/maps/icons/unicum/twitch/badges/global.moderator.1.png')
+    check('the badges are asked for by channel',
+          badges_url('https://unicum.gg/', 'license__') == 'https://unicum.gg/api/twitch/license__/badges')
+
+    html = format_message(Message('M', None, 'hey', ('moderator/1',)), icon=True, badges='<IMG SRC="b"/>')
+    check('badges are drawn between the Glitch and the name', '/> <IMG SRC="b"/><font' in html)
+
+    class Session(object):
+        def fetch(self, url, callback, timeout=None):
+            pass
+
+    known = set(['gui/maps/icons/unicum/twitch/badges/global.moderator.1.png'])
+    chat = ChatBadges(Session(), drawable=lambda path: path in known)
+    chat.follow('license__')
+    markup = chat.markup(('moderator/1', 'vip/1'))
+    check('only the badges the client can load are drawn',
+          markup.count('<IMG') == 1 and 'global.moderator.1.png' in markup)

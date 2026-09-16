@@ -184,13 +184,20 @@ def install_badges(game: Path, version: str) -> int:
 
 
 def install_icons(game: Path, version: str) -> int:
-    """Copy the menu icon and the hangar button's; indexed at startup like the flags."""
+    """Copy the menu icon, the Twitch chat's and the hangar button's; indexed at startup like the flags."""
     if not (ICON_BUILD / 'unicum.png').is_file():
         return 0
     target = game / 'res_mods' / version / ICONS_SUBPATH
     target.mkdir(parents=True, exist_ok=True)
     shutil.copy2(ICON_BUILD / 'unicum.png', target / 'icon.png')
     count = 1
+    if (ICON_BUILD / 'twitch.png').is_file():
+        shutil.copy2(ICON_BUILD / 'twitch.png', target / 'twitch.png')
+        count += 1
+    # Twitch chat badges are downloaded into this folder while the client
+    # runs. The client lists its folders as it starts, so the folder has to
+    # exist by then for a badge written later to draw at once.
+    (target / 'twitch' / 'badges').mkdir(parents=True, exist_ok=True)
     for icon in sorted((ICON_BUILD / 'tankButton').glob('*.png')):
         (target / 'tankButton').mkdir(exist_ok=True)
         shutil.copy2(icon, target / 'tankButton' / icon.name)

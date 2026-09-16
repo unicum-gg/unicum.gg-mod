@@ -23,6 +23,8 @@ import random
 import re
 import urllib
 
+from unicum.twitch_badges import ChatBadges, drawable, parse_badges
+
 _logger = logging.getLogger('unicum.twitch')
 
 URL = 'wss://irc-ws.chat.twitch.tv:443'
@@ -52,12 +54,19 @@ _TWITCH_COLOR = '#9146FF'
 _DEFAULT_NAME_COLOR = '#C8C8C8'
 _TEXT_COLOR = '#FFFFFF'
 
+# The Glitch before each message, built by tools/badges/icon.mjs. A resource
+# file, so one installed into a folder the client did not know at startup
+# draws from the next start; until then the word "Twitch" stands in.
+ICON_RES_PATH = 'gui/maps/icons/unicum/twitch.png'
+_ICON = '<IMG SRC="img://%s" width="14" height="14" vspace="-3"/>' % ICON_RES_PATH
+
 _COLOR = re.compile(r'^#[0-9A-Fa-f]{6}$')
 
 # IRCv3 tag value escapes.
 _TAG_ESCAPES = {'\\s': ' ', '\\:': ';', '\\\\': '\\', '\\r': '\r', '\\n': '\n'}
 
-Message = collections.namedtuple('Message', 'name color text')
+Message = collections.namedtuple('Message', 'name color text badges')
+Message.__new__.__defaults__ = ((),)
 
 
 def parse_line(line):
@@ -81,14 +90,18 @@ def parse_line(line):
         text = text[len('\x01ACTION '):-1]
     name = tags.get('display-name') or prefix.partition('!')[0]
     color = tags.get('color') if _COLOR.match(tags.get('color') or '') else None
-    return 'message', Message(name, color, text)
+    return 'message', Message(name, color, text, parse_badges(tags.get('badges')))
 
 
-def format_message(message):
-    """The battle chat's HTML for a Twitch message."""
+def format_message(message, icon=False, badges=''):
+    """The battle chat's HTML for a Twitch message, behind the Glitch or the word.
+
+    `badges` is the <IMG> markup of the viewer's badges, drawn before the name.
+    """
     text = message.text if len(message.text) <= _MAX_TEXT else message.text[:_MAX_TEXT - 1] + u'\u2026'
-    return u"<font color='%s'>Twitch</font> <font color='%s'>%s</font>: <font color='%s'>%s</font>" % (
-        _TWITCH_COLOR, message.color or _DEFAULT_NAME_COLOR, _escape(message.name), _TEXT_COLOR, _escape(text))
+    source = _ICON if icon else u"<font color='%s'>Twitch</font>" % _TWITCH_COLOR
+    return u"%s %s<font color='%s'>%s</font>: <font color='%s'>%s</font>" % (
+        source, badges, message.color or _DEFAULT_NAME_COLOR, _escape(message.name), _TEXT_COLOR, _escape(text))
 
 
 def _escape(text):
@@ -179,6 +192,7 @@ class TwitchChat(object):
         self._retry_at = 0.0
         self._queue = ChatQueue()
         self._linked = LinkedChannel(session)
+        self._badges = ChatBadges(session)
 
     @property
     def history(self):
@@ -206,6 +220,7 @@ class TwitchChat(object):
     def _open(self, channel):
         import websocket
         self._channel = channel
+        self._badges.follow(channel)
         self._opened = False
         client = websocket.Client()
         listener = client.listener
@@ -283,8 +298,10 @@ class TwitchChat(object):
             return
         try:
             from messenger import MessengerEntry
+            icon = drawable(ICON_RES_PATH)
             for message in taken:
-                MessengerEntry.g_instance.gui.addClientMessage(format_message(message))
+                html = format_message(message, icon, self._badges.markup(message.badges))
+                MessengerEntry.g_instance.gui.addClientMessage(html)
         except Exception:
             _logger.exception('could not show a Twitch message in the battle chat')
 
