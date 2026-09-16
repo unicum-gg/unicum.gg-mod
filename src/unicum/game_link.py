@@ -155,11 +155,15 @@ class GameLink(object):
     @property
     def secret(self):
         """The bearer secret of the account logged in, or None."""
+        if config.PREVIEW_SIGNED_OUT:
+            return None
         return self._links.get(self._account) if self._account else None
 
     @property
     def card_hidden(self):
         """Whether the player closed the account card for this account."""
+        if config.PREVIEW_SIGNED_OUT:
+            return False
         return self._account in self._hidden
 
     def hide_card(self):
@@ -265,6 +269,10 @@ class GameLink(object):
         ends once the chat can be written to; without, once the account is linked.
         """
         from helpers import isPlayerAccount
+        if config.PREVIEW_SIGNED_OUT:
+            # A link made now would replace the real one, which the preview keeps.
+            _logger.warning('linking is off while previewing signed out')
+            return
         if not isPlayerAccount() or not self._account:
             _logger.warning('linking needs the garage')
             return

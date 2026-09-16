@@ -52,6 +52,11 @@ REFRESH_SECONDS = 1800
 MAX_FLAGS = 3
 
 API_TIMEOUT = 10.0
+
+# Development only: act as if this client were linked to nothing and followed
+# no channel, to see the garage as a new player does, without forgetting the
+# real links. Set in local_settings.py; takes effect on the next reload.
+PREVIEW_SIGNED_OUT = bool(getattr(local_settings, 'PREVIEW_SIGNED_OUT', False))
 # Resolving a battle's players can take the site longer than the rest, and a
 # timeout leaves the whole batch without ratings until it is asked again.
 RESOLVE_TIMEOUT = 30.0

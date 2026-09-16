@@ -310,6 +310,9 @@ class TwitchChat(object):
         self._open(wanted)
 
     def _linked_channel(self):
+        from unicum import config
+        if config.PREVIEW_SIGNED_OUT:
+            return ''
         if self._link is not None and self._link.twitch_login:
             return self._link.twitch_login
         return self._linked.get()
