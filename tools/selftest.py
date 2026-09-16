@@ -43,7 +43,7 @@ from checks.surfaces import (
     check_skirmish_room)
 from checks.settings import check_live_settings, check_res_mods_version, check_settings, check_settings_window
 from checks.tank_menu import check_tank_menu
-from checks.twitch import check_twitch, check_twitch_badges
+from checks.twitch import check_echo_guard, check_own_message, check_regions, check_twitch, check_twitch_badges, check_twitch_receiver, check_twitch_send
 
 
 def main():
@@ -105,6 +105,11 @@ def main():
         check_reload_announcer()
         check_twitch()
         check_twitch_badges()
+        check_twitch_send()
+        check_regions()
+        check_twitch_receiver()
+        check_echo_guard()
+        check_own_message()
         check_res_mods_version()
         check_live_settings(bigworld)
         check_tank_menu()

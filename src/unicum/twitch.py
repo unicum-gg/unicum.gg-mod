@@ -18,7 +18,9 @@ channel typed there, the one the player linked to their account on unicum.gg
 channel either way, no connection.
 """
 import collections
+import json
 import logging
+import os
 import random
 import re
 import urllib
@@ -65,8 +67,8 @@ _COLOR = re.compile(r'^#[0-9A-Fa-f]{6}$')
 # IRCv3 tag value escapes.
 _TAG_ESCAPES = {'\\s': ' ', '\\:': ';', '\\\\': '\\', '\\r': '\r', '\\n': '\n'}
 
-Message = collections.namedtuple('Message', 'name color text badges')
-Message.__new__.__defaults__ = ((),)
+Message = collections.namedtuple('Message', 'name color text badges login')
+Message.__new__.__defaults__ = ((), '')
 
 
 def parse_line(line):
@@ -90,7 +92,8 @@ def parse_line(line):
         text = text[len('\x01ACTION '):-1]
     name = tags.get('display-name') or prefix.partition('!')[0]
     color = tags.get('color') if _COLOR.match(tags.get('color') or '') else None
-    return 'message', Message(name, color, text, parse_badges(tags.get('badges')))
+    login = prefix.partition('!')[0].lower()
+    return 'message', Message(name, color, text, parse_badges(tags.get('badges')), login)
 
 
 def format_message(message, icon=False, badges=''):
@@ -106,6 +109,65 @@ def format_message(message, icon=False, badges=''):
 
 def _escape(text):
     return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+
+# How long a message the player sent from the game waits for Twitch to send
+# it back, to be left out then.
+_ECHO_SECONDS = 30.0
+
+
+class EchoGuard(object):
+    """The player's own messages, shown as they send them rather than once Twitch echoes them.
+
+    Sending goes through unicum.gg and Twitch before the read connection gets
+    the message back, a second or two in which the battle chat showed nothing
+    and the message seemed lost. So it is shown at once, and the copy Twitch
+    sends back from the player's own login is left out.
+    """
+
+    def __init__(self):
+        self._sent = []  # (text, time)
+
+    def expect(self, text, now):
+        self._sent.append((_same_words(text), now))
+
+    def consume(self, login, channel, text, now):
+        """Whether this message is the echo of one already shown."""
+        self._sent = [(sent, at) for sent, at in self._sent if now - at < _ECHO_SECONDS]
+        if not channel or login != channel:
+            return False
+        text = _same_words(text)
+        for index, (sent, _) in enumerate(self._sent):
+            if sent == text:
+                del self._sent[index]
+                return True
+        return False
+
+
+def _same_words(text):
+    # Twitch collapses runs of spaces, so the echo is compared word for word.
+    return u' '.join(text.split())
+
+
+# How the player looks in their own chat, kept for the messages shown before
+# Twitch echoes them: name, colour and badges only come with a message.
+SELF_STORE = os.path.join('mods', 'configs', 'unicum', 'twitch_self.json')
+
+# Before any of their own messages was seen: it is their channel.
+_OWNER_BADGES = ('broadcaster/1',)
+
+
+def own_message(appearance, channel, text):
+    """The player's message as Twitch would show it, from their last seen appearance."""
+    if appearance and appearance.get('login') == channel:
+        return Message(appearance.get('name') or channel, appearance.get('color'), text,
+                       tuple(appearance.get('badges') or ()), channel)
+    return Message(channel, None, text, _OWNER_BADGES, channel)
+
+
+def appearance_of(message):
+    return {'login': message.login, 'name': message.name, 'color': message.color,
+            'badges': list(message.badges)}
 
 
 class ChatQueue(object):
@@ -193,6 +255,8 @@ class TwitchChat(object):
         self._queue = ChatQueue()
         self._linked = LinkedChannel(session)
         self._badges = ChatBadges(session)
+        self._echoes = EchoGuard()
+        self._self = _load_self()
 
     @property
     def history(self):
@@ -287,19 +351,44 @@ class TwitchChat(object):
         if kind == 'ping':
             self._client.sendText('PONG %s' % value)
         else:
-            self._queue.add(value, _in_battle())
+            import BigWorld
+            echo = self._echoes.consume(value.login, self._channel, value.text, BigWorld.time())
+            if self._channel and value.login == self._channel:
+                self._remember_self(value)
+            self._queue.add(value, _in_battle() and not echo)
+
+    def echo(self, text):
+        """Show a message the player just sent to their chat, before Twitch sends it back."""
+        import BigWorld
+        if not self._settings.shows_twitch_in_battle():
+            return
+        self._echoes.expect(text, BigWorld.time())
+        self._show([own_message(self._self, self._channel or '', text)])
+
+    def _remember_self(self, message):
+        appearance = appearance_of(message)
+        if appearance == self._self:
+            return
+        self._self = appearance
+        try:
+            with open(SELF_STORE, 'w') as handle:
+                json.dump(appearance, handle)
+        except (IOError, OSError):
+            _logger.debug('could not save how the player looks in chat', exc_info=True)
 
     def _flush(self):
         if not self._settings.shows_twitch_in_battle():
             self._queue.pending.clear()
             return
         taken = self._queue.take()
-        if not taken:
-            return
+        if taken:
+            self._show(taken)
+
+    def _show(self, messages):
         try:
             from messenger import MessengerEntry
             icon = drawable(ICON_RES_PATH)
-            for message in taken:
+            for message in messages:
                 html = format_message(message, icon, self._badges.markup(message.badges))
                 MessengerEntry.g_instance.gui.addClientMessage(html)
         except Exception:
@@ -326,4 +415,15 @@ def _in_battle():
 
 
 def install(session, settings):
-    TwitchChat(session, settings).install()
+    chat = TwitchChat(session, settings)
+    chat.install()
+    return chat
+
+
+def _load_self():
+    try:
+        with open(SELF_STORE) as handle:
+            appearance = json.load(handle)
+        return appearance if isinstance(appearance, dict) else None
+    except (IOError, OSError, ValueError):
+        return None

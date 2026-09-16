@@ -58,6 +58,10 @@ def _heading(templates, text):
     return templates.createLabel(u'%s  %s' % (text.upper(), _RULE))
 
 
+# The control carrying the Connect button: the Twitch channel's input.
+CONNECT_VAR = 'twitchChannel'
+
+
 def template(values):
     """The API's page for these settings, showing `values`."""
     from gui.modsSettingsApi import templates
@@ -106,10 +110,15 @@ def template(values):
                                          'AI assistants and its build.{/BODY}'),
         templates.createEmpty(_SPACER),
         _heading(templates, 'Battle'),
-        templates.createInput('Twitch channel', 'twitchChannel', window['twitchChannel'],
+        templates.createInput('Twitch channel', CONNECT_VAR, window['twitchChannel'],
                               tooltip='{HEADER}Twitch channel{/HEADER}{BODY}Your channel name, or its link. '
                                       'Its chat shows in the battle chat, only on your screen. Left empty, '
-                                      'the channel linked to your account on unicum.gg is used.{/BODY}'),
+                                      'the channel linked to your account on unicum.gg is used. '
+                                      'Connect links this game to your unicum.gg account and your Twitch '
+                                      'channel, in your browser: nothing to type, you only confirm. '
+                                      'Then a battle chat message starting with !t goes to your Twitch chat '
+                                      'instead of your team.{/BODY}',
+                              button=templates.createButton(width=90, height=24, text='Connect')),
         templates.createCheckbox('Twitch chat in battle', 'twitchBattleChat', window['twitchBattleChat']),
         templates.createCheckbox('Announce reloading', 'autoReload', window['autoReload'],
                                  tooltip='{HEADER}Announce reloading{/HEADER}{BODY}Sends the "Reloading!" '
@@ -188,9 +197,10 @@ def _index(value, options):
 
 class SettingsWindow(object):
 
-    def __init__(self, session, settings):
+    def __init__(self, session, settings, link=None):
         self._session = session
         self._settings = settings
+        self._link = link
         self._alive = True
         self._api = None
 
@@ -201,7 +211,8 @@ class SettingsWindow(object):
             _logger.info('modsSettingsApi not installed, settings.json only')
             return
         self._api = g_modsSettingsApi
-        g_modsSettingsApi.setModTemplate(LINKAGE, template(self._settings.values()), self._on_window)
+        g_modsSettingsApi.setModTemplate(LINKAGE, template(self._settings.values()), self._on_window,
+                                         self._on_button)
         self._session.on_close(self._remove)
         self._settings.on_change(self._on_settings)
         _logger.info('registered in modsSettingsApi as %s', LINKAGE)
@@ -210,6 +221,11 @@ class SettingsWindow(object):
         if not self._alive or linkage != LINKAGE or not isinstance(raw, dict):
             return
         self._settings.update(from_window(raw))
+
+    def _on_button(self, linkage, var_name, value=None):
+        if not self._alive or linkage != LINKAGE or var_name != CONNECT_VAR or self._link is None:
+            return
+        self._link.connect(_linked_notice)
 
     def _on_settings(self):
         """Keep the window in step with a hand edit of settings.json."""
@@ -220,12 +236,24 @@ class SettingsWindow(object):
     def _remove(self):
         self._alive = False
         instance = getattr(self._api, '_ModsSettingsApi__instance', None)
-        event = getattr(instance, 'onSettingsChanged', None)
-        try:
-            event -= self._on_window
-        except Exception:
-            _logger.debug('could not unregister the settings callback', exc_info=True)
+        for name, handler in (('onSettingsChanged', self._on_window), ('onButtonClicked', self._on_button)):
+            event = getattr(instance, name, None)
+            try:
+                event -= handler
+            except Exception:
+                _logger.debug('could not unregister %s', name, exc_info=True)
 
 
-def install(session, settings):
-    SettingsWindow(session, settings).install()
+def _linked_notice(name, twitch):
+    """Tell the player, in the garage notifications, how linking ended."""
+    from gui import SystemMessages
+    if name is None:
+        SystemMessages.pushMessage('unicum.gg: the game could not be linked. Try Connect again.',
+                                   type=SystemMessages.SM_TYPE.Warning)
+    else:
+        SystemMessages.pushMessage('unicum.gg: linked to %s. Start a battle chat message with !t to write '
+                                   'in your Twitch chat.' % name, type=SystemMessages.SM_TYPE.Information)
+
+
+def install(session, settings, link=None):
+    SettingsWindow(session, settings, link).install()

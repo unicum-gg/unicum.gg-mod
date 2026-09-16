@@ -12,9 +12,9 @@ def check_twitch():
             ':someone!someone@someone.tmi.twitch.tv PRIVMSG #unicum :gg <b>wp</b> & co')
     kind, message = parse_line(line)
     check('a chat line gives its display name, colour and text',
-          kind == 'message' and message == Message('Some One', '#1E90FF', 'gg <b>wp</b> & co'))
+          kind == 'message' and message == Message('Some One', '#1E90FF', 'gg <b>wp</b> & co', (), 'someone'))
     check('without tags, the nick is the name', parse_line(
-        ':viewer!viewer@viewer.tmi.twitch.tv PRIVMSG #unicum :hi')[1] == Message('viewer', None, 'hi'))
+        ':viewer!viewer@viewer.tmi.twitch.tv PRIVMSG #unicum :hi')[1] == Message('viewer', None, 'hi', (), 'viewer'))
     check('a /me keeps its words', parse_line(
         ':viewer!v@v PRIVMSG #unicum :\x01ACTION waves\x01')[1].text == 'waves')
     check('a ping is answered with its server', parse_line('PING :tmi.twitch.tv') == ('ping', ':tmi.twitch.tv'))
@@ -106,3 +106,85 @@ def check_twitch_badges():
     markup = chat.markup(('moderator/1', 'vip/1'))
     check('only the badges the client can load are drawn',
           markup.count('<IMG') == 1 and 'global.moderator.1.png' in markup)
+
+
+def check_twitch_send():
+    import hashlib
+    from unicum.game_link import connect_url, new_secret, read_me, secret_hash
+    from unicum.twitch_send import command_text, failure_html, failure_of
+
+    check('only a message starting with !t goes to Twitch, without the prefix',
+          command_text('!t salut le chat ') == 'salut le chat' and command_text('!T gg') == 'gg'
+          and command_text('gg wp') is None and command_text('!t   ') is None and command_text('!tank') is None)
+    check('a message longer than Twitch takes is cut', len(command_text('!t ' + 'x' * 900)) == 500)
+
+    class Response(object):
+        def __init__(self, code, body):
+            self.responseCode, self.body = code, body
+
+    check('a posted message is no failure', failure_of(Response(200, '{"status": "sent"}')) is None)
+    check('the reasons a message was not posted are told apart',
+          failure_of(Response(401, '{"error": "not_linked"}')) == ('unlinked_client', None)
+          and failure_of(Response(403, '{"status": "missing_scope"}')) == ('missing_scope', None)
+          and failure_of(Response(200, '{"status": "dropped", "reason": "AutoMod"}')) == ('dropped', 'AutoMod')
+          and failure_of(Response(502, 'not json')) == ('failed', None))
+    check('a drop reason cannot inject markup', '&lt;b&gt;' in failure_html('dropped', '<b>'))
+
+    secret = new_secret()
+    check('the secret is 64 hex characters and only its SHA-256 travels',
+          len(secret) == 64 and connect_url('https://unicum.gg/', 'eu', secret)
+          == 'https://unicum.gg/api/connect/game/%s?region=eu' % hashlib.sha256(secret).hexdigest()
+          and secret not in connect_url('https://unicum.gg', 'eu', secret) and len(secret_hash(secret)) == 64)
+    url = connect_url('https://unicum.gg', 'na', secret, '1001', 'abc')
+    check('the Wargaming web token rides in the fragment, which no server receives',
+          url.split('#')[1] == 'account_id=1001&token=abc' and 'region=na' in url.split('#')[0]
+          and 'abc' not in url.split('#')[0])
+    check('the account answer gives its name and Twitch access, a refusal nothing',
+          read_me(Response(200, '{"name": "Winnie", "twitch": "ready"}')) == ('Winnie', 'ready')
+          and read_me(Response(401, '{"error": "not_linked"}')) is None)
+
+
+def check_regions():
+    from unicum.config import region_of
+    check('the region follows the client realm, EU for any other',
+          [region_of(r) for r in ('EU', 'NA', 'ASIA', 'CT', None)] == ['eu', 'na', 'asia', 'eu', 'eu'])
+
+
+def check_twitch_receiver():
+    from unicum.twitch_send import RECEIVER_ID, RECEIVER_ORDER, is_twitch_receiver, receiver_vo
+
+    vo = receiver_vo()
+    check('the Twitch receiver sorts after the client receivers on both sides',
+          vo['orderIndex'] == RECEIVER_ORDER > 3 and vo['clientId'] == RECEIVER_ID and vo['isEnabled'])
+    receivers = [(1, None, True), (2, None, True), (RECEIVER_ID, None, True)]
+    check('only the Twitch receiver index sends to Twitch',
+          is_twitch_receiver(receivers, 2) and not is_twitch_receiver(receivers, 0)
+          and not is_twitch_receiver(receivers, 5) and not is_twitch_receiver(None, 0))
+
+
+def check_echo_guard():
+    from unicum.twitch import EchoGuard
+
+    guard = EchoGuard()
+    guard.expect(u'gg', 100.0)
+    check('a message sent from the game is not shown again when Twitch echoes it',
+          guard.consume('license__', 'license__', u'gg', 101.5)
+          and not guard.consume('license__', 'license__', u'gg', 102.0))
+    guard.expect(u'hello', 200.0)
+    check('someone else saying the same is shown', not guard.consume('viewer', 'license__', u'hello', 201.0))
+    check('an echo that never came is forgotten', not guard.consume('license__', 'license__', u'hello', 260.0))
+
+
+def check_own_message():
+    from unicum.twitch import Message, appearance_of, own_message, parse_line
+
+    first = own_message(None, 'license__', u'gg')
+    check('before any of their messages, the player wears the broadcaster badge',
+          first == Message('license__', None, u'gg', ('broadcaster/1',), 'license__'))
+    seen = parse_line('@badges=broadcaster/1,subscriber/12;color=#FF4500;display-name=License__ '
+                      ':license__!license__@license__ PRIVMSG #license__ :hi')[1]
+    shown = own_message(appearance_of(seen), 'license__', u'gg')
+    check('then with the name, colour and badges Twitch last showed them with',
+          shown == Message('License__', '#FF4500', u'gg', ('broadcaster/1', 'subscriber/12'), 'license__'))
+    check('an appearance from another channel is not used',
+          own_message(appearance_of(seen), 'other', u'gg').badges == ('broadcaster/1',))

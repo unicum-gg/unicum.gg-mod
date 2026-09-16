@@ -40,6 +40,14 @@ API gives them.
 | `twitch.channel` | `""` | the Twitch channel whose chat shows in the battle chat, as a name, `#name` or link; left empty, the channel linked to the account on unicum.gg |
 | `twitch.battleChat` | `true` | shows that chat's messages in the battle chat, on this screen only, behind the Twitch logo and each viewer's badges (downloaded from the channel's set as they appear) |
 
+Writing in the Twitch chat from a battle needs the game linked to a
+unicum.gg account: Connect, beside the Twitch channel in the settings window,
+opens the player's browser on a sign-in that uses the game's own Wargaming
+web token (nothing to type) and links Twitch with the chat permission. The
+battle chat then has a TO TWITCH receiver, reached with Tab like TO TEAM, and
+`!t message` does the same from any receiver. The link's secret is kept in
+`mods/configs/unicum/account.json`.
+
 One rating for the whole mod, so a number means the same thing on every
 screen. A settings.json written by an earlier version is converted on first
 read.
