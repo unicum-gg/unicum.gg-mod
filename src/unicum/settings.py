@@ -70,6 +70,8 @@ DEFAULTS = dict({
     'maxFlags': MAX_FLAGS,
     'tankButton': True,
     'autoReload': True,
+    # Battle ratings shown only while the extended info key (Alt) is held.
+    'altOnly': {'markers': False, 'panel': False},
     'twitch': {'channel': '', 'battleChat': True, 'garage': True, 'garageCollapsed': False,
                'garagePosition': None},
     'modes': dict((mode, {'allies': True, 'enemies': True}) for mode in MODES),
@@ -91,6 +93,9 @@ def validate(raw):
         'tankButton': _bool(raw.get('tankButton'), DEFAULTS['tankButton']),
         'autoReload': _bool(raw.get('autoReload'), DEFAULTS['autoReload']),
     }
+    alt_only = raw.get('altOnly') if isinstance(raw.get('altOnly'), dict) else {}
+    values['altOnly'] = dict((key, _bool(alt_only.get(key), default))
+                             for key, default in DEFAULTS['altOnly'].items())
     twitch = raw.get('twitch') if isinstance(raw.get('twitch'), dict) else {}
     values['twitch'] = {'channel': twitch_channel(twitch.get('channel')),
                         'battleChat': _bool(twitch.get('battleChat'), DEFAULTS['twitch']['battleChat']),
@@ -194,6 +199,10 @@ class Settings(object):
 
     def shows_tank_button(self):
         return self._values['enabled'] and self._values['tankButton']
+
+    def alt_only(self, surface):
+        """Whether a battle surface ('markers' above tanks, 'panel' of players) waits for Alt."""
+        return self._values['altOnly'][surface]
 
     def shows_auto_reload(self):
         return self._values['enabled'] and self._values['autoReload']

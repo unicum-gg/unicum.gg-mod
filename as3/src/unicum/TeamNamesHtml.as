@@ -47,6 +47,10 @@ package unicum
 
       public var rightIds:String = null;
 
+      // True while the players panel's ratings wait for the extended info
+      // key (Alt): the panel draws none, Tab and the loading screen still do.
+      public var panelHidden:Boolean = false;
+
       public function TeamNamesHtml()
       {
          super();
@@ -125,7 +129,7 @@ package unicum
       // A row the panel has just moved takes its markers along the same way.
       private function onFrame(event:Event) : void
       {
-         this._markers.update(this.markersText, this.leftIds, this.rightIds, this._names);
+         this._markers.update(this.markersText, this.leftIds, this.rightIds, this._names, this.panelHidden);
          for(var key:Object in this._fields)
          {
             var field:TextField = key as TextField;

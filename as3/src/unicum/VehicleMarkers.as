@@ -132,14 +132,16 @@ package unicum
       // names: team name field -> [the text the client set, the text once
       // shown as HTML], kept by TeamNamesHtml, since a name already shown as
       // HTML no longer reads back its average's tag.
-      public function update(markers:String, left:String, right:String, names:Dictionary) : void
+      public function update(markers:String, left:String, right:String, names:Dictionary,
+                             panelHidden:Boolean = false) : void
       {
          this._names = names;
          this.read(markers, left, right);
+         // No ids: every row's fields are hidden, as for a player with no rating.
          for(var panel:Object in this._panels)
          {
-            this.drawList(field(panel, "listLeft") as DisplayObjectContainer, this._left, true);
-            this.drawList(field(panel, "listRight") as DisplayObjectContainer, this._right, false);
+            this.drawList(field(panel, "listLeft") as DisplayObjectContainer, panelHidden ? [] : this._left, true);
+            this.drawList(field(panel, "listRight") as DisplayObjectContainer, panelHidden ? [] : this._right, false);
          }
          for(var table:Object in this._tables)
          {

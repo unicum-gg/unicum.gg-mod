@@ -76,6 +76,8 @@ class NameMarkers(object):
         self._session.patch(MarkersManager, 'createMarker', self._wrap_create)
         self._session.patch(MarkersManager, 'destroyMarker', self._wrap_destroy)
         self._session.repeat(_SYNC_SECONDS, self._sync)
+        if self._flags.alt is not None:
+            self._flags.alt.on_change(self._sync)
         try:
             for manager in _running_managers():
                 self._managers.add(manager)
@@ -140,12 +142,14 @@ class NameMarkers(object):
         sent = _sent(manager)
         from unicum import modes
         shows = modes.team_filter(self._flags._settings)
+        alt = self._flags.alt
+        waits_for_nothing = not self._flags._settings.alt_only('markers') or (alt is not None and alt.down)
         for vehicle_id, marker in (getattr(plugin, '_markers', None) or {}).items():
             marker_id = marker.getMarkerID()
             if marker_id not in ours:
                 continue
             vInfo = arena.getVehicleInfo(vehicle_id) if arena is not None else None
-            shown = vInfo is not None and shows(vInfo.team)
+            shown = vInfo is not None and shows(vInfo.team) and waits_for_nothing
             entry = self._entry(vInfo.player.accountDBID if shown else None)
             data = (self._text(entry), _TEXT_COLOR, self._images(entry))
             if sent.get(marker_id) != data:

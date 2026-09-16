@@ -112,3 +112,19 @@ def check_reload_announcer():
     announcer.reload(12.0, False)
     announcer.tick()
     check('a shot and a reload far apart are not paired', len(sent) == 4)
+
+
+def check_alt_only():
+    """The battle ratings that wait for the extended info key, per surface."""
+    from unicum.settings import validate
+    from unicum.settings_window import from_window, to_window
+
+    values = validate({})
+    check('ratings show without Alt by default', values['altOnly'] == {'markers': False, 'panel': False})
+    values = validate({'altOnly': {'markers': True, 'panel': 'yes'}})
+    check('waiting for Alt is set per surface, a bad value keeps the default',
+          values['altOnly'] == {'markers': True, 'panel': False})
+    window = to_window(values)
+    check('the Alt switches go to the window and back',
+          window['altOnlyMarkers'] is True and window['altOnlyPanel'] is False
+          and validate(dict(values, **from_window(window))) == values)

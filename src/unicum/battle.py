@@ -108,6 +108,8 @@ class BattleFlags(object):
         self._received = set()
         # (the battle view published to, what it was given)
         self._published = None
+        # The extended info key (Alt), set by install().
+        self.alt = None
 
     def install(self):
         self._session.patch(VehicleInfoComponent, 'addVehicleInfo', self._wrap)
@@ -197,16 +199,23 @@ class BattleFlags(object):
                            for k, v in sorted(self._markers.items())),
                  ','.join(str(i) for i in self._order['leftItemsIDs']),
                  ','.join(str(i) for i in self._order['rightItemsIDs']))
+        panel_hidden = self._settings.alt_only('panel') and not (self.alt is not None and self.alt.down)
+        state = state + (panel_hidden,)
         # By identity: a reloaded view's proxy can reuse the old one's address.
         if self._published is not None and self._published[0] is view and self._published[1] == state:
             return
         first = self._published is None
         self._published = (view, state)
         try:
-            view.markersText, view.leftIds, view.rightIds = state
+            view.markersText, view.leftIds, view.rightIds = state[:3]
         except Exception:
             _logger.exception('could not give the battle view its markers')
             return
+        try:
+            view.panelHidden = panel_hidden
+        except Exception:
+            # A view whose class predates the property, until the next battle.
+            _logger.debug('the battle view has no panelHidden yet', exc_info=True)
         if first:
             # Names drawn before the view loaded carry the markers after them.
             self._redraw()
@@ -344,8 +353,13 @@ def _default_order(arena):
 
 
 def install(session, lookup, flags, badges, settings):
+    from unicum.extended_info import ExtendedInfo
+    alt = ExtendedInfo(session)
+    alt.install()
     battle_flags = BattleFlags(session, lookup, flags, badges, settings)
+    battle_flags.alt = alt
     battle_flags.install()
+    alt.on_change(battle_flags._publish)
     try:
         from gui.Scaleform.daapi.view.battle.shared.markers2d import manager  # the client has them
     except ImportError:
