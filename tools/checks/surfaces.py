@@ -186,20 +186,23 @@ def check_badges(workdir):
     import os
     from unicum.badges import MAX_VALUE, Badges
 
-    folder = os.path.join(workdir, 'badges', 'wnx')
-    os.makedirs(folder)
-    for value in (0, MAX_VALUE):
-        open(os.path.join(folder, '%d.png' % value), 'wb').close()
-        # Installed before the client started, so the resource manager knows it.
-        FakeResMgr.files.add('gui/badges/wnx/%d.png' % value)
-    badges = Badges(directory=os.path.join(workdir, 'badges'), res_path='gui/badges')
-    check('a rating is one image of the rounded value, sized to its digits',
+    class Scales(object):
+        def color(self, scale, value, unit=None):
+            return '#7A4FB2' if scale == 'wnx' else None
+
+    folder = os.path.join(workdir, 'badges')
+    badges = Badges(Scales(), directory=folder, res_path='gui/badges', drawable=lambda path: True)
+    check('a rating is one image of the rounded value on its band, sized to its digits',
           badges.markup('wnx', 3322.6) ==
-          '<IMG SRC="img://gui/badges/wnx/3323.png" width="32" height="12" vspace="-3"/>')
-    check('a metric whose badges were not installed draws nothing',
-          badges.markup('wn8', 3323) is None)
-    check('a value past the rendered range draws nothing',
-          badges.markup('wnx', MAX_VALUE + 1) is None)
+          '<IMG SRC="img://gui/badges/wnx.3323.7a4fb2.png" width="32" height="12" vspace="-3"/>')
+    check('the badge is drawn into the folder the first time it is shown',
+          open(os.path.join(folder, 'wnx.3323.7a4fb2.png'), 'rb').read(8)[1:4] == b'PNG')
+    check('a rating with no colour on its scale draws nothing', badges.markup('wn8', 3323) is None)
+    check('a value past the drawn range draws nothing', badges.markup('wnx', MAX_VALUE + 1) is None)
+    unknown = Badges(Scales(), directory=os.path.join(workdir, 'new-badges'), res_path='gui/new',
+                     drawable=lambda path: False)
+    check('a folder the client did not know at startup shows numbers until the next start',
+          unknown.markup('wnx', 3323) is None)
 
 
 def check_room_sort(workdir):

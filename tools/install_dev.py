@@ -164,23 +164,18 @@ AS3_BUILD = REPO / 'build' / 'as3'
 ICON_BUILD = REPO / 'build' / 'icon'
 ICONS_SUBPATH = Path('gui') / 'maps' / 'icons' / 'unicum'
 RES = REPO / 'res'
-BADGES_BUILD = REPO / 'build' / 'badges'
 BADGES_SUBPATH = Path('gui') / 'maps' / 'icons' / 'unicum' / 'badges'
 
 
-def install_badges(game: Path, version: str) -> int:
-    """Copy the rating badges, one folder of images per metric.
+def install_badges(game: Path, version: str) -> Path:
+    """Create the folder the client draws its rating badges into (src/unicum/badges.py).
 
-    Indexed at startup like the flags: a new or rebuilt set needs a client
-    restart, and until then ratings draw as bare numbers.
+    The client lists its folders as it starts, so it has to be there by then
+    for a badge drawn later to load at once.
     """
-    if not BADGES_BUILD.is_dir():
-        return 0
     target = game / 'res_mods' / version / BADGES_SUBPATH
-    if target.is_dir():
-        shutil.rmtree(target)
-    shutil.copytree(BADGES_BUILD, target, ignore=shutil.ignore_patterns('*.json'))
-    return sum(1 for p in target.iterdir() if p.is_dir())
+    target.mkdir(parents=True, exist_ok=True)
+    return target
 
 
 def install_icons(game: Path, version: str) -> int:
@@ -272,11 +267,8 @@ def main() -> None:
         else:
             print('flags    none built yet (cd tools/flags && npm install && npm run build)')
 
-        bands = install_badges(game, version)
-        if bands:
-            print(f'badges   {bands} metrics -> res_mods/{version}/{BADGES_SUBPATH}')
-        else:
-            print('badges   none built yet (cd tools/badges && npm install && npm run build)')
+        install_badges(game, version)
+        print(f'badges   drawn in the client, into res_mods/{version}/{BADGES_SUBPATH}')
 
         icons = install_icons(game, version)
         if icons:

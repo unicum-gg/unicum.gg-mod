@@ -46,7 +46,7 @@ const NAME = /^([A-Z]{2}(?:-[A-Z]{3})?)\.svg$/
 
 const WIDTH = 16
 const HEIGHT = 12
-// tools/badges/build.mjs RADIUS.
+// The rating badges' corner radius (tools/badges/glyphs.mjs RADIUS).
 const RADIUS = 2
 
 // Keeps the flag inside a rounded rectangle, and nothing of its corners.

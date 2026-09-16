@@ -117,9 +117,12 @@ python tools/build_as3.py --game "C:/Games/World_of_Tanks_EU"
 python tools/install_dev.py --game "C:/Games/World_of_Tanks_EU"
 ```
 
-That installs the bootstrap into `mods/<version>/`, and the flags, badges,
-icons, SWFs and `res/` (the hangar button's Gameface files and `res_map` entry)
-into `res_mods/<version>/`. openwg_gameface restarts the client by itself the
+That installs the bootstrap into `mods/<version>/`, and the flags, icons,
+SWFs and `res/` (the hangar button's Gameface files and `res_map` entry) into
+`res_mods/<version>/`. The rating badges are not installed: the client draws
+each one the first time it shows a value (`src/unicum/badge_png.py`, from the
+digit masks `cd tools/badges && npm run glyphs` renders), into a folder
+`install_dev.py` creates. openwg_gameface restarts the client by itself the
 first time it finds a new `res_map` entry. Start the client once; after that,
 saving a file under `src/` reloads the mod in place within half a second.
 
@@ -132,7 +135,7 @@ Logs go to `game.log` in the game directory, under loggers named `unicum.*`.
 A SWF rebuilt with `build_as3.py --install` is reloaded in place too: its
 view is destroyed and loaded again within a second.
 
-Still needs a restart: the bootstrap itself, any new flag PNG or badge, a
+Still needs a restart: the bootstrap itself, any new flag PNG, a
 SWF that did not exist when the client started, and the patched
 `battleVehicleMarkersApp.swf` (the drawing by the names above vehicles,
 `unicum.markers.swf`, reloads in place).

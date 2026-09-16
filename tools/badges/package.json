@@ -3,9 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Renders the rating badges and the mod icons for the Scaleform and Gameface UI.",
+  "description": "Renders the rating badges' digit masks and the mod icons for the Scaleform and Gameface UI.",
   "scripts": {
-    "build": "node build.mjs",
+    "glyphs": "node glyphs.mjs",
     "icon": "node icon.mjs"
   },
   "dependencies": {

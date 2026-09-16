@@ -48,7 +48,7 @@ def start(generation=0):
         lookup = Lookup(_session, config.REGION)
         scales = RatingScales(_session)
         flags = FlagCache(_session)
-        badges = Badges()
+        badges = Badges(scales)
         browser.install(_session, lookup, flags, scales, settings)
         battle.install(_session, lookup, flags, badges, settings)
         views.install(_session)

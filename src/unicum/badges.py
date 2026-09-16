@@ -4,49 +4,65 @@ A player name field re-applies its own text format after the text is set
 (CommonsLobby.formatPlayerName reads the field's format and passes it to
 setTextFormat), so a <FONT COLOR> in the name is painted over and there is
 no way to give text a background. Images are left alone, so the site's badge
--- a white number on its colour band -- is an image, rendered in advance by
-tools/badges for every whole value:
+-- a white number on its colour band -- is an image. Whole badges rather than
+digits laid side by side: Scaleform leaves a seam between adjacent inline
+images whatever hspace says, and every join showed.
 
-    badges/wnx/3323.png     "3 323" on its WNX band, likewise wn7 and wn8
+They are drawn in the client, the first time a value is shown, into one
+folder of resource files (badge_png.py; they used to ship all 30 000, 36 MB):
 
-Whole badges rather than digits laid side by side: Scaleform leaves a seam
-between adjacent inline images whatever hspace says, and every join showed.
+    gui/maps/icons/unicum/badges/wnx.3323.7a4fb2.png   "3 323" on its WNX band
 
-The images are resource files, indexed when the client starts, so a metric
-whose images were missing at startup cannot draw this session and the caller
-falls back to the bare number.
+The band's colour is in the name, so a scale the site changes draws new
+badges rather than showing the old ones.
+
+The client lists its resource folders as it starts: a file written into a
+folder it knew loads at once, one in a folder created later does not until the
+next start. So a marker file is written into the folder and asked of ResMgr:
+if the client can load it, it can load the badges too; if not (the folder is
+new, on the mod's first run), a rating is shown as its bare number until the
+next start.
 """
 import logging
 import os
 
-from unicum import config
+from unicum import badge_png, config
 
 _logger = logging.getLogger('unicum.badges')
 
 METRICS = ('wn7', 'wn8', 'wnx')
 MAX_VALUE = 9999
 
-# Mirrors tools/badges/build.mjs, which the <IMG> width has to match.
-_HEIGHT = 12
-_PADDING = 3
-_DIGIT_WIDTH = 6
-_GROUP_WIDTH = 2
+_HEIGHT = badge_png.HEIGHT
 
-_IMG = '<IMG SRC="img://%s/%s/%d.png" width="%d" height="%d" vspace="-3"/>'
+_IMG = '<IMG SRC="img://%s" width="%d" height="%d" vspace="-3"/>'
+
+# Written with the folder; the client can load it only once it started with the folder there.
+_MARKER = 'ready.png'
 
 
 def badge_width(value):
-    digits = len('%d' % value)
-    return 2 * _PADDING + digits * _DIGIT_WIDTH + ((digits - 1) // 3) * _GROUP_WIDTH
+    return badge_png.width_of(value)
+
+
+def _drawable(path):
+    """ResMgr.isFile, or the disk outside the client."""
+    try:
+        import ResMgr
+    except ImportError:
+        return True
+    return bool(ResMgr.isFile(path))
 
 
 class Badges(object):
 
-    def __init__(self, directory=None, res_path=None):
+    def __init__(self, scales=None, directory=None, res_path=None, drawable=_drawable):
+        self._scales = scales
         self._dir = directory if directory is not None else config.BADGES_DIR
         self._res_path = res_path or config.BADGES_RES_PATH
-        self._metrics = self._scan()
-        _logger.info('badges usable for %s from %s', sorted(self._metrics) or 'no metric',
+        self._drawable = drawable
+        self._ready = self._prepare()
+        _logger.info('rating badges %s, in %s', 'drawn' if self._ready else 'as numbers until the next start',
                      os.path.abspath(self._dir) if self._dir else '<none>')
 
     def rating(self, entry, settings, surface):
@@ -64,42 +80,42 @@ class Badges(object):
         image = self.image(metric, value)
         if image is None:
             return None
-        return _IMG % (self._res_path, metric, int(round(value)), image[1], image[2])
+        return _IMG % image
 
     def image(self, metric, value):
         """(resource path, width, height) of a rating's badge, or None when it cannot draw."""
-        if metric not in self._metrics or value is None:
+        if not self._ready or metric not in METRICS or value is None or self._scales is None:
             return None
         value = int(round(value))
         if not 0 <= value <= MAX_VALUE:
             return None
-        return '%s/%s/%d.png' % (self._res_path, metric, value), badge_width(value), _HEIGHT
+        color = self._scales.color(metric, value)
+        if not color:
+            return None
+        name = '%s.%d.%s.png' % (metric, value, color.lstrip('#').lower())
+        disk = os.path.join(self._dir, name)
+        if not os.path.isfile(disk) and not self._write(disk, badge_png.png(value, color)):
+            return None
+        return '%s/%s' % (self._res_path, name), badge_width(value), _HEIGHT
 
-    def _scan(self):
-        """Metrics whose badges are on disk and known to the resource manager.
+    def _prepare(self):
+        """Whether badges can draw this session: the folder was there when the client started."""
+        if not self._dir:
+            return False
+        marker = os.path.join(self._dir, _MARKER)
+        if not os.path.isfile(marker) and not self._write(marker, badge_png.png(0, '#000000')):
+            return False
+        return self._drawable('%s/%s' % (self._res_path, _MARKER))
 
-        Being on disk is not enough. A reload runs this again long after the
-        client started, and images installed since then are files ResMgr never
-        indexed: Scaleform logs "Cannot load protocol image" for each one, for
-        every name, on every redraw. The first and last value stand for the
-        whole set, which install_dev.py always copies together.
-        """
-        if not self._dir or not os.path.isdir(self._dir):
-            return set()
-        indexed = _indexed()
-        usable = set()
-        for metric in METRICS:
-            ends = [(os.path.join(self._dir, metric, '%d.png' % v),
-                     '%s/%s/%d.png' % (self._res_path, metric, v)) for v in (0, MAX_VALUE)]
-            if all(os.path.isfile(disk) and indexed(res) for disk, res in ends):
-                usable.add(metric)
-        return usable
-
-
-def _indexed():
-    """ResMgr.isFile, or a stand-in that trusts the disk outside the client."""
-    try:
-        import ResMgr
-    except ImportError:
-        return lambda path: True
-    return ResMgr.isFile
+    @staticmethod
+    def _write(path, data):
+        try:
+            directory = os.path.dirname(path)
+            if not os.path.isdir(directory):
+                os.makedirs(directory)
+            with open(path, 'wb') as handle:
+                handle.write(data)
+            return True
+        except (IOError, OSError):
+            _logger.exception('could not write %s', path)
+            return False

@@ -68,8 +68,8 @@ API_TIMEOUT = 10.0
 # package.
 FLAGS_RES_PATH = 'gui/maps/icons/unicum/flags'
 
-# Rating badges, one image per value and one folder per metric, built by
-# tools/badges. Indexed at startup like the flags.
+# Rating badges, drawn in the client into this one folder (badges.py), which
+# has to exist when the client starts, like the flags'.
 BADGES_RES_PATH = 'gui/maps/icons/unicum/badges'
 
 # The mod's icon in the modsListApi menu, rendered by tools/badges/icon.mjs
