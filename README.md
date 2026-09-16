@@ -112,9 +112,12 @@ cd tools/flags && npm install && npm run build && cd ../..
 cd tools/badges && npm install && npm run icon && cd ../..
 python tools/build_as3.py --game "C:/Games/World_of_Tanks_EU"
 python tools/build_release.py --version 1.0.0
+python2.7 tools/release_check.py dist/gg.unicum_1.0.0.wotmod
 ```
 
-That writes `dist/gg.unicum_<version>.wotmod`, the one file a player drops
+`release_check.py` loads that package the way the client does, from its compiled
+modules and with ResMgr answering from its own tree, outside the game. The
+build writes `dist/gg.unicum_<version>.wotmod`, the one file a player drops
 into `mods/<game version>/`: the package compiled for the client's Python,
 its resources (read through ResMgr inside the package, `src/unicum/resources.py`),
 the SWFs, flags, icons and `res/`. It needs openwg_gameface for the hangar
