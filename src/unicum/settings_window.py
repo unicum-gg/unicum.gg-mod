@@ -106,6 +106,11 @@ def template(values):
                                          'AI assistants and its build.{/BODY}'),
         templates.createEmpty(_SPACER),
         _heading(templates, 'Battle'),
+        templates.createInput('Twitch channel', 'twitchChannel', window['twitchChannel'],
+                              tooltip='{HEADER}Twitch channel{/HEADER}{BODY}Your channel name, or its link. '
+                                      'Its chat shows in the battle chat, only on your screen. Left empty, '
+                                      'the channel linked to your account on unicum.gg is used.{/BODY}'),
+        templates.createCheckbox('Twitch chat in battle', 'twitchBattleChat', window['twitchBattleChat']),
         templates.createCheckbox('Announce reloading', 'autoReload', window['autoReload'],
                                  tooltip='{HEADER}Announce reloading{/HEADER}{BODY}Sends the "Reloading!" '
                                          'message to your team by itself, as F8 does: after each shot, or '
@@ -120,6 +125,7 @@ def to_window(values):
     """What the window stores for these settings: flat, dropdowns by index."""
     window = {'enabled': values['enabled'], 'maxFlags': values['maxFlags'], 'tankButton': values['tankButton'],
               'autoReload': values['autoReload'],
+              'twitchChannel': values['twitch']['channel'], 'twitchBattleChat': values['twitch']['battleChat'],
               'metric': METRICS.index(values['metric']), 'window': WINDOWS.index(values['window'])}
     for mode in MODES:
         for team in ('allies', 'enemies'):
@@ -138,6 +144,13 @@ def from_window(raw):
     for key in ('enabled', 'tankButton', 'autoReload'):
         if isinstance(raw.get(key), bool):
             changes[key] = raw[key]
+    twitch = {}
+    if isinstance(raw.get('twitchChannel'), basestring):
+        twitch['channel'] = raw['twitchChannel']
+    if isinstance(raw.get('twitchBattleChat'), bool):
+        twitch['battleChat'] = raw['twitchBattleChat']
+    if twitch:
+        changes['twitch'] = twitch
     if _index(raw.get('metric'), METRICS) is not None:
         changes['metric'] = METRICS[raw['metric']]
     if _index(raw.get('window'), WINDOWS) is not None:

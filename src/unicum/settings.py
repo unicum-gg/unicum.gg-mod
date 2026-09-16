@@ -7,7 +7,7 @@ required. When izeberg's modsSettingsApi is installed, settings_window.py
 also shows these settings in its window, and writes back here.
 
     {"enabled": true, "metric": "wnx", "window": "recent", "maxFlags": 3, "tankButton": true,
-     "autoReload": true,
+     "autoReload": true, "twitch": {"channel": "", "battleChat": true},
      "contacts": {"flags": true, "rating": false},
      "battle": {"flags": true, "rating": true, "average": true}, ...,
      "modes": {"random": {"allies": true, "enemies": true}, "ranked": {...}, ...}}
@@ -20,7 +20,9 @@ unicum.gg button in the hangar's vehicle menu.
 In battle, `modes` says per kind of battle (see modes.py) whose ratings and
 flags show at all: the allies', the enemies', both or neither, whatever the
 battle surface itself shows. autoReload sends the "Reloading!" chat command
-by itself after a shot (see auto_reload.py).
+by itself after a shot (see auto_reload.py). twitch names the player's Twitch
+channel, whose chat shows in the battle chat (see twitch.py); left empty, the
+channel linked to their account on unicum.gg is used.
 
 Every change reaches the surfaces through on_change(), and each surface
 redraws what it has on screen, so nothing needs a restart.
@@ -28,6 +30,7 @@ redraws what it has on screen, so nothing needs a restart.
 import json
 import logging
 import os
+import re
 
 _logger = logging.getLogger('unicum.settings')
 
@@ -41,6 +44,9 @@ SURFACES = ('contacts', 'profile', 'skirmishRoom', 'battle', 'stronghold')
 
 # Surfaces with a team or detachment to average.
 AVERAGED = ('skirmishRoom', 'battle')
+
+# A Twitch login: what a channel name may be.
+_TWITCH_CHANNEL = re.compile(r'^[a-z0-9_]{3,25}$')
 
 # Kinds of battle, as modes.py tells them apart from the arena's bonus type.
 MODES = ('random', 'ranked', 'onslaught', 'stronghold', 'frontline', 'training', 'other')
@@ -64,6 +70,7 @@ DEFAULTS = dict({
     'maxFlags': MAX_FLAGS,
     'tankButton': True,
     'autoReload': True,
+    'twitch': {'channel': '', 'battleChat': True},
     'modes': dict((mode, {'allies': True, 'enemies': True}) for mode in MODES),
 }, **dict((surface, _surface(surface)) for surface in SURFACES))
 
@@ -83,6 +90,9 @@ def validate(raw):
         'tankButton': _bool(raw.get('tankButton'), DEFAULTS['tankButton']),
         'autoReload': _bool(raw.get('autoReload'), DEFAULTS['autoReload']),
     }
+    twitch = raw.get('twitch') if isinstance(raw.get('twitch'), dict) else {}
+    values['twitch'] = {'channel': twitch_channel(twitch.get('channel')),
+                        'battleChat': _bool(twitch.get('battleChat'), DEFAULTS['twitch']['battleChat'])}
     modes = raw.get('modes') if isinstance(raw.get('modes'), dict) else {}
     values['modes'] = {}
     for mode in MODES:
@@ -127,6 +137,14 @@ def _migrate(raw):
     return migrated
 
 
+def twitch_channel(value):
+    """A Twitch channel name as typed, "#Name" or a channel URL, as its login; else ''."""
+    if not isinstance(value, basestring):
+        return ''
+    login = value.strip().rstrip('/').split('/')[-1].lstrip('#').lower()
+    return login if _TWITCH_CHANNEL.match(login) else ''
+
+
 def _merge(target, changes):
     for key, value in changes.items():
         if isinstance(value, dict) and isinstance(target.get(key), dict):
@@ -166,6 +184,19 @@ class Settings(object):
 
     def shows_auto_reload(self):
         return self._values['enabled'] and self._values['autoReload']
+
+    def twitch_channel(self, linked=''):
+        """The Twitch channel to follow, or '' when there is none or the mod is off.
+
+        The one typed in the settings wins; without one, `linked`, the channel
+        the player linked to their account on unicum.gg.
+        """
+        if not self._values['enabled']:
+            return ''
+        return self._values['twitch']['channel'] or twitch_channel(linked)
+
+    def shows_twitch_in_battle(self):
+        return self._values['enabled'] and self._values['twitch']['battleChat']
 
     def shows_team(self, mode, ally):
         """Whether a battle of this kind shows the allies' (or enemies') ratings and flags."""
