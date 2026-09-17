@@ -36,6 +36,12 @@ _logger = logging.getLogger('unicum.lobby')
 
 _BATCH_DELAY = 0.25
 
+# The profile window title's font is taller than the lists' the markup is made
+# for: with the lists' vspace="-3" the images sat below the name's middle, and
+# with vspace="1" above it (both seen at 1440p); the middle lies between.
+_LIST_VSPACE = 'vspace="-3"'
+_TITLE_VSPACE = 'vspace="-1"'
+
 
 class LobbyFlags(object):
 
@@ -264,7 +270,7 @@ class LobbyFlags(object):
                 account_id = getattr(view, '_ProfileWindow__databaseID', None)
                 if isinstance(data, dict) and data.get('fullName') and self._settings.shows('profile'):
                     if views.html_titles():
-                        marker = self._marker(account_id, 'profile')
+                        marker = self._marker(account_id, 'profile').replace(_LIST_VSPACE, _TITLE_VSPACE)
                     elif self._settings.shows_flags('profile'):
                         code = self._language_code(account_id)
                         marker = ' ' + code if code else ''
