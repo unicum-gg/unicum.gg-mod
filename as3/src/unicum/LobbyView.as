@@ -10,6 +10,7 @@ package unicum
    //
    //   TitleHtml   profile window titles that render HTML
    //   RoomTools   the skirmish room's members sort and average
+   //   ContactColumns  the contacts list's flags and rating, right of each row
    //
    // Python reads and writes RoomTools' state through the GFx proxy, which
    // sees this view's public properties, so they are forwarded here.
@@ -18,6 +19,8 @@ package unicum
       private var _titles:TitleHtml;
 
       private var _room:RoomTools;
+
+      private var _contacts:ContactColumns;
 
       public function LobbyView()
       {
@@ -76,6 +79,19 @@ package unicum
          }
       }
 
+      public function get contactMarkers() : String
+      {
+         return this._contacts != null ? this._contacts.markersText : "";
+      }
+
+      public function set contactMarkers(value:String) : void
+      {
+         if(this._contacts != null)
+         {
+            this._contacts.markersText = value;
+         }
+      }
+
       public function get roomEnabled() : Boolean
       {
          return this._room == null || this._room.roomEnabled;
@@ -95,12 +111,14 @@ package unicum
          mouseEnabled = false;
          this._titles = new TitleHtml(this);
          this._room = new RoomTools(this);
+         this._contacts = new ContactColumns(this);
       }
 
       override protected function onDispose() : void
       {
          this._titles.dispose();
          this._room.dispose();
+         this._contacts.dispose();
          super.onDispose();
       }
    }

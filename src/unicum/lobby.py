@@ -42,6 +42,9 @@ _BATCH_DELAY = 0.25
 _LIST_VSPACE = 'vspace="-3"'
 _TITLE_VSPACE = 'vspace="-1"'
 
+# How often the lobby view is given the contacts' markers, and checked for.
+_COLUMNS_SECONDS = 0.5
+
 
 class LobbyFlags(object):
 
@@ -59,6 +62,13 @@ class LobbyFlags(object):
         self._providers = weakref.WeakSet()
         self._profiles = weakref.WeakSet()
         self._rooms = weakref.WeakSet()
+        # The contacts' markers for the lobby view's right-hand column
+        # (as3/src/unicum/ContactColumns.as), by account id, and whether the
+        # rows are drawn that way: while the view is not loaded, the markers
+        # go after the name as elsewhere.
+        self._contact_markers = {}
+        self._columns = False
+        self._published_markers = None
 
     def install(self):
         self._session.patch(ContactConverter, 'makeBaseUserProps', self._wrap)
@@ -76,6 +86,8 @@ class LobbyFlags(object):
         self._session.patch(SortieCandidatesLegionariesDP, '_makePlayerVO',
                             self._wrap_candidate)
         self._settings.on_change(self._redraw)
+        self._follow_columns()
+        self._session.repeat(_COLUMNS_SECONDS, self._follow_columns)
         _logger.info('installed on contacts, profile window and skirmish room')
 
     def _wrap_members(self, original):
@@ -305,12 +317,42 @@ class LobbyFlags(object):
             self._request(account_id)
         return self._lookup.get(PLAYERS, account_id)
 
+    def _follow_columns(self):
+        """Give the lobby view the contacts' markers, and switch the rows' way of drawing them.
+
+        When the view comes or goes, the lists are built again the other way,
+        so no row keeps its markers in both places or in neither.
+        """
+        view = views.lobby_view()
+        columns = view is not None
+        if columns != self._columns:
+            self._columns = columns
+            self._published_markers = None
+            self._redraw()
+        if view is None:
+            return
+        text = '\n'.join('%s\t%s' % (account_id, markup)
+                          for account_id, markup in sorted(self._contact_markers.items()) if markup)
+        # By view too: a reloaded view starts with none.
+        if self._published_markers is not None and self._published_markers[0] is view and \
+                self._published_markers[1] == text:
+            return
+        try:
+            view.contactMarkers = text
+            self._published_markers = (view, text)
+        except Exception:
+            # A view whose class predates the property, until the client restarts.
+            _logger.debug('the lobby view has no contactMarkers yet', exc_info=True)
+
     def _wrap(self, original):
 
         def makeBaseUserProps(cls, contact):
             props = original(contact)
             try:
-                self._mark_region(props, contact.getID(), 'contacts')
+                if self._columns:
+                    self._contact_markers[contact.getID()] = self._marker(contact.getID(), 'contacts').strip()
+                else:
+                    self._mark_region(props, contact.getID(), 'contacts')
             except Exception:
                 # A contacts list that fails to build is worse than one
                 # without flags, and this runs for every row.
