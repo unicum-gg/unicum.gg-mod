@@ -154,6 +154,14 @@ def markdown_url(int_cd, setup=None, region=config.REGION):
 
 def on_item(args):
     """A message from the menu or the Twitch panel: an entry picked, or a line for the log."""
+    # Called from the hangar's command handler, which must never see our errors.
+    try:
+        _on_item(args)
+    except Exception:
+        _logger.exception('could not handle %r from the hangar', args)
+
+
+def _on_item(args):
     item = args.get('item') if isinstance(args, dict) else None
     if item == 'log':
         _logger.info('menu: %s', args.get('text'))
@@ -310,8 +318,12 @@ class TankButton(object):
     def _wrap(self, original):
 
         def _getChildComponents(presenter):
-            children = dict(original(presenter))
-            children[self._layout] = self._make_view
+            children = original(presenter)
+            try:
+                children = dict(children)
+                children[self._layout] = self._make_view
+            except Exception:
+                _logger.exception('could not add the tank menu button')
             return children
 
         return _getChildComponents

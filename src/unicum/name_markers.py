@@ -89,7 +89,10 @@ class NameMarkers(object):
 
         def createExternalComponent(manager, *args, **kwargs):
             result = original(manager, *args, **kwargs)
-            manager.addExternalCallback(READY_CALLBACK, _ready_handler())
+            try:
+                manager.addExternalCallback(READY_CALLBACK, _ready_handler())
+            except Exception:
+                _logger.exception('could not follow the markers movie')
             return result
 
         return createExternalComponent
@@ -107,8 +110,11 @@ class NameMarkers(object):
                                     '(install the patched battleVehicleMarkersApp.swf with '
                                     'tools/build_as3.py, then restart the client)', ours)
                 else:
-                    _ids(manager).add(marker_id)
-                    self._managers.add(manager)
+                    try:
+                        _ids(manager).add(marker_id)
+                        self._managers.add(manager)
+                    except Exception:
+                        _logger.exception('could not keep track of a marker')
                     return marker_id
             return original(manager, symbol, *args, **kwargs)
 
@@ -117,8 +123,12 @@ class NameMarkers(object):
     def _wrap_destroy(self, original):
 
         def destroyMarker(manager, marker_id, *args, **kwargs):
-            _ids(manager).discard(marker_id)
-            _sent(manager).pop(marker_id, None)
+            # The client's marker goes whatever happens to our bookkeeping.
+            try:
+                _ids(manager).discard(marker_id)
+                _sent(manager).pop(marker_id, None)
+            except Exception:
+                _logger.exception('could not forget a marker')
             return original(manager, marker_id, *args, **kwargs)
 
         return destroyMarker

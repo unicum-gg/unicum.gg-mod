@@ -84,7 +84,12 @@ class Session(object):
             self._callbacks.discard(box.get('id'))
             if not self.alive:
                 return
-            func()
+            # Logged here with what failed, rather than left to the engine's
+            # callback runner, which reports a bare traceback.
+            try:
+                func()
+            except Exception:
+                _logger.exception('scheduled %s failed', getattr(func, '__name__', func))
 
         box['id'] = BigWorld.callback(delay, guarded)
         self._callbacks.add(box['id'])

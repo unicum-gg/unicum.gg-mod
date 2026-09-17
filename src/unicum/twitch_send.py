@@ -114,23 +114,34 @@ class TwitchSender(object):
 
         def build_send(original):
             def sendMessageToChannel(view, receiverIndex, rawMsgText):
-                text = command_text(rawMsgText)
-                if text is None and is_twitch_receiver(_receivers(view), receiverIndex):
-                    text = (rawMsgText or '').strip()[:_MAX_LENGTH]
-                    if not text:
-                        view.setFocused(False)
-                        return True
+                try:
+                    text = command_text(rawMsgText)
+                    if text is None and is_twitch_receiver(_receivers(view), receiverIndex):
+                        text = (rawMsgText or '').strip()[:_MAX_LENGTH]
+                        if not text:
+                            view.setFocused(False)
+                            return True
+                except Exception:
+                    # Unreadable as ours: the client sends it its own way.
+                    _logger.exception('could not tell a message for Twitch from the chat')
+                    text = None
                 if text is None:
                     return original(view, receiverIndex, rawMsgText)
-                sender.send(text)
+                try:
+                    sender.send(text)
+                except Exception:
+                    _logger.exception('could not send a message to Twitch')
                 return True
             return sendMessageToChannel
 
         def build_refresh(original):
             def refresh(view, *args, **kwargs):
                 result = original(view, *args, **kwargs)
-                if sender._link.secret:
-                    sender._add_receiver(view)
+                try:
+                    if sender._link.secret:
+                        sender._add_receiver(view)
+                except Exception:
+                    _logger.exception('could not add the Twitch receiver')
                 return result
             return refresh
 
