@@ -157,8 +157,13 @@
     margin-right: 12rem;
 }
 
+/* A height of its own rather than the rest of the panel: Gameface sizes a flex
+   item by its content whatever min-height says, so messages that outgrew the
+   list pushed the field out of the panel. 144 = 220 - the header's 34 - the
+   footer's 40 - the panel's two 1rem borders. */
 .UnicumTwitchPanel_list {
-    flex-grow: 1;
+    flex-shrink: 0;
+    height: 144rem;
     overflow: hidden;
     padding: 6rem 10rem;
 }
@@ -195,6 +200,7 @@
 }
 
 .UnicumTwitchPanel_footer {
+    flex-shrink: 0;
     height: 40rem;
     padding: 6rem 10rem;
 }
