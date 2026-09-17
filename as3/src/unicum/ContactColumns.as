@@ -38,9 +38,10 @@ package unicum
 
       private static const EDGE:int = 4;
 
-      // As in battle (VehicleMarkers): a field draws its images this much
-      // higher than its middle.
-      private static const IMAGE_RISE:int = 2;
+      // How far below the name's middle the field goes. In battle
+      // (VehicleMarkers) it takes 2px to centre the images; in a contact row
+      // that drew them a little low, so none here.
+      private static const IMAGE_RISE:int = 0;
 
       private static const NAME:String = "unicumContactMarkers";
 
