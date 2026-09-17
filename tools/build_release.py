@@ -87,7 +87,13 @@ def stage_package(stage: Path, version: str) -> Path:
     if count != 1:
         raise SystemExit('VERSION not found in src/unicum/__init__.py')
     init.write_text(text, encoding='utf-8')
-    shutil.copy2(ENTRY, stage / 'mod_unicum.py')
+    entry = stage / 'mod_unicum.py'
+    shutil.copy2(ENTRY, entry)
+    text, count = re.subn(r"^__version__ = '[^']*'$", f"__version__ = '{version}'",
+                          entry.read_text(encoding='utf-8'), flags=re.M)
+    if count != 1:
+        raise SystemExit('__version__ not found in dev/mod_unicum.py.in')
+    entry.write_text(text, encoding='utf-8')
     return package
 
 

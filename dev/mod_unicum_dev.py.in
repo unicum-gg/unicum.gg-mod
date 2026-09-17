@@ -24,6 +24,11 @@ import traceback
 
 import BigWorld
 
+# What an error reporter reads off a mod's module; the package's own version
+# lives in src/unicum/__init__.py, and the release entry carries the released
+# one (dev/mod_unicum.py.in).
+__version__ = '0.0.0-dev'
+
 SRC_ROOT = r'__SRC_ROOT__'
 PACKAGE = 'unicum'
 POLL_SECONDS = 0.5

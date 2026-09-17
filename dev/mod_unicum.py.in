@@ -8,6 +8,11 @@ bootstrap's, dev/mod_unicum_dev.py.in).
 """
 import logging
 
+# The released version, written in by tools/build_release.py. Error reporters
+# read it off this module (`__version__`), which is the only thing they can see
+# of a mod: they name it by this file and read nothing of the package.
+__version__ = '0.0.0'
+
 _logger = logging.getLogger('unicum.bootstrap')
 
 _loaded = None
