@@ -61,6 +61,10 @@ _BATCH_DELAY = 0.25
 # How often the battle view is given the markers: a reloaded view starts empty.
 _PUBLISH_SECONDS = 0.5
 
+# The battle view's surfaces that can wait for Alt, in the order of its
+# panelHidden, tabHidden and loadingHidden properties.
+_ALT_SURFACES = ('panel', 'tab', 'loading')
+
 _IMG_WIDTH = re.compile(r'<IMG[^>]*\bwidth="(\d+)"', re.IGNORECASE)
 _IMG = re.compile(r'<IMG[^>]*>', re.IGNORECASE)
 
@@ -199,8 +203,11 @@ class BattleFlags(object):
                            for k, v in sorted(self._markers.items())),
                  ','.join(str(i) for i in self._order['leftItemsIDs']),
                  ','.join(str(i) for i in self._order['rightItemsIDs']))
-        panel_hidden = self._settings.alt_only('panel') and not (self.alt is not None and self.alt.down)
-        state = state + (panel_hidden,)
+        held = self.alt is not None and self.alt.down
+        # The players panel, the Tab screen and the loading screen, each hidden
+        # (averages included) while it waits for Alt and Alt is up.
+        hidden = tuple(self._settings.alt_only(surface) and not held for surface in _ALT_SURFACES)
+        state = state + hidden
         # By identity: a reloaded view's proxy can reuse the old one's address.
         if self._published is not None and self._published[0] is view and self._published[1] == state:
             return
@@ -212,10 +219,10 @@ class BattleFlags(object):
             _logger.exception('could not give the battle view its markers')
             return
         try:
-            view.panelHidden = panel_hidden
+            view.panelHidden, view.tabHidden, view.loadingHidden = hidden
         except Exception:
-            # A view whose class predates the property, until the next battle.
-            _logger.debug('the battle view has no panelHidden yet', exc_info=True)
+            # A view whose class predates the properties, until the next battle.
+            _logger.debug('the battle view has no hidden surfaces yet', exc_info=True)
         if first:
             # Names drawn before the view loaded carry the markers after them.
             self._redraw()

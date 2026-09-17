@@ -119,6 +119,10 @@ def template(values, channel=u'', linked=False):
         checkbox('Team average', 'battleAverage'),
         checkbox('Above tanks: only while Alt is held', 'altOnlyMarkers'),
         checkbox('Players list: only while Alt is held', 'altOnlyPanel'),
+        checkbox('Tab screen: only while Alt is held', 'altOnlyTab',
+                 tooltip='{HEADER}Tab screen{/HEADER}{BODY}Press Tab first, then Alt: Alt then Tab switches '
+                         'windows. The random battles\' Tab screen shows no ratings either way.{/BODY}'),
+        checkbox('Loading screen: only while Alt is held', 'altOnlyLoading'),
         templates.createEmpty(_SPACER / 2),
         templates.createLabel('Whose stats to show, per mode',
                               tooltip='{HEADER}Whose stats to show, per mode{/HEADER}{BODY}Untick enemies to '
@@ -161,6 +165,7 @@ def to_window(values):
     window = {'enabled': values['enabled'], 'maxFlags': values['maxFlags'], 'tankButton': values['tankButton'],
               'autoReload': values['autoReload'],
               'altOnlyMarkers': values['altOnly']['markers'], 'altOnlyPanel': values['altOnly']['panel'],
+              'altOnlyTab': values['altOnly']['tab'], 'altOnlyLoading': values['altOnly']['loading'],
               'twitchChannel': values['twitch']['channel'], 'twitchBattleChat': values['twitch']['battleChat'],
               'twitchGarage': values['twitch']['garage'],
               'metric': METRICS.index(values['metric']), 'window': WINDOWS.index(values['window'])}
@@ -181,7 +186,7 @@ def from_window(raw):
     for key in ('enabled', 'tankButton', 'autoReload'):
         if isinstance(raw.get(key), bool):
             changes[key] = raw[key]
-    alt_only = dict((key, raw['altOnly' + key.capitalize()]) for key in ('markers', 'panel')
+    alt_only = dict((key, raw['altOnly' + key.capitalize()]) for key in ('markers', 'panel', 'tab', 'loading')
                     if isinstance(raw.get('altOnly' + key.capitalize()), bool))
     if alt_only:
         changes['altOnly'] = alt_only

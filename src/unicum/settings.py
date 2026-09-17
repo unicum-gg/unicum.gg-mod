@@ -72,7 +72,7 @@ DEFAULTS = dict({
     # Off until the player turns it on: it writes in the team chat for them.
     'autoReload': False,
     # Battle ratings shown only while the extended info key (Alt) is held.
-    'altOnly': {'markers': False, 'panel': False},
+    'altOnly': {'markers': False, 'panel': False, 'tab': False, 'loading': False},
     'twitch': {'channel': '', 'battleChat': True, 'garage': True, 'garageCollapsed': False,
                'garagePosition': None},
     'modes': dict((mode, {'allies': True, 'enemies': True}) for mode in MODES),
@@ -202,7 +202,8 @@ class Settings(object):
         return self._values['enabled'] and self._values['tankButton']
 
     def alt_only(self, surface):
-        """Whether a battle surface ('markers' above tanks, 'panel' of players) waits for Alt."""
+        """Whether a battle surface waits for Alt: 'markers' above tanks, the 'panel' of
+        players, the 'tab' screen or the 'loading' screen, team averages included."""
         return self._values['altOnly'][surface]
 
     def shows_auto_reload(self):

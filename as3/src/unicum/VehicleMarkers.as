@@ -60,7 +60,7 @@ package unicum
       private static const NAME:String = "unicumMarkers";
 
       // A team name the client set with its average: "name  <average sign> <IMG .../>".
-      private static const AVERAGE:RegExp = /^(.*?)\s*\u00d8\s*(<IMG.*)$/s;
+      public static const AVERAGE:RegExp = /^(.*?)\s*\u00d8\s*(<IMG.*)$/s;
 
       private static const WIDTH:RegExp = /width="(\d+)"/i;
 
@@ -133,7 +133,8 @@ package unicum
       // shown as HTML], kept by TeamNamesHtml, since a name already shown as
       // HTML no longer reads back its average's tag.
       public function update(markers:String, left:String, right:String, names:Dictionary,
-                             panelHidden:Boolean = false) : void
+                             panelHidden:Boolean = false, tabHidden:Boolean = false,
+                             loadingHidden:Boolean = false) : void
       {
          this._names = names;
          this.read(markers, left, right);
@@ -145,12 +146,12 @@ package unicum
          }
          for(var table:Object in this._tables)
          {
-            this.drawTable(table);
+            this.drawTable(table, tabHidden);
          }
          for(var loading:Object in this._loadings)
          {
-            this.drawIcons(field(loading, "vehicleIconsAlly"), this._left, true);
-            this.drawIcons(field(loading, "vehicleIconsEnemy"), this._right, false);
+            this.drawIcons(field(loading, "vehicleIconsAlly"), loadingHidden ? [] : this._left, true);
+            this.drawIcons(field(loading, "vehicleIconsEnemy"), loadingHidden ? [] : this._right, false);
          }
       }
 
@@ -276,7 +277,7 @@ package unicum
          return null;
       }
 
-      private function drawTable(table:Object) : void
+      private function drawTable(table:Object, hidden:Boolean) : void
       {
          var icons:Object = field(table, "vehicleIconCollection");
          var count:int = icons != null ? int(icons.length) : 0;
@@ -307,15 +308,15 @@ package unicum
                (centre(icon) < middle ? lefts : rights).push(icon);
             }
          }
-         var leftColumn:Array = this.placeTeam(lefts, this._left, null, false, middle);
-         var rightColumn:Array = this.placeTeam(rights, this._right, null, true, middle);
+         var leftColumn:Array = this.placeTeam(lefts, hidden ? [] : this._left, null, false, middle);
+         var rightColumn:Array = this.placeTeam(rights, hidden ? [] : this._right, null, true, middle);
          for each(var name:String in ["team1TF", "team2TF"])
          {
             var team:TextField = field(table, name) as TextField;
             if(team != null && team.parent != null)
             {
                var left:Boolean = centre(team) < middle;
-               this.placeAverage(team, left ? leftColumn : rightColumn, !left);
+               this.placeAverage(team, left ? leftColumn : rightColumn, !left, hidden);
             }
          }
       }
@@ -329,7 +330,8 @@ package unicum
       // Moves a team's average out of its name into the team's badge column,
       // the average sign where the flags go. [edge, badges width], or null
       // while no player's markers are drawn, leaves the name as it is.
-      private function placeAverage(team:TextField, column:Array, rightwards:Boolean) : void
+      // Hidden, the average is kept out of the name and not drawn.
+      private function placeAverage(team:TextField, column:Array, rightwards:Boolean, hidden:Boolean) : void
       {
          var taken:Array = this._averages[team] as Array;
          if(taken == null || team.text != taken[0])
@@ -349,6 +351,22 @@ package unicum
             }
          }
          var fields:Array = this._averageFields[team] as Array;
+         if(hidden)
+         {
+            if(taken != null)
+            {
+               if(team.text != taken[0])
+               {
+                  team.text = taken[0];
+               }
+               this._averages[team] = taken;
+            }
+            for each(var unshown:TextField in fields)
+            {
+               unshown.visible = false;
+            }
+            return;
+         }
          if(taken == null || column == null)
          {
             if(taken != null && team.text == taken[0])
@@ -357,9 +375,9 @@ package unicum
                team.htmlText = taken[0] + "  \u00d8 " + taken[1];
             }
             delete this._averages[team];
-            for each(var hidden:TextField in fields)
+            for each(var gone:TextField in fields)
             {
-               hidden.visible = false;
+               gone.visible = false;
             }
             return;
          }

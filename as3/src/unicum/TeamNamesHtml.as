@@ -28,9 +28,16 @@ package unicum
    {
       private static const FIELDS:Array = ["team1TF", "team2TF", "team1Text", "team2Text"];
 
+      // The loading screen's team names, whose average this view hides itself.
+      private static const LOADING_FIELDS:Array = ["team1Text", "team2Text"];
+
       private static const MAX_DEPTH:int = 16;
 
+      // field -> its name in FIELDS
       private var _fields:Dictionary = new Dictionary(true);
+
+      // loading screen team name -> the text it shows with its average taken out
+      private var _stripped:Dictionary = new Dictionary(true);
 
       private var _searched:Dictionary = new Dictionary(true);
 
@@ -47,9 +54,13 @@ package unicum
 
       public var rightIds:String = null;
 
-      // True while the players panel's ratings wait for the extended info
-      // key (Alt): the panel draws none, Tab and the loading screen still do.
+      // True while a screen's ratings wait for the extended info key (Alt):
+      // it draws none, and no team average either.
       public var panelHidden:Boolean = false;
+
+      public var tabHidden:Boolean = false;
+
+      public var loadingHidden:Boolean = false;
 
       public function TeamNamesHtml()
       {
@@ -73,10 +84,41 @@ package unicum
          App.stage.removeEventListener(Event.ADDED, this.onAdded, true);
          removeEventListener(Event.ENTER_FRAME, this.onFrame);
          this._fields = new Dictionary(true);
+         this._stripped = new Dictionary(true);
          this._searched = new Dictionary(true);
          this._names = new Dictionary(true);
          this._markers.dispose();
          super.onDispose();
+      }
+
+      // Takes a loading screen team name's average out while hidden, and gives
+      // it back after; a name the client has set since is left to it.
+      private function hideAverage(field:TextField, hidden:Boolean) : void
+      {
+         var names:Array = this._names[field] as Array;
+         if(names == null)
+         {
+            return;
+         }
+         var stripped:* = this._stripped[field];
+         if(hidden && stripped === undefined && field.text == names[1])
+         {
+            var found:Object = VehicleMarkers.AVERAGE.exec(names[0]);
+            if(found != null)
+            {
+               field.htmlText = found[1];
+               this._stripped[field] = field.text;
+            }
+         }
+         else if(!hidden && stripped !== undefined)
+         {
+            if(field.text == stripped)
+            {
+               field.htmlText = names[0];
+               names[1] = field.text;
+            }
+            delete this._stripped[field];
+         }
       }
 
       private function onAdded(event:Event) : void
@@ -119,7 +161,7 @@ package unicum
             }
             if(field != null)
             {
-               this._fields[field] = true;
+               this._fields[field] = name;
             }
          }
       }
@@ -129,17 +171,27 @@ package unicum
       // A row the panel has just moved takes its markers along the same way.
       private function onFrame(event:Event) : void
       {
-         this._markers.update(this.markersText, this.leftIds, this.rightIds, this._names, this.panelHidden);
+         this._markers.update(this.markersText, this.leftIds, this.rightIds, this._names, this.panelHidden,
+                              this.tabHidden, this.loadingHidden);
          for(var key:Object in this._fields)
          {
             var field:TextField = key as TextField;
+            if(field == null)
+            {
+               continue;
+            }
             // Once shown as HTML, .text no longer contains the tag, so a name
             // is converted once each time the client sets it.
-            if(field != null && field.text.indexOf("<IMG") >= 0)
+            if(field.text.indexOf("<IMG") >= 0)
             {
                var set:String = field.text;
                field.htmlText = set;
                this._names[field] = [set, field.text];
+               delete this._stripped[field];
+            }
+            if(LOADING_FIELDS.indexOf(this._fields[key]) >= 0)
+            {
+               this.hideAverage(field, this.loadingHidden);
             }
          }
       }

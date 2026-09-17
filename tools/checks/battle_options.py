@@ -120,11 +120,11 @@ def check_alt_only():
     from unicum.settings_window import from_window, to_window
 
     values = validate({})
-    check('ratings show without Alt by default', values['altOnly'] == {'markers': False, 'panel': False})
-    values = validate({'altOnly': {'markers': True, 'panel': 'yes'}})
+    check('ratings show without Alt by default', values['altOnly'] == {'markers': False, 'panel': False, 'tab': False, 'loading': False})
+    values = validate({'altOnly': {'markers': True, 'panel': 'yes', 'loading': True}})
     check('waiting for Alt is set per surface, a bad value keeps the default',
-          values['altOnly'] == {'markers': True, 'panel': False})
+          values['altOnly'] == {'markers': True, 'panel': False, 'tab': False, 'loading': True})
     window = to_window(values)
     check('the Alt switches go to the window and back',
-          window['altOnlyMarkers'] is True and window['altOnlyPanel'] is False
+          window['altOnlyMarkers'] is True and window['altOnlyPanel'] is False and window['altOnlyLoading'] is True
           and validate(dict(values, **from_window(window))) == values)
