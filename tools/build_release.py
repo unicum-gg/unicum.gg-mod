@@ -1,8 +1,19 @@
-"""Build the released mod: one .wotmod a player installs, with nothing to set up.
+"""Build the released mod: what a player unzips into the game, with nothing else to install.
 
     python tools/build_release.py --version 1.0.0
 
-Writes dist/gg.unicum_<version>.wotmod, holding:
+Writes dist/gg.unicum_<version>.wotmod, and dist/unicum.gg_<version>.zip laid
+out as the game folder, which is what is published:
+
+  mods/<game version>/gg.unicum_<version>.wotmod
+  mods/<game version>/net.openwg/net.openwg.gameface_<its version>.wotmod
+
+openwg_gameface is what the garage features need. It is bundled from
+vendor/openwg/ (MIT, its license beside it) under net.openwg/, the folder every
+mod that ships it uses, so a copy from another mod is overwritten rather than
+loaded twice. Update it by replacing that file.
+
+The .wotmod holds:
 
   res/scripts/client/gui/mods/mod_unicum.pyc   the entry point (dev/mod_unicum.py.in)
   res/scripts/client/unicum/...                the package, compiled with the client's
@@ -44,6 +55,10 @@ ENTRY = REPO / 'dev' / 'mod_unicum.py.in'
 DIST = REPO / 'dist'
 
 MOD_ID = 'gg.unicum'
+
+# The client the package is built for: its mods/ folder in the zip.
+GAME_VERSION = '2.4.0.0'
+GAMEFACE = REPO / 'vendor' / 'openwg'
 NAME = 'unicum.gg'
 DESCRIPTION = ('Player ratings and language flags across the game, the unicum.gg tank menu in the '
                'garage, and your Twitch chat in battle and in the garage.')
@@ -151,6 +166,20 @@ def main() -> None:
                 archive.write(path, inside)
     size = target.stat().st_size
     print(f'wrote {target} ({len(files)} files, {size / 1024:.0f} KB)')
+    bundle(target, args.version)
+
+
+def bundle(package: Path, version: str) -> None:
+    """The zip a player unzips into the game folder: the mod and openwg_gameface."""
+    gameface = sorted(GAMEFACE.glob('net.openwg.gameface_*.wotmod'))
+    if len(gameface) != 1:
+        raise SystemExit(f'expected one net.openwg.gameface_*.wotmod in {GAMEFACE}, found {len(gameface)}')
+    target = DIST / f'{NAME}_{version}.zip'
+    folder = f'mods/{GAME_VERSION}'
+    with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as archive:
+        archive.write(package, f'{folder}/{package.name}')
+        archive.write(gameface[0], f'{folder}/net.openwg/{gameface[0].name}')
+    print(f'wrote {target} ({target.stat().st_size / 1024:.0f} KB, with {gameface[0].name})')
 
 
 if __name__ == '__main__':
