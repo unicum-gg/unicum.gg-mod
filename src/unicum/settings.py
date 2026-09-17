@@ -40,7 +40,7 @@ METRICS = ('wn7', 'wn8', 'wnx')
 WINDOWS = ('recent', 'total')
 MAX_FLAGS = 3
 
-SURFACES = ('contacts', 'profile', 'skirmishRoom', 'battle', 'stronghold')
+SURFACES = ('contacts', 'profile', 'skirmishRoom', 'battle', 'stronghold', 'battleResults')
 
 # Surfaces with a team or detachment to average.
 AVERAGED = ('skirmishRoom', 'battle')
@@ -53,7 +53,7 @@ MODES = ('random', 'ranked', 'onslaught', 'stronghold', 'frontline', 'training',
 
 # Where a rating shows unless the player says otherwise: contact rows and the
 # profile title are names first.
-_RATED_BY_DEFAULT = ('skirmishRoom', 'battle', 'stronghold')
+_RATED_BY_DEFAULT = ('skirmishRoom', 'battle', 'stronghold', 'battleResults')
 
 
 def _surface(surface):
@@ -72,7 +72,7 @@ DEFAULTS = dict({
     # Off until the player turns it on: it writes in the team chat for them.
     'autoReload': False,
     # Battle ratings shown only while the extended info key (Alt) is held.
-    'altOnly': {'markers': False, 'panel': False, 'tab': False, 'loading': False},
+    'altOnly': {'markers': False, 'panel': False, 'tab': False, 'loading': False, 'results': False},
     'twitch': {'channel': '', 'battleChat': True, 'garage': True, 'garageCollapsed': False,
                'garagePosition': None},
     'modes': dict((mode, {'allies': True, 'enemies': True}) for mode in MODES),
@@ -202,8 +202,8 @@ class Settings(object):
         return self._values['enabled'] and self._values['tankButton']
 
     def alt_only(self, surface):
-        """Whether a battle surface waits for Alt: 'markers' above tanks, the 'panel' of
-        players, the 'tab' screen or the 'loading' screen, team averages included."""
+        """Whether a surface waits for Alt: 'markers' above tanks, the 'panel' of players,
+        the 'tab' screen or the 'loading' screen, team averages included, or the battle 'results'."""
         return self._values['altOnly'][surface]
 
     def shows_auto_reload(self):

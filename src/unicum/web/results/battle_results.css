@@ -1,0 +1,40 @@
+/* The rating badges and flags of the post-battle results (battle_results.js),
+   in a layer over the page, placed beside each team's rows: as in battle, the
+   badge in its band's colour with white digits, then the flags. */
+
+.UnicumResults_layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.UnicumResults_badge {
+    position: absolute;
+    height: 18rem;
+    line-height: 18rem;
+    padding: 0 5rem;
+    border-radius: 3rem;
+    font-size: 13rem;
+    font-weight: bold;
+    color: #ffffff;
+}
+
+.UnicumResults_flags {
+    position: absolute;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    height: 15rem;
+}
+
+.UnicumResults_flag {
+    width: 20rem;
+    height: 15rem;
+    margin-left: 2rem;
+    border-radius: 2rem;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+}

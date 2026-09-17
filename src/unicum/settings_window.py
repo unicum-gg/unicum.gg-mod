@@ -47,6 +47,7 @@ _SURFACE_HEADINGS = {
     'profile': 'Profile',
     'skirmishRoom': 'Skirmish room',
     'stronghold': 'Stronghold',
+    'battleResults': 'Battle results',
 }
 
 # Nor any rule, so a heading draws its own with em dashes: box-drawing
@@ -109,8 +110,11 @@ def template(values, channel=u'', linked=False):
         templates.createNumericStepper('Flags per player or clan', 'maxFlags', window['maxFlags'], 1, MAX_FLAGS, 1),
         templates.createEmpty(_SPACER),
     ]
-    for surface in ('contacts', 'profile', 'skirmishRoom', 'stronghold'):
-        lobby.extend(surface_block(surface))
+    for surface in ('contacts', 'profile', 'skirmishRoom', 'stronghold', 'battleResults'):
+        block = surface_block(surface)
+        if surface == 'battleResults':
+            block.insert(-1, checkbox('Only while Alt is held', 'altOnlyResults'))
+        lobby.extend(block)
 
     battle = [
         _heading(templates, 'Battle'),
@@ -166,6 +170,7 @@ def to_window(values):
               'autoReload': values['autoReload'],
               'altOnlyMarkers': values['altOnly']['markers'], 'altOnlyPanel': values['altOnly']['panel'],
               'altOnlyTab': values['altOnly']['tab'], 'altOnlyLoading': values['altOnly']['loading'],
+              'altOnlyResults': values['altOnly']['results'],
               'twitchChannel': values['twitch']['channel'], 'twitchBattleChat': values['twitch']['battleChat'],
               'twitchGarage': values['twitch']['garage'],
               'metric': METRICS.index(values['metric']), 'window': WINDOWS.index(values['window'])}
@@ -186,7 +191,7 @@ def from_window(raw):
     for key in ('enabled', 'tankButton', 'autoReload'):
         if isinstance(raw.get(key), bool):
             changes[key] = raw[key]
-    alt_only = dict((key, raw['altOnly' + key.capitalize()]) for key in ('markers', 'panel', 'tab', 'loading')
+    alt_only = dict((key, raw['altOnly' + key.capitalize()]) for key in ('markers', 'panel', 'tab', 'loading', 'results')
                     if isinstance(raw.get('altOnly' + key.capitalize()), bool))
     if alt_only:
         changes['altOnly'] = alt_only

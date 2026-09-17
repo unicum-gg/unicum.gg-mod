@@ -120,11 +120,56 @@ def check_alt_only():
     from unicum.settings_window import from_window, to_window
 
     values = validate({})
-    check('ratings show without Alt by default', values['altOnly'] == {'markers': False, 'panel': False, 'tab': False, 'loading': False})
+    check('ratings show without Alt by default', values['altOnly'] == {'markers': False, 'panel': False, 'tab': False, 'loading': False, 'results': False})
     values = validate({'altOnly': {'markers': True, 'panel': 'yes', 'loading': True}})
     check('waiting for Alt is set per surface, a bad value keeps the default',
-          values['altOnly'] == {'markers': True, 'panel': False, 'tab': False, 'loading': True})
+          values['altOnly'] == {'markers': True, 'panel': False, 'tab': False, 'loading': True, 'results': False})
     window = to_window(values)
     check('the Alt switches go to the window and back',
           window['altOnlyMarkers'] is True and window['altOnlyPanel'] is False and window['altOnlyLoading'] is True
           and validate(dict(values, **from_window(window))) == values)
+
+
+def check_battle_results():
+    """Who the post-battle results decorate, and with what."""
+    from unicum.battle_results import decorations
+
+    class Entry(object):
+        def __init__(self, flags, value):
+            self.flags, self.value = flags, value
+
+    class Settings(object):
+        def __init__(self, rating=True, flags=True):
+            self._rating, self._flags = rating, flags
+
+        def metric(self, surface):
+            return 'wnx' if self._rating else None
+
+        def shows_flags(self, surface):
+            return self._flags
+
+        def rating(self, entry, surface):
+            return entry.value if self._rating else None
+
+        def __getitem__(self, key):
+            return {'maxFlags': 2}[key]
+
+    class Flags(object):
+        def source(self, code):
+            return None if code == 'XX' else 'img://flags/%s.png' % code
+
+    class Scales(object):
+        def color(self, metric, value):
+            return '#4A92B7' if metric == 'wnx' else None
+
+    entries = {1: Entry(['PL', 'XX', 'DE', 'FR'], 1933.6), 2: Entry(['FR'], 2500), 3: Entry([], None)}
+    players = [(1, 'Kretek_PL', False), (2, 'Hidden', True), (3, 'Nothing', False), (4, 'Unknown', False)]
+    shown = decorations(players, entries.get, Settings(), Flags(), Scales())
+    check('the results show a player\'s rating and the flags that draw, up to the limit',
+          shown == {'Kretek_PL': {'score': {'value': 1934, 'color': '#4A92B7'},
+                                  'flags': ['img://flags/PL.png']}})
+    check('an anonymized player, and one with nothing to show, are left out',
+          'Hidden' not in shown and 'Nothing' not in shown and 'Unknown' not in shown)
+    check('without a rating shown, the flags alone stay',
+          decorations(players[:1], entries.get, Settings(rating=False), Flags(), Scales())
+          == {'Kretek_PL': {'score': None, 'flags': ['img://flags/PL.png']}})

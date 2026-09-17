@@ -10,8 +10,8 @@ is nothing more than stop() followed by a fresh start().
 """
 import logging
 
-from unicum import (auto_reload, battle, browser, config, lobby, mods_list, room_sort, settings_window, tank_button,
-                    twitch, twitch_panel, twitch_send, views)
+from unicum import (auto_reload, battle, battle_results, browser, config, lobby, mods_list, room_sort, settings_window,
+                    tank_button, twitch, twitch_panel, twitch_send, views)
 from unicum.badges import Badges
 from unicum.game_link import GameLink
 from unicum.api.resolve import Lookup
@@ -51,6 +51,7 @@ def start(generation=0):
         badges = Badges(scales)
         browser.install(_session, lookup, flags, scales, settings)
         battle.install(_session, lookup, flags, badges, settings)
+        battle_results.install(_session, lookup, flags, scales, settings)
         views.install(_session)
         lobby.install(_session, lookup, flags, badges, settings)
         room_sort.install(_session, settings)

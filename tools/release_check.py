@@ -113,7 +113,8 @@ def main():
         del badge_png._masks[:]
         for rel in ('web/hangar/tank_menu.js', 'web/hangar/tank_menu.css', 'web/hangar/twitch_panel.js',
                     'web/hangar/twitch_panel.css', 'web/hangar/account_card.js', 'web/hangar/account_card.css',
-                    'web/stronghold/core.js', 'badge_glyphs.json'):
+                    'web/stronghold/core.js', 'web/results/battle_results.js', 'web/results/battle_results.css',
+                    'badge_glyphs.json'):
             check('the package holds %s, read through ResMgr' % rel, bool(resources.read(rel)))
         check('the hangar icons are listed through ResMgr',
               'settings.png' in resources.listdir('web/hangar/panel_icons')
