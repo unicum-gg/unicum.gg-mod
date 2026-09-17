@@ -54,6 +54,11 @@ package unicum
 
       private static const HEIGHT:int = 20;
 
+      // A field draws its images this much higher than its middle (measured
+      // in the players panel: a badge's centre 2px above its row's), so a
+      // field centred on a row is lowered by it.
+      private static const IMAGE_RISE:int = 2;
+
       // Wider than any neighbour: a row background spans the whole row.
       private static const MAX_NEIGHBOUR_WIDTH:int = 200;
 
@@ -404,7 +409,7 @@ package unicum
             tf.visible = team.visible;
          }
          var bounds:Rectangle = team.getBounds(parent);
-         var y:Number = Math.round(bounds.y + (bounds.height - HEIGHT) / 2);
+         var y:Number = Math.round(bounds.y + (bounds.height - HEIGHT) / 2) + IMAGE_RISE;
          var local:Number = parent.globalToLocal(new Point(column[0], 0)).x;
          var badgeWidth:Number = Number(WIDTH.exec(taken[1])[1]);
          var signWidth:Number = fields[1].textWidth;
@@ -514,7 +519,7 @@ package unicum
       {
          var parent:DisplayObjectContainer = icon.parent;
          var local:Number = parent.globalToLocal(new Point(edge, 0)).x;
-         var y:Number = Math.round(bounds.y + (bounds.height - HEIGHT) / 2);
+         var y:Number = Math.round(bounds.y + (bounds.height - HEIGHT) / 2) + IMAGE_RISE;
          var badgeWidth:Number = marker[1];
          var flagsWidth:Number = marker[3];
          // Allies read outwards from the icon, badge then flags; enemies are
