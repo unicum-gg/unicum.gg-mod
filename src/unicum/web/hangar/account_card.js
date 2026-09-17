@@ -18,6 +18,13 @@ const PANEL_ICONS = __PANEL_ICONS__;
 
 const state = { alive: true, json: null };
 
+// Pixels to the rem the hangar lays out in; 1 when the view does not say.
+const toRem = (px) => (typeof viewEnv !== "undefined" && viewEnv.pxToRem ? viewEnv.pxToRem(px) : px);
+// The hangar's mission cards, daily and personal; their classes carry a hash.
+const MISSION_CARDS = '[class*="QuestCard_base"], [class*="PersonalMissionCard_base"]';
+// The gap the hangar leaves between two mission cards.
+const CARD_GAP = 8;
+
 const root = document.createElement("div");
 root.className = "UnicumAccountCard";
 root.style.display = "none";
@@ -36,6 +43,7 @@ text.appendChild(subtitle);
 const connect = document.createElement("div");
 connect.className = "UnicumAccountCard_connect";
 connect.textContent = "Connect";
+// Under the rest, across the card, which leaves the text the card's width.
 const settings = document.createElement("div");
 settings.className = "UnicumAccountCard_button";
 settings.style.backgroundImage = `url(${PANEL_ICONS.settings})`;
@@ -43,11 +51,14 @@ const close = document.createElement("div");
 close.className = "UnicumAccountCard_button";
 close.style.backgroundImage = `url(${PANEL_ICONS.close})`;
 
-root.appendChild(logo);
-root.appendChild(text);
+const row = document.createElement("div");
+row.className = "UnicumAccountCard_row";
+row.appendChild(logo);
+row.appendChild(text);
+row.appendChild(settings);
+row.appendChild(close);
+root.appendChild(row);
 root.appendChild(connect);
-root.appendChild(settings);
-root.appendChild(close);
 document.body.appendChild(root);
 
 function stop(event) {
@@ -84,6 +95,20 @@ settings.addEventListener("click", onSettingsClick);
 close.addEventListener("click", onCloseClick);
 root.addEventListener("mousedown", stop);
 
+// Right under the lowest mission card on the right of the screen: how many
+// there are changes with the missions, the events and the screen's size. The
+// stylesheet's place when there are none.
+function place() {
+    let bottom = 0;
+    for (const card of document.querySelectorAll(MISSION_CARDS)) {
+        const rect = card.getBoundingClientRect();
+        if (rect.height > 0 && rect.left > window.innerWidth / 2) {
+            bottom = Math.max(bottom, rect.bottom);
+        }
+    }
+    root.style.top = bottom > 0 ? `${Math.round(toRem(bottom)) + CARD_GAP}rem` : "";
+}
+
 function render(data) {
     const account = data.account || {};
     root.style.display = account.hidden ? "none" : "";
@@ -105,6 +130,9 @@ function poll() {
     }
     const current = model.model;
     const json = current && current.twitch;
+    if (root.style.display !== "none") {
+        place();
+    }
     if (!json || json === state.json) {
         return;
     }
@@ -114,6 +142,7 @@ function poll() {
     } catch (error) {
         report(`account card: render failed: ${error}`);
     }
+    place();
 }
 
 const timer = setInterval(poll, 250);

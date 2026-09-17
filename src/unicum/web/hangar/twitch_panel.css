@@ -62,10 +62,79 @@
     background-position: center;
 }
 
+.UnicumTwitchPanel_heading {
+    flex: 1 1 0;
+    min-width: 0;
+    white-space: normal;
+}
+
 .UnicumTwitchPanel_title {
-    flex-grow: 1;
     font-size: 15rem;
+    line-height: 18rem;
     color: #e9e4d6;
+}
+
+.UnicumTwitchPanel_subtitle,
+.UnicumTwitchPanel_cardConnect {
+    display: none;
+}
+
+/* No channel: a card as tall as the account card's, with its own Connect. */
+/* Taller when a longer text wraps, as the account card. */
+.UnicumTwitchPanel__compact {
+    height: auto;
+    min-height: 52rem;
+}
+
+.UnicumTwitchPanel__compact .UnicumTwitchPanel_header {
+    height: auto;
+    align-items: flex-start;
+    padding: 9rem 10rem 0;
+    border-bottom: none;
+}
+
+.UnicumTwitchPanel__compact .UnicumTwitchPanel_title {
+    font-size: 16rem;
+    line-height: 20rem;
+}
+
+.UnicumTwitchPanel__compact .UnicumTwitchPanel_reset,
+.UnicumTwitchPanel__compact .UnicumTwitchPanel_close {
+    margin-top: 4rem;
+}
+
+.UnicumTwitchPanel__compact .UnicumTwitchPanel_logo {
+    width: 22rem;
+    height: 22rem;
+    margin: 2rem 10rem 0 0;
+}
+
+.UnicumTwitchPanel__compact .UnicumTwitchPanel_subtitle {
+    display: block;
+    font-size: 14rem;
+    line-height: 18rem;
+    color: #9a968c;
+}
+
+.UnicumTwitchPanel__compact .UnicumTwitchPanel_cardConnect {
+    display: block;
+    flex-shrink: 0;
+    height: 26rem;
+    line-height: 26rem;
+    margin: 10rem 10rem 9rem;
+    text-align: center;
+    /* The site's buttons: rounded, 8px at this height. */
+    border-radius: 8rem;
+    background-color: rgba(145, 70, 255, 0.85);
+    color: #ffffff;
+    font-size: 13rem;
+    cursor: pointer;
+}
+
+.UnicumTwitchPanel__compact .UnicumTwitchPanel_toggle,
+.UnicumTwitchPanel__compact .UnicumTwitchPanel_list,
+.UnicumTwitchPanel__compact .UnicumTwitchPanel_footer {
+    display: none;
 }
 
 /* The header's buttons: icons of one set, one size, in the hangar's off-white,
@@ -125,10 +194,6 @@
     color: #e6e2d8;
 }
 
-.UnicumTwitchPanel_empty {
-    color: #9a968c;
-}
-
 .UnicumTwitchPanel_footer {
     height: 40rem;
     padding: 6rem 10rem;
@@ -153,6 +218,7 @@
     height: 28rem;
     line-height: 28rem;
     text-align: center;
+    border-radius: 8rem;
     background-color: rgba(145, 70, 255, 0.55);
     color: #ffffff;
     cursor: pointer;

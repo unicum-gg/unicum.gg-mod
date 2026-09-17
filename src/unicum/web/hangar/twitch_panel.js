@@ -41,8 +41,20 @@ const header = document.createElement("div");
 header.className = "UnicumTwitchPanel_header";
 const logo = document.createElement("div");
 logo.className = "UnicumTwitchPanel_logo";
+const heading = document.createElement("div");
+heading.className = "UnicumTwitchPanel_heading";
 const title = document.createElement("div");
 title.className = "UnicumTwitchPanel_title";
+// Only without a channel, where the panel folds into a card like the account's.
+const subtitle = document.createElement("div");
+subtitle.className = "UnicumTwitchPanel_subtitle";
+subtitle.textContent = "Link your Twitch to see your chat here";
+heading.appendChild(title);
+heading.appendChild(subtitle);
+const cardConnect = document.createElement("div");
+cardConnect.className = "UnicumTwitchPanel_cardConnect";
+cardConnect.textContent = "Connect";
+// Under the header, across the card, as on the account card.
 const reset = document.createElement("div");
 reset.className = "UnicumTwitchPanel_reset";
 // An image: the hangar's font has no arrow glyphs, so a "↺" drew nothing.
@@ -53,7 +65,7 @@ const close = document.createElement("div");
 close.className = "UnicumTwitchPanel_close";
 close.style.backgroundImage = `url(${PANEL_ICONS.close})`;
 header.appendChild(logo);
-header.appendChild(title);
+header.appendChild(heading);
 header.appendChild(reset);
 header.appendChild(toggle);
 header.appendChild(close);
@@ -78,6 +90,7 @@ footer.appendChild(input);
 footer.appendChild(connect);
 
 root.appendChild(header);
+root.appendChild(cardConnect);
 root.appendChild(list);
 root.appendChild(footer);
 document.body.appendChild(root);
@@ -260,6 +273,8 @@ reset.addEventListener("click", onResetClick);
 close.addEventListener("mousedown", onResetMouseDown);
 close.addEventListener("click", onCloseClick);
 connect.addEventListener("click", onConnectClick);
+cardConnect.addEventListener("mousedown", onResetMouseDown);
+cardConnect.addEventListener("click", onConnectClick);
 input.addEventListener("keydown", onKeyDown);
 input.addEventListener("keyup", stop);
 root.addEventListener("mousedown", stop);
@@ -292,7 +307,10 @@ function line(message) {
 // at once rather than after the round trip through Python.
 function renderFrame(data) {
     root.style.display = data.shown ? "" : "none";
-    root.className = "UnicumTwitchPanel" + (data.collapsed ? " UnicumTwitchPanel__collapsed" : "") +
+    // No channel, no chat to show: a card with its Connect, as the account's.
+    const compact = !data.channel;
+    root.className = "UnicumTwitchPanel" + (compact ? " UnicumTwitchPanel__compact" : "") +
+        (data.collapsed && !compact ? " UnicumTwitchPanel__collapsed" : "") +
         (state.drag && state.drag.moved ? " UnicumTwitchPanel__dragging" : "");
     if (!state.drag) {
         place(data.position);
@@ -309,12 +327,6 @@ function render(data) {
     renderFrame(data);
     while (lines.firstChild) {
         lines.removeChild(lines.firstChild);
-    }
-    if (!data.channel) {
-        const empty = document.createElement("div");
-        empty.className = "UnicumTwitchPanel_empty";
-        empty.textContent = "No Twitch channel: set one in the unicum.gg settings, or link it on unicum.gg.";
-        lines.appendChild(empty);
     }
     for (const message of data.messages || []) {
         lines.appendChild(line(message));
@@ -367,6 +379,8 @@ return {
         document.removeEventListener("mousemove", onDragMove);
         document.removeEventListener("mouseup", onDragEnd);
         connect.removeEventListener("click", onConnectClick);
+        cardConnect.removeEventListener("mousedown", onResetMouseDown);
+        cardConnect.removeEventListener("click", onConnectClick);
         input.removeEventListener("keydown", onKeyDown);
         input.removeEventListener("keyup", stop);
         root.removeEventListener("mousedown", stop);

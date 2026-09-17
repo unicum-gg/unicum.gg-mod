@@ -8,11 +8,13 @@
     right: 46rem;
     top: 830rem;
     width: 322rem;
-    height: 52rem;
+    /* At least that tall, taller when a longer text wraps: the texts will be
+       translated, and a line that pushed the buttons out of the card would not do. */
+    min-height: 52rem;
     display: flex;
-    flex-direction: row;
-    align-items: center;
-    padding: 0 10rem;
+    flex-direction: column;
+    justify-content: center;
+    padding: 9rem 10rem;
     background-color: rgba(23, 23, 23, 0.2);
     border: 1rem solid rgba(255, 255, 255, 0.12);
     font-family: PFDINMax, sans-serif;
@@ -20,12 +22,19 @@
     pointer-events: auto;
 }
 
+.UnicumAccountCard_row {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+}
+
 .UnicumAccountCard__linked {
-    height: 40rem;
+    min-height: 40rem;
 }
 
 .UnicumAccountCard_logo {
     flex-shrink: 0;
+    margin-top: 2rem;
     width: 22rem;
     height: 22rem;
     margin-right: 10rem;
@@ -35,19 +44,20 @@
 }
 
 .UnicumAccountCard_text {
-    flex-grow: 1;
+    flex: 1 1 0;
     min-width: 0;
+    white-space: normal;
 }
 
 .UnicumAccountCard_title {
-    font-size: 15rem;
-    line-height: 18rem;
+    font-size: 16rem;
+    line-height: 20rem;
     color: #e9e4d6;
 }
 
 .UnicumAccountCard_subtitle {
-    font-size: 12rem;
-    line-height: 16rem;
+    font-size: 14rem;
+    line-height: 18rem;
     color: #9a968c;
 }
 
@@ -58,7 +68,7 @@
     flex-shrink: 0;
     width: 14rem;
     height: 14rem;
-    margin-left: 12rem;
+    margin: 4rem 0 0 12rem;
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
@@ -69,7 +79,10 @@
     flex-shrink: 0;
     height: 26rem;
     line-height: 26rem;
-    padding: 0 14rem;
+    margin-top: 10rem;
+    text-align: center;
+    /* The site's buttons: rounded, 8px at this height. */
+    border-radius: 8rem;
     background-color: rgba(242, 83, 34, 0.85);
     color: #ffffff;
     font-size: 13rem;
