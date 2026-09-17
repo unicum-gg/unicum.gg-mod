@@ -7,7 +7,7 @@ required. When izeberg's modsSettingsApi is installed, settings_window.py
 also shows these settings in its window, and writes back here.
 
     {"enabled": true, "metric": "wnx", "window": "recent", "maxFlags": 3, "tankButton": true,
-     "autoReload": true, "twitch": {"channel": "", "battleChat": true},
+     "autoReload": false, "twitch": {"channel": "", "battleChat": true},
      "contacts": {"flags": true, "rating": false},
      "battle": {"flags": true, "rating": true, "average": true}, ...,
      "modes": {"random": {"allies": true, "enemies": true}, "ranked": {...}, ...}}
@@ -69,7 +69,8 @@ DEFAULTS = dict({
     'window': 'recent',
     'maxFlags': MAX_FLAGS,
     'tankButton': True,
-    'autoReload': True,
+    # Off until the player turns it on: it writes in the team chat for them.
+    'autoReload': False,
     # Battle ratings shown only while the extended info key (Alt) is held.
     'altOnly': {'markers': False, 'panel': False},
     'twitch': {'channel': '', 'battleChat': True, 'garage': True, 'garageCollapsed': False,

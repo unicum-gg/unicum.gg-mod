@@ -27,7 +27,7 @@ def check_battle_modes(workdir):
     values = validate({})
     check('every mode shows both teams by default',
           all(values['modes'][mode] == {'allies': True, 'enemies': True} for mode in MODES))
-    check('announcing reloads is on by default', values['autoReload'] is True)
+    check('announcing reloads is off by default', values['autoReload'] is False)
 
     store = os.path.join(workdir, 'modes-check', 'settings.json')
     settings = Settings(Session(generation=0), store=store)
