@@ -98,11 +98,23 @@ root.addEventListener("mousedown", stop);
 // Right under the lowest mission card on the right of the screen: how many
 // there are changes with the missions, the events and the screen's size. The
 // stylesheet's place when there are none.
+function shown(element) {
+    for (let node = element; node && node !== document.body; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        if (style.opacity === "0" || style.visibility === "hidden" || style.display === "none") {
+            return false;
+        }
+    }
+    return true;
+}
+
 function place() {
     let bottom = 0;
     for (const card of document.querySelectorAll(MISSION_CARDS)) {
         const rect = card.getBoundingClientRect();
-        if (rect.height > 0 && rect.left > window.innerWidth / 2) {
+        // The hangar keeps cards laid out but transparent below the ones on
+        // show (missions done, cards on their way in or out): not a place to follow.
+        if (rect.height > 0 && rect.left > window.innerWidth / 2 && shown(card)) {
             bottom = Math.max(bottom, rect.bottom);
         }
     }
