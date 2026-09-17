@@ -163,13 +163,13 @@ def check_battle_results():
             return '#4A92B7' if metric == 'wnx' else None
 
     entries = {1: Entry(['PL', 'XX', 'DE', 'FR'], 1933.6), 2: Entry(['FR'], 2500), 3: Entry([], None)}
-    players = [(1, 'Kretek_PL', False), (2, 'Hidden', True), (3, 'Nothing', False), (4, 'Unknown', False)]
+    players = [(1, ['Kretek_PL']), (2, ['Real_Name', 'Made_Up']), (3, ['Nothing']), (4, ['Unknown'])]
     shown = decorations(players, entries.get, Settings(), Flags(), Scales())
     check('the results show a player\'s rating and the flags that draw, up to the limit',
-          shown == {'Kretek_PL': {'score': {'value': 1934, 'color': '#4A92B7'},
-                                  'flags': ['img://flags/PL.png']}})
-    check('an anonymized player, and one with nothing to show, are left out',
-          'Hidden' not in shown and 'Nothing' not in shown and 'Unknown' not in shown)
+          shown['Kretek_PL'] == {'score': {'value': 1934, 'color': '#4A92B7'}, 'flags': ['img://flags/PL.png']})
+    check('an anonymized player is listed under the real and the made-up name, one with nothing is left out',
+          shown['Real_Name']['score']['value'] == 2500 and shown['Made_Up'] == shown['Real_Name']
+          and 'Nothing' not in shown and 'Unknown' not in shown)
     check('without a rating shown, the flags alone stay',
           decorations(players[:1], entries.get, Settings(rating=False), Flags(), Scales())
           == {'Kretek_PL': {'score': None, 'flags': ['img://flags/PL.png']}})

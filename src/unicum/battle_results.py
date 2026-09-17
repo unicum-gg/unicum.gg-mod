@@ -15,9 +15,11 @@ model carries the script, its style, and the players to decorate as JSON in
                               "flags": ["img://gui/maps/icons/unicum/flags/PL.png"]}}}
 
 keyed by the name the page shows, under `players`, with `hidden` true while
-they wait for the extended info key (Alt, as in battle). An anonymized player
-shows another name, which the map leaves out: no rating for a player who chose
-not to be seen.
+they wait for the extended info key (Alt, as in battle). The page shows the
+player's own name to them and an anonymized player's made-up one to everyone
+else, and the results carry both with the real account: each player is
+listed under both names, so whichever the row shows gets the real account's
+rating.
 
 The key is followed through gui.InputHandler, which the client feeds every key
 in the garage as in battle, against the command bound to the markers' extended
@@ -74,21 +76,22 @@ _ON_ITEM = functools.partial(
 
 
 def players_of(results):
-    """[(account id, name shown, anonymized)] of a battle's results."""
+    """[(account id, [the names the page may show])] of a battle's results: real, then made-up."""
     players = []
     for account_id, info in results.reusable.players.getPlayerInfoIterator():
-        players.append((account_id, info.realName, info.isAnonymized()))
+        names = [info.realName]
+        if info.fakeName and info.fakeName != info.realName:
+            names.append(info.fakeName)
+        players.append((account_id, names))
     return players
 
 
 def decorations(players, entry_of, settings, flags, scales):
-    """{name shown: {score, flags}} for the players with something to show."""
+    """{name shown: {score, flags}} for the players with something to show, under each of their names."""
     metric = settings.metric(SURFACE)
     limit = settings['maxFlags'] if settings.shows_flags(SURFACE) else 0
     out = {}
-    for account_id, name, anonymized in players:
-        if anonymized or not name:
-            continue
+    for account_id, names in players:
         entry = entry_of(account_id)
         if entry is None:
             continue
@@ -98,7 +101,9 @@ def decorations(players, entry_of, settings, flags, scales):
         shown = {'score': {'value': int(round(value)), 'color': color} if color else None,
                  'flags': [source for source in sources if source]}
         if shown['score'] or shown['flags']:
-            out[name] = shown
+            for name in names:
+                if name:
+                    out[name] = shown
     return out
 
 
@@ -217,8 +222,8 @@ class BattleResults(object):
         self._load_code(model)
         players = self._players(arena_id)
         if players:
-            wanted = [account_id for account_id, _, anonymized in players
-                      if account_id and not anonymized and self._lookup.needs_fetch(PLAYERS, account_id)]
+            wanted = [account_id for account_id, _ in players
+                      if account_id and self._lookup.needs_fetch(PLAYERS, account_id)]
             if wanted:
                 self._lookup.prefetch(players=wanted, on_ready=self._publish_all)
         self._publish(model)
