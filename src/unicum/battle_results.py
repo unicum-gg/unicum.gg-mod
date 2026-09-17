@@ -12,14 +12,16 @@ model carries the script, its style, and the players to decorate as JSON in
 
     {"hidden": false,
      "players": {"Player_1": {"score": {"value": 1934, "color": "#4A92B7"},
-                              "flags": ["img://gui/maps/icons/unicum/flags/PL.png"]}}}
+                              "flags": ["img://gui/maps/icons/unicum/flags/PL.png"]}},
+     "averages": {"allies": {"value": 1612, "color": "#6D9521"}, "enemies": null}}
 
 keyed by the name the page shows, under `players`, with `hidden` true while
 they wait for the extended info key (Alt, as in battle). The page shows the
 player's own name to them and an anonymized player's made-up one to everyone
 else, and the results carry both with the real account: each player is
 listed under both names, so whichever the row shows gets the real account's
-rating.
+rating. Each team's average is that of its players whose rating is known,
+drawn on the team's header line.
 
 The key is followed through gui.InputHandler, which the client feeds every key
 in the garage as in battle, against the command bound to the markers' extended
@@ -76,14 +78,35 @@ _ON_ITEM = functools.partial(
 
 
 def players_of(results):
-    """[(account id, [the names the page may show])] of a battle's results: real, then made-up."""
+    """[(account id, [the names the page may show], on the player's team)] of a battle's results.
+
+    The names are the real one, then the made-up one of an anonymized player.
+    """
+    own_team = results.reusable.personal.avatar.team
     players = []
     for account_id, info in results.reusable.players.getPlayerInfoIterator():
         names = [info.realName]
         if info.fakeName and info.fakeName != info.realName:
             names.append(info.fakeName)
-        players.append((account_id, names))
+        players.append((account_id, names, info.team == own_team))
     return players
+
+
+def averages(players, entry_of, settings, scales):
+    """{'allies': {value, color} or None, 'enemies': ...}: each team's mean known rating."""
+    metric = settings.metric(SURFACE)
+    out = {'allies': None, 'enemies': None}
+    if metric is None or not settings.shows_average(SURFACE):
+        return out
+    for side, ally in (('allies', True), ('enemies', False)):
+        values = [settings.rating(entry_of(account_id), SURFACE) for account_id, _, on_team in players
+                  if on_team == ally and entry_of(account_id) is not None]
+        values = [value for value in values if value is not None]
+        if values:
+            value = int(round(sum(values) / float(len(values))))
+            color = scales.color(metric, value)
+            out[side] = {'value': value, 'color': color} if color else None
+    return out
 
 
 def decorations(players, entry_of, settings, flags, scales):
@@ -91,7 +114,7 @@ def decorations(players, entry_of, settings, flags, scales):
     metric = settings.metric(SURFACE)
     limit = settings['maxFlags'] if settings.shows_flags(SURFACE) else 0
     out = {}
-    for account_id, names in players:
+    for account_id, names, _ in players:
         entry = entry_of(account_id)
         if entry is None:
             continue
@@ -222,7 +245,7 @@ class BattleResults(object):
         self._load_code(model)
         players = self._players(arena_id)
         if players:
-            wanted = [account_id for account_id, _ in players
+            wanted = [account_id for account_id, _, _ in players
                       if account_id and self._lookup.needs_fetch(PLAYERS, account_id)]
             if wanted:
                 self._lookup.prefetch(players=wanted, on_ready=self._publish_all)
@@ -269,12 +292,14 @@ class BattleResults(object):
         arena_id, published = models.get(model, (None, None))
         if arena_id is None:
             return
-        shown = {}
+        shown, means = {}, {'allies': None, 'enemies': None}
         if self._settings.shows(SURFACE):
-            shown = decorations(self._players(arena_id), lambda account_id: self._lookup.get(PLAYERS, account_id),
-                                self._settings, self._flags, self._scales)
+            players = self._players(arena_id)
+            entry_of = lambda account_id: self._lookup.get(PLAYERS, account_id)
+            shown = decorations(players, entry_of, self._settings, self._flags, self._scales)
+            means = averages(players, entry_of, self._settings, self._scales)
         hidden = self._settings.alt_only('results') and not self._alt
-        text = json.dumps({'hidden': hidden, 'players': shown}, sort_keys=True)
+        text = json.dumps({'hidden': hidden, 'players': shown, 'averages': means}, sort_keys=True)
         if text == published:
             return
         try:

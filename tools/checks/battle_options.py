@@ -132,7 +132,7 @@ def check_alt_only():
 
 def check_battle_results():
     """Who the post-battle results decorate, and with what."""
-    from unicum.battle_results import decorations
+    from unicum.battle_results import averages, decorations
 
     class Entry(object):
         def __init__(self, flags, value):
@@ -151,6 +151,9 @@ def check_battle_results():
         def rating(self, entry, surface):
             return entry.value if self._rating else None
 
+        def shows_average(self, surface):
+            return True
+
         def __getitem__(self, key):
             return {'maxFlags': 2}[key]
 
@@ -163,7 +166,8 @@ def check_battle_results():
             return '#4A92B7' if metric == 'wnx' else None
 
     entries = {1: Entry(['PL', 'XX', 'DE', 'FR'], 1933.6), 2: Entry(['FR'], 2500), 3: Entry([], None)}
-    players = [(1, ['Kretek_PL']), (2, ['Real_Name', 'Made_Up']), (3, ['Nothing']), (4, ['Unknown'])]
+    players = [(1, ['Kretek_PL'], True), (2, ['Real_Name', 'Made_Up'], False), (3, ['Nothing'], True),
+               (4, ['Unknown'], False)]
     shown = decorations(players, entries.get, Settings(), Flags(), Scales())
     check('the results show a player\'s rating and the flags that draw, up to the limit',
           shown['Kretek_PL'] == {'score': {'value': 1934, 'color': '#4A92B7'}, 'flags': ['img://flags/PL.png']})
@@ -173,3 +177,9 @@ def check_battle_results():
     check('without a rating shown, the flags alone stay',
           decorations(players[:1], entries.get, Settings(rating=False), Flags(), Scales())
           == {'Kretek_PL': {'score': None, 'flags': ['img://flags/PL.png']}})
+    entries[5] = Entry([], 1000.0)
+    check('each team\'s average is that of its players with a rating',
+          averages(players + [(5, ['Other'], True)], entries.get, Settings(), Scales())
+          == {'allies': {'value': 1467, 'color': '#4A92B7'}, 'enemies': {'value': 2500, 'color': '#4A92B7'}})
+    check('no average without a rating shown',
+          averages(players, entries.get, Settings(rating=False), Scales()) == {'allies': None, 'enemies': None})

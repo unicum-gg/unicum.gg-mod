@@ -22,6 +22,14 @@
     color: #ffffff;
 }
 
+.UnicumResults_sign {
+    position: absolute;
+    height: 18rem;
+    line-height: 18rem;
+    font-size: 15rem;
+    color: #e9e4d6;
+}
+
 .UnicumResults_flags {
     position: absolute;
     display: flex;

@@ -5,12 +5,14 @@
 // function of `api` = { model, media, playSound, report }; returns { stop() }.
 // The players come as JSON in the model's `data`, keyed by the name the page
 // shows, and none are drawn while `hidden` (waiting for Alt):
-// { hidden, players: { name: { score: { value, color } | null, flags: [image url] } } }.
+// { hidden, players: { name: { score: { value, color } | null, flags: [image url] } },
+//   averages: { allies: { value, color } | null, enemies: ... } }.
 //
 // As on the battle's Tab screen, they sit outside each team's table, in two
 // columns lined up down the team: left of the allies' rows, right of the
 // enemies', the badge nearest the row and the flags beyond it. So nothing of
-// the table moves and no name is cut shorter.
+// the table moves and no name is cut shorter. A team's average goes on its
+// table's header line, in the badge column, its sign where the flags go.
 //
 // React owns the rows and moves them as the player sorts or switches tab, so
 // the names are looked for on a timer, and the markers, in a layer of their
@@ -22,6 +24,8 @@ const { model, report } = api;
 // The account cell's name, in the team tables: a class with a hash the
 // client's next build may change.
 const NAME = '[class*="AccountInfoCell_accountName_"]';
+// A team's table: its header line is what lies above its first row.
+const TABLE = "TeamEfficiency_table_";
 const BOX = "UnicumResults";
 const POLL_MS = 150;
 // Between the row's edge and the badge column, and between the two columns.
@@ -30,7 +34,7 @@ const SPACE = 6;
 // A row is the widest ancestor of the name still about as tall as a row.
 const ROW_HEIGHT_RATIO = 3;
 
-const state = { alive: true, json: null, players: {}, markers: {} };
+const state = { alive: true, json: null, players: {}, averages: {}, markers: {}, means: {} };
 
 // Pixels to the rem the view lays out in; 1 when the view does not say.
 const toRem = (px) => (typeof viewEnv !== "undefined" && viewEnv.pxToRem ? viewEnv.pxToRem(px) : px);
@@ -85,7 +89,7 @@ function markerFor(text, player) {
 }
 
 function removeMarker(marker) {
-    for (const element of [marker.badge, marker.flags]) {
+    for (const element of [marker.badge, marker.flags, marker.sign]) {
         if (element && element.parentElement) {
             element.parentElement.removeChild(element);
         }
@@ -104,6 +108,38 @@ function shown(element) {
     return true;
 }
 
+// The top of the table a name is in, or null.
+function tableTopOf(name) {
+    for (let node = name.parentElement; node && node !== document.body; node = node.parentElement) {
+        if (String(node.className).indexOf(TABLE) >= 0) {
+            return node.getBoundingClientRect().top;
+        }
+    }
+    return null;
+}
+
+// { key, badge, sign } for a team's average, remade when it changes.
+function meanFor(side, average) {
+    const key = JSON.stringify(average);
+    const current = state.means[side];
+    if (current && current.key === key) {
+        return current;
+    }
+    if (current) {
+        removeMarker(current);
+    }
+    const mean = { key, badge: document.createElement("div"), sign: document.createElement("div") };
+    mean.badge.className = `${BOX}_badge`;
+    mean.badge.style.backgroundColor = average.color;
+    mean.badge.textContent = group(average.value);
+    mean.sign.className = `${BOX}_sign`;
+    mean.sign.textContent = "\u00d8";
+    layer.appendChild(mean.badge);
+    layer.appendChild(mean.sign);
+    state.means[side] = mean;
+    return mean;
+}
+
 function rowOf(name) {
     const own = name.getBoundingClientRect();
     let row = own;
@@ -116,7 +152,7 @@ function rowOf(name) {
             row = rect;
         }
     }
-    return { left: row.left, right: row.right, middle: own.top + own.height / 2 };
+    return { left: row.left, right: row.right, top: row.top, middle: own.top + own.height / 2 };
 }
 
 function place(element, leftPx, middlePx) {
@@ -126,6 +162,7 @@ function place(element, leftPx, middlePx) {
 
 function decorate() {
     const sides = { left: [], right: [] };
+    const tops = { left: null, right: null };
     const seen = {};
     const names = document.querySelectorAll(NAME);
     for (let i = 0; i < names.length; i++) {
@@ -141,6 +178,29 @@ function decorate() {
         const marker = markerFor(text, player);
         const side = rect.left + rect.width / 2 < window.innerWidth / 2 ? "left" : "right";
         sides[side].push({ marker, row });
+        const top = tableTopOf(name);
+        if (top !== null) {
+            tops[side] = top;
+        }
+    }
+    // The allies' table is the left one, as on every results screen.
+    for (const [side, team] of [["left", "allies"], ["right", "enemies"]]) {
+        const average = state.averages[team];
+        const top = tops[side];
+        if (average && top !== null && sides[side].length) {
+            const mean = meanFor(side, average);
+            let first = sides[side][0].row;
+            for (const item of sides[side]) {
+                if (item.row.top < first.top) {
+                    first = item.row;
+                }
+            }
+            sides[side].push({ marker: { badge: mean.badge, flags: mean.sign },
+                               row: { left: first.left, right: first.right, top: top, middle: (top + first.top) / 2 } });
+        } else if (state.means[side]) {
+            removeMarker(state.means[side]);
+            delete state.means[side];
+        }
     }
     for (const text of Object.keys(state.markers)) {
         if (!seen[text]) {
@@ -185,6 +245,10 @@ function removeAll() {
         removeMarker(state.markers[text]);
     }
     state.markers = {};
+    for (const side of Object.keys(state.means)) {
+        removeMarker(state.means[side]);
+    }
+    state.means = {};
 }
 
 function poll() {
@@ -198,6 +262,7 @@ function poll() {
         try {
             const data = JSON.parse(json) || {};
             state.players = data.hidden ? {} : data.players || {};
+            state.averages = data.hidden ? {} : data.averages || {};
         } catch (error) {
             report(`battle results: bad data: ${error}`);
             state.players = {};

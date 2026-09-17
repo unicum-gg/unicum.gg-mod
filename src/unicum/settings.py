@@ -43,7 +43,7 @@ MAX_FLAGS = 3
 SURFACES = ('contacts', 'profile', 'skirmishRoom', 'battle', 'stronghold', 'battleResults')
 
 # Surfaces with a team or detachment to average.
-AVERAGED = ('skirmishRoom', 'battle')
+AVERAGED = ('skirmishRoom', 'battle', 'battleResults')
 
 # A Twitch login: what a channel name may be.
 _TWITCH_CHANNEL = re.compile(r'^[a-z0-9_]{3,25}$')
