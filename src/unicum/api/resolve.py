@@ -3,8 +3,11 @@
 A roster arrives all at once: up to fifteen players in a skirmish room, a
 screenful of clans in the detachment list, 3300 contacts. So ids are
 collected and asked for together, and answers are cached, rather than one
-request per name. One answer carries a player's or clan's languages, flags,
-ratings and win rates, so every surface of the mod reads the same entry.
+request per name. Together, but not all in the same breath: the batches leave
+a few at a time (_MAX_IN_FLIGHT), since a contacts list is 33 of them and no
+one player's client should hand a server that in one go. One answer carries a
+player's or clan's languages, flags, ratings and win rates, so every surface
+of the mod reads the same entry.
 
 The endpoint also accepts clan tags. The Stronghold detachment list is a web
 page whose rows carry a tag and nothing else, and `tags=` maps each one to
@@ -32,6 +35,14 @@ _SAVE_DELAY = 10.0
 # it, a server that is down gets the whole roster again on every redraw.
 _RETRY_AFTER = 60.0
 
+# Requests of this cache in the air at once; the rest wait their turn. A
+# contacts list of 3300 is 33 batches, and firing them together asks one
+# server to answer 3300 players in one breath -- a burst one player's client
+# has no business making. Spread out, the same work arrives at a pace a
+# server can hold, and a screen fills a little at a time instead of all or
+# nothing.
+_MAX_IN_FLIGHT = 4
+
 
 class Lookup(object):
     """Cache in front of GET /{region}/resolve."""
@@ -44,6 +55,8 @@ class Lookup(object):
         self._tags = {}           # TAG -> (clan id or None, fetched_at)
         self._in_flight = set()   # (kind, id or TAG)
         self._retry_at = {}       # (kind, id or TAG) -> time
+        self._queued = []         # batches waiting for a turn
+        self._running = 0         # requests in the air
         self._store = store if store is not None else config.RESOLVE_STORE
         self._dirty = False
         self._save_scheduled = False
@@ -126,8 +139,20 @@ class Lookup(object):
         return out
 
     def _dispatch(self, batch, outstanding, on_ready):
+        """Queue a batch, and send what the limit allows."""
+        # Marked in flight on the way into the queue, not on the way out: a
+        # redraw while a batch waits must not ask for the same ids again.
+        self._in_flight.update(_keys(batch))
+        self._queued.append((batch, outstanding, on_ready))
+        self._pump()
+
+    def _pump(self):
+        while self._session.alive and self._running < _MAX_IN_FLIGHT and self._queued:
+            self._running += 1
+            self._send(*self._queued.pop(0))
+
+    def _send(self, batch, outstanding, on_ready):
         keys = _keys(batch)
-        self._in_flight.update(keys)
 
         def done(payload):
             try:
@@ -139,9 +164,13 @@ class Lookup(object):
                     self._absorb(batch, payload)
             finally:
                 self._in_flight.difference_update(keys)
+                self._running -= 1
                 outstanding[0] -= 1
                 if outstanding[0] <= 0 and on_ready is not None:
                     on_ready()
+                # After the counters, so a caller's on_ready runs before the
+                # next request rather than behind it.
+                self._pump()
 
         self._session.fetch(self._url(batch), lambda response: done(parse(response, 'resolve')),
                             timeout=config.RESOLVE_TIMEOUT)

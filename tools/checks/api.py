@@ -166,5 +166,51 @@ def check_scales(bigworld, src_root, api_base):
     session.close()
 
 
+def check_request_pacing():
+    """A roster is asked for a few requests at a time, not all at once."""
+    from unicum.api.resolve import Lookup, _MAX_IN_FLIGHT
+
+    class FakeSession(object):
+        alive = True
+
+        def __init__(self):
+            self.calls = []
+
+        def on_close(self, func):
+            pass
+
+        def callback(self, delay, func):
+            return 1
+
+        def fetch(self, url, callback, **kwargs):
+            self.calls.append(callback)
+
+    class Failed(object):
+        """What a server that is down gives back: no answer at all."""
+        responseCode = 0
+        body = ''
+
+    session = FakeSession()
+    # No store: this reads and writes nothing on disk.
+    lookup = Lookup(session, region='eu', store='', api_base='https://example.invalid')
+    # A contacts list's worth, in batches of 100.
+    lookup.prefetch(players=list(range(1, 1001)))
+    check('a big roster goes out a few requests at a time, not in one burst',
+          len(session.calls) == _MAX_IN_FLIGHT)
+    session.calls[0](Failed())
+    check('the next request leaves as one comes back',
+          len(session.calls) == _MAX_IN_FLIGHT + 1)
+    # The ids of a batch still waiting are spoken for, so a redraw meanwhile
+    # asks for nothing more.
+    before = len(session.calls)
+    lookup.prefetch(players=list(range(1, 1001)))
+    check('ids already queued are not asked for again', len(session.calls) == before)
+    answered = 1
+    while answered < len(session.calls):
+        session.calls[answered](Failed())
+        answered += 1
+    check('every batch is sent in the end', len(session.calls) == 10)
+
+
 if __name__ == '__main__':
     main()

@@ -16,7 +16,8 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from checks.api import check_browser_scope, check_entries, check_lookup, check_scales
+from checks.api import (check_browser_scope, check_entries, check_lookup, check_request_pacing,
+                        check_scales)
 from checks.battle_options import check_alt_only, check_battle_modes, check_battle_results, check_reload_announcer
 from checks.client import install_fake_client
 from checks.common import FLAG_CODES, REPO, check, render_stub
@@ -105,6 +106,7 @@ def main():
         check_reload_announcer()
         check_alt_only()
         check_battle_results()
+        check_request_pacing()
         check_twitch()
         check_twitch_badges()
         check_twitch_send()
