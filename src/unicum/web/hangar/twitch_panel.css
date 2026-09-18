@@ -168,6 +168,31 @@
     padding: 6rem 10rem;
 }
 
+/* The empty chat, centred in the list: the list's 144 less its padding. */
+.UnicumTwitchPanel_empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 132rem;
+    padding: 0 12rem;
+    text-align: center;
+}
+
+.UnicumTwitchPanel_emptyTitle {
+    font-size: 14rem;
+    line-height: 18rem;
+    color: #b8b4aa;
+}
+
+.UnicumTwitchPanel_emptyText {
+    margin-top: 4rem;
+    font-size: 12rem;
+    line-height: 16rem;
+    color: #85817a;
+    white-space: normal;
+}
+
 .UnicumTwitchPanel_line {
     display: flex;
     flex-direction: row;

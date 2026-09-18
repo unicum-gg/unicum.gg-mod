@@ -74,7 +74,18 @@ const list = document.createElement("div");
 list.className = "UnicumTwitchPanel_list";
 const lines = document.createElement("div");
 lines.className = "UnicumTwitchPanel_lines";
+// A chat nobody has written in yet looks exactly like a panel that failed to
+// load, so the list says which it is until the first message arrives.
+const empty = document.createElement("div");
+empty.className = "UnicumTwitchPanel_empty";
+const emptyTitle = document.createElement("div");
+emptyTitle.className = "UnicumTwitchPanel_emptyTitle";
+const emptyText = document.createElement("div");
+emptyText.className = "UnicumTwitchPanel_emptyText";
+empty.appendChild(emptyTitle);
+empty.appendChild(emptyText);
 list.appendChild(lines);
+list.appendChild(empty);
 
 const footer = document.createElement("div");
 footer.className = "UnicumTwitchPanel_footer";
@@ -328,9 +339,17 @@ function render(data) {
     while (lines.firstChild) {
         lines.removeChild(lines.firstChild);
     }
-    for (const message of data.messages || []) {
+    const messages = data.messages || [];
+    for (const message of messages) {
         lines.appendChild(line(message));
     }
+    // Twitch sends no history, so a chat that is quiet stays blank however
+    // long it has been joined: say so rather than leave an empty box.
+    empty.style.display = messages.length ? "none" : "";
+    emptyTitle.textContent = data.joined ? "No messages yet" : "Connecting to the chat";
+    emptyText.textContent = data.joined
+        ? `What is written in ${data.channel}'s chat from now on shows up here.`
+        : `Joining ${data.channel}'s chat on Twitch.`;
     if (state.stuckToBottom) {
         list.scrollTop = Math.max(0, lines.offsetHeight - list.clientHeight);
     }

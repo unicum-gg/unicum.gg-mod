@@ -286,6 +286,11 @@ class TwitchChat(object):
     def channel(self):
         return self._channel or ''
 
+    @property
+    def joined(self):
+        """True once the connection is open and the channel joined."""
+        return bool(self._opened)
+
     def badge_sources(self, badges):
         """The resource paths of a message's badges that can draw now."""
         return self._badges.sources(badges)

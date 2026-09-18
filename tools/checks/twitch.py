@@ -213,6 +213,7 @@ def check_twitch_panel():
 
     class Chat(object):
         channel = 'license__'
+        joined = True
         history = [Message('Viewer', '#FF0000', u'gg', ('moderator/1',), 'viewer'),
                    Message('license__', None, u'thanks', (), 'license__')]
 
@@ -227,6 +228,7 @@ def check_twitch_panel():
           data['messages'][0]['badges'] == ['img://gui/maps/icons/unicum/twitch/badges/global.moderator.1.png']
           and not data['messages'][0]['own'] and data['messages'][1]['own']
           and data['collapsed'] and not data['linked'] and data['channel'] == 'license__')
+    check('the panel is told whether the chat is joined', data['joined'])
 
 
 def check_panel_position():

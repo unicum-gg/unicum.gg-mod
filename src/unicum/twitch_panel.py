@@ -5,8 +5,8 @@ hangar's Gameface view through the loader tank_button.py already injects, so
 it needs no layout of its own and no client restart. This module gives that
 script the chat as it stands, as JSON in the loader model's `twitch` string:
 
-    {"shown": true, "collapsed": false, "channel": "license__", "linked": true,
-     "icon": "img://gui/maps/icons/unicum/twitch.png",
+    {"shown": true, "collapsed": false, "channel": "license__", "joined": true,
+     "linked": true, "icon": "img://gui/maps/icons/unicum/twitch.png",
      "messages": [{"name": ..., "color": ..., "text": ..., "own": false,
                    "badges": ["img://gui/maps/icons/unicum/twitch/badges/..."]}]}
 
@@ -46,6 +46,8 @@ def state(settings, chat, link, icon=None):
         'collapsed': settings['twitch']['garageCollapsed'],
         'position': settings['twitch']['garagePosition'],
         'channel': channel,
+        # Told apart in the panel's empty chat: joining, or joined and quiet.
+        'joined': chat.joined,
         'linked': bool(link.secret),
         # The account card above the panel (account_card.js) reads this too.
         'account': {'linked': bool(link.secret), 'name': getattr(link, 'name', None),
