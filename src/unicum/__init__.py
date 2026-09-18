@@ -10,8 +10,8 @@ is nothing more than stop() followed by a fresh start().
 """
 import logging
 
-from unicum import (auto_reload, battle, battle_results, browser, config, lobby, mods_list, room_sort, settings_window,
-                    tank_button, twitch, twitch_panel, twitch_send, views)
+from unicum import (auto_reload, battle, battle_results, browser, config, lobby, mods_list, reporting, room_sort,
+                    settings_window, tank_button, twitch, twitch_panel, twitch_send, views)
 from unicum.badges import Badges
 from unicum.game_link import GameLink
 from unicum.api.resolve import Lookup
@@ -34,6 +34,9 @@ def start(generation=0):
         stop()
     _session = Session(generation)
     _logger.info('start: version=%s generation=%s', VERSION, generation)
+    # Before anything else installs: a feature that fails on the way up is
+    # exactly what an author never hears about otherwise.
+    reporting.install(_session, VERSION)
     try:
         # One of each, shared by every surface. Each feature used to build
         # its own lookup, and every one of them loaded languages.json and

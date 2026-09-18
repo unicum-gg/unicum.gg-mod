@@ -43,7 +43,7 @@ from checks.surfaces import (
     check_skirmish_room)
 from checks.settings import check_live_settings, check_res_mods_version, check_settings, check_settings_window
 from checks.tank_menu import check_tank_menu
-from checks.twitch import check_links_per_account, check_channel_label, check_echo_guard, check_panel_position, check_own_message, check_twitch_panel, check_regions, check_twitch, check_twitch_badges, check_twitch_receiver, check_twitch_send
+from checks.twitch import check_error_reporting, check_links_per_account, check_channel_label, check_echo_guard, check_panel_position, check_own_message, check_twitch_panel, check_regions, check_twitch, check_twitch_badges, check_twitch_receiver, check_twitch_send
 
 
 def main():
@@ -113,6 +113,7 @@ def main():
         check_echo_guard()
         check_own_message()
         check_twitch_panel()
+        check_error_reporting()
         check_panel_position()
         check_channel_label()
         check_links_per_account(workdir)
@@ -154,7 +155,9 @@ def main():
 
         stub.fini()
         check('fini leaves the game function untouched', not hooked())
-        check('fini cancelled every callback', not bigworld.pending)
+        # Not `pending`: a response the fake client is still about to deliver
+        # is its own, and the session's alive gate already makes it a no-op.
+        check('fini cancelled every callback', not bigworld.scheduled)
 
         # Undoing a patch has to put back what was *stored*, which is not
         # always what getattr returned.

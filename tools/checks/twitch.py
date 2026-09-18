@@ -286,3 +286,74 @@ def check_links_per_account(workdir):
     check('the card closed on one account stays closed for it', link.card_hidden and link.secret == secret_b)
     check('the site is told which account the game is logged in with',
           '&account=2002' in connect_url('https://unicum.gg', 'eu', secret_b, '2002', 't').split('#')[0])
+
+
+def check_error_reporting():
+    """The mod hands its logged exceptions to an error reporter, when one is installed."""
+    import logging
+    import sys
+    from unicum import reporting
+    from unicum.runtime.session import Session
+
+    class FakeReporter(object):
+        def __init__(self):
+            self.calls = []
+
+        def report_exception(self, mod_name, mod_version, exc_info, context, source):
+            self.calls.append((mod_name, mod_version, exc_info[0], context, source))
+
+        def ours(self):
+            # The session this check installs, told apart from the mod's own,
+            # which the harness started earlier and reports under its version.
+            return [call for call in self.calls if call[1] == VERSION]
+
+    VERSION = '9.9.9'
+    session = Session(generation=0)
+    logger = logging.getLogger('unicum.checks.reporting')
+    reporter = FakeReporter()
+    sys.modules['gui.mods.mod_error_reporter'] = reporter
+    entry = type(sys)('gui.mods.mod_unicum')
+    sys.modules['gui.mods.mod_unicum'] = entry
+    try:
+        reporting.install(session, VERSION)
+        logger.info('nothing to report')
+        check('a message without an exception is not reported', not reporter.ours())
+        try:
+            raise ValueError('boom')
+        except ValueError:
+            logger.exception('something failed')
+        check('the released entry point is what an error is reported under',
+              len(reporter.ours()) == 1 and reporter.ours()[0][0] == 'gui.mods.mod_unicum'
+              and reporter.ours()[0][2] is ValueError)
+        check('the report carries which logger failed and what it said',
+              reporter.ours()[0][3]['logger'] == 'unicum.checks.reporting'
+              and reporter.ours()[0][3]['message'] == 'something failed')
+
+        del sys.modules['gui.mods.mod_unicum']
+        sys.modules['gui.mods.mod_unicum_dev'] = type(sys)('gui.mods.mod_unicum_dev')
+        try:
+            raise ValueError('again')
+        except ValueError:
+            logger.exception('failed again')
+        check('the development bootstrap is reported under its own name',
+              reporter.ours()[-1][0] == 'gui.mods.mod_unicum_dev')
+
+        del sys.modules['gui.mods.mod_error_reporter']
+        before = len(reporter.ours())
+        try:
+            raise ValueError('nobody listening')
+        except ValueError:
+            logger.exception('failed with no reporter installed')
+        check('without a reporter installed, nothing is sent', len(reporter.ours()) == before)
+
+        session.close()
+        sys.modules['gui.mods.mod_error_reporter'] = reporter
+        try:
+            raise ValueError('after the session')
+        except ValueError:
+            logger.exception('failed after the session closed')
+        check('a closed session reports nothing more', len(reporter.ours()) == before)
+    finally:
+        session.close()
+        for name in ('gui.mods.mod_error_reporter', 'gui.mods.mod_unicum', 'gui.mods.mod_unicum_dev'):
+            sys.modules.pop(name, None)
