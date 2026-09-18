@@ -10,7 +10,8 @@
 // to unsubscribe and every reload would stack one more callback. What the
 // player does goes back through the model's onItemClick: twitchSend,
 // twitchConnect, twitchCollapse, twitchMove ("left,top" in rem, or "" for the
-// panel's own place under the mission widgets).
+// panel's own place under the mission widgets) and twitchResize
+// ("width,height" in rem, or "" for the stylesheet's size).
 //
 // Gameface: a plain focused <input type="text"> is what the game's own chats
 // use, and the hangar's hotkeys skip themselves while one has focus. Images
@@ -22,7 +23,7 @@ const { model, report } = api;
 const PANEL_ICONS = __PANEL_ICONS__;
 
 const state = {
-    alive: true, json: null, data: null, stuckToBottom: true, drag: null,
+    alive: true, json: null, data: null, stuckToBottom: true, drag: null, resize: null,
     // The key code that types "a" on this keyboard, and the last key typed.
     selectAllKey: 65, lastKey: 0,
 };
@@ -100,10 +101,15 @@ connect.textContent = "Connect to write in your chat";
 footer.appendChild(input);
 footer.appendChild(connect);
 
+// Bottom right, as every resizable window in the game: drag to size the panel.
+const grip = document.createElement("div");
+grip.className = "UnicumTwitchPanel_grip";
+
 root.appendChild(header);
 root.appendChild(cardConnect);
 root.appendChild(list);
 root.appendChild(footer);
+root.appendChild(grip);
 document.body.appendChild(root);
 
 function send(item, text) {
@@ -172,6 +178,56 @@ function onDragEnd(event) {
     }
 }
 
+function onGripMouseDown(event) {
+    if (event.button !== undefined && event.button !== 0) {
+        return;
+    }
+    event.stopPropagation();
+    const rect = root.getBoundingClientRect();
+    state.resize = { x: event.clientX, y: event.clientY,
+                     width: toRem(rect.width), height: toRem(rect.height),
+                     left: rect.left, top: rect.top };
+    document.addEventListener("mousemove", onResizeMove);
+    document.addEventListener("mouseup", onResizeEnd);
+}
+
+function onResizeMove(event) {
+    const resize = state.resize;
+    if (!resize) {
+        return;
+    }
+    event.stopPropagation();
+    // Never past the screen: the panel is dragged by a corner that would
+    // otherwise end up somewhere the player cannot reach it again.
+    const room = { width: toRem(window.innerWidth - resize.left), height: toRem(window.innerHeight - resize.top) };
+    const width = Math.round(Math.min(Math.max(resize.width + toRem(event.clientX - resize.x), MIN_WIDTH),
+                                      Math.min(MAX_WIDTH, room.width)));
+    const height = Math.round(Math.min(Math.max(resize.height + toRem(event.clientY - resize.y), MIN_HEIGHT),
+                                       Math.min(MAX_HEIGHT, room.height)));
+    resize.wanted = [width, height];
+    size(resize.wanted);
+    if (state.stuckToBottom) {
+        list.scrollTop = Math.max(0, lines.offsetHeight - list.clientHeight);
+    }
+}
+
+function onResizeEnd(event) {
+    const resize = state.resize;
+    state.resize = null;
+    document.removeEventListener("mousemove", onResizeMove);
+    document.removeEventListener("mouseup", onResizeEnd);
+    if (!resize) {
+        return;
+    }
+    event.stopPropagation();
+    if (resize.wanted) {
+        if (state.data) {
+            state.data.size = resize.wanted;
+        }
+        send("twitchResize", `${resize.wanted[0]},${resize.wanted[1]}`);
+    }
+}
+
 // Learns the layout: the key last pressed, and the letter it put in the field.
 function onInput() {
     const at = input.selectionStart;
@@ -189,9 +245,11 @@ function onResetClick(event) {
     event.stopPropagation();
     if (state.data) {
         state.data.position = null;
+        state.data.size = null;
         renderFrame(state.data);
     }
     send("twitchMove", "");
+    send("twitchResize", "");
 }
 
 // Turns the panel off in the settings; the settings window turns it back on.
@@ -203,6 +261,33 @@ function onCloseClick(event) {
 
 // The gap the hangar leaves between two mission cards.
 const CARD_GAP = 8;
+// The panel's parts, in rem, as the stylesheet draws them: the list is what is
+// left of the panel once the header, the footer and the two borders are taken.
+const HEADER_HEIGHT = 34;
+const FOOTER_HEIGHT = 40;
+const BORDERS = 2;
+const LIST_PADDING = 12;
+// Small enough to tuck away, large enough for a name and a line of chat. The
+// same bounds as the settings' (src/unicum/settings.py), which has the last word.
+const MIN_WIDTH = 220;
+const MIN_HEIGHT = 120;
+const MAX_WIDTH = 1600;
+const MAX_HEIGHT = 1200;
+// The stylesheet's own size, which the panel keeps until the player drags it.
+const DEFAULT_WIDTH = 322;
+const DEFAULT_HEIGHT = 220;
+
+// The panel at the size the player dragged it to, or the stylesheet's.
+function size(wanted) {
+    const collapsed = root.classList.contains("UnicumTwitchPanel__collapsed");
+    const compact = root.classList.contains("UnicumTwitchPanel__compact");
+    root.style.width = wanted ? `${wanted[0]}rem` : "";
+    // Folded or without a chat, the height is the class's; the width is kept.
+    root.style.height = wanted && !collapsed && !compact ? `${wanted[1]}rem` : "";
+    const height = wanted ? wanted[1] - HEADER_HEIGHT - FOOTER_HEIGHT - BORDERS : 0;
+    list.style.height = height > 0 ? `${height}rem` : "";
+    empty.style.height = height > 0 ? `${height - LIST_PADDING}rem` : "";
+}
 
 // Where the player put the panel, or its own place: right under the account
 // card when it is on screen (its height changes with the link), else the
@@ -283,6 +368,7 @@ reset.addEventListener("mousedown", onResetMouseDown);
 reset.addEventListener("click", onResetClick);
 close.addEventListener("mousedown", onResetMouseDown);
 close.addEventListener("click", onCloseClick);
+grip.addEventListener("mousedown", onGripMouseDown);
 connect.addEventListener("click", onConnectClick);
 cardConnect.addEventListener("mousedown", onResetMouseDown);
 cardConnect.addEventListener("click", onConnectClick);
@@ -323,10 +409,14 @@ function renderFrame(data) {
     root.className = "UnicumTwitchPanel" + (compact ? " UnicumTwitchPanel__compact" : "") +
         (data.collapsed && !compact ? " UnicumTwitchPanel__collapsed" : "") +
         (state.drag && state.drag.moved ? " UnicumTwitchPanel__dragging" : "");
+    if (!state.resize) {
+        size(data.size);
+    }
     if (!state.drag) {
         place(data.position);
     }
-    reset.style.display = data.position ? "" : "none";
+    // The arrow puts the panel back where and as the stylesheet has it.
+    reset.style.display = data.position || data.size ? "" : "none";
     logo.style.backgroundImage = data.icon ? `url(${data.icon})` : "";
     title.textContent = data.channel ? `Twitch · ${data.channel}` : "Twitch";
     toggle.style.backgroundImage = `url(${data.collapsed ? PANEL_ICONS.expand : PANEL_ICONS.collapse})`;
@@ -395,8 +485,11 @@ return {
         reset.removeEventListener("click", onResetClick);
         close.removeEventListener("mousedown", onResetMouseDown);
         close.removeEventListener("click", onCloseClick);
+        grip.removeEventListener("mousedown", onGripMouseDown);
         document.removeEventListener("mousemove", onDragMove);
         document.removeEventListener("mouseup", onDragEnd);
+        document.removeEventListener("mousemove", onResizeMove);
+        document.removeEventListener("mouseup", onResizeEnd);
         connect.removeEventListener("click", onConnectClick);
         cardConnect.removeEventListener("mousedown", onResetMouseDown);
         cardConnect.removeEventListener("click", onConnectClick);

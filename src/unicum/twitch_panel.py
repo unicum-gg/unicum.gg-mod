@@ -13,8 +13,9 @@ script the chat as it stands, as JSON in the loader model's `twitch` string:
 and acts on what the panel sends back through the model's onItemClick
 command: twitchSend (a message typed in the panel, sent like the battle
 chat's TO TWITCH), twitchConnect (links the game, see game_link.py),
-twitchCollapse, twitchMove (dragged, or back to its place) and twitchClose
-(turns the panel off, as the settings window's checkbox does).
+twitchCollapse, twitchMove (dragged, or back to its place), twitchResize
+(dragged by its corner, or back to its size) and twitchClose (turns the panel
+off, as the settings window's checkbox does).
 """
 import json
 import logging
@@ -45,6 +46,7 @@ def state(settings, chat, link, icon=None):
         'shown': settings.shows_twitch_in_garage(),
         'collapsed': settings['twitch']['garageCollapsed'],
         'position': settings['twitch']['garagePosition'],
+        'size': settings['twitch']['garageSize'],
         'channel': channel,
         # Told apart in the panel's empty chat: joining, or joined and quiet.
         'joined': chat.joined,
@@ -124,6 +126,8 @@ class TwitchPanel(object):
             _closed_notice()
         elif item == 'twitchMove':
             self._settings.update({'twitch': {'garagePosition': parse_position(args.get('text'))}})
+        elif item == 'twitchResize':
+            self._settings.update({'twitch': {'garageSize': parse_size(args.get('text'))}})
 
 
 def _closed_notice():
@@ -142,6 +146,20 @@ def parse_position(text):
     except (AttributeError, ValueError):
         return None
     return [max(0, left), max(0, top)]
+
+
+def parse_size(text):
+    """[width, height] from the panel's "width,height" in rem; None (its own size) otherwise.
+
+    The bounds are the settings' own (settings.panel_size), so a size typed
+    into settings.json and one dragged in the garage answer to the same limits.
+    """
+    from unicum.settings import panel_size
+    try:
+        width, height = [int(round(float(part))) for part in text.split(',')]
+    except (AttributeError, ValueError):
+        return None
+    return panel_size([width, height])
 
 
 def install(session, settings, chat, link, sender):

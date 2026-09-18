@@ -74,7 +74,7 @@ DEFAULTS = dict({
     # Battle ratings shown only while the extended info key (Alt) is held.
     'altOnly': {'markers': False, 'panel': False, 'tab': False, 'loading': False, 'results': False},
     'twitch': {'channel': '', 'battleChat': True, 'garage': True, 'garageCollapsed': False,
-               'garagePosition': None},
+               'garagePosition': None, 'garageSize': None},
     'modes': dict((mode, {'allies': True, 'enemies': True}) for mode in MODES),
 }, **dict((surface, _surface(surface)) for surface in SURFACES))
 
@@ -103,7 +103,8 @@ def validate(raw):
                         'garage': _bool(twitch.get('garage'), DEFAULTS['twitch']['garage']),
                         'garageCollapsed': _bool(twitch.get('garageCollapsed'),
                                                  DEFAULTS['twitch']['garageCollapsed']),
-                        'garagePosition': _position(twitch.get('garagePosition'))}
+                        'garagePosition': _position(twitch.get('garagePosition')),
+                        'garageSize': panel_size(twitch.get('garageSize'))}
     modes = raw.get('modes') if isinstance(raw.get('modes'), dict) else {}
     values['modes'] = {}
     for mode in MODES:
@@ -169,6 +170,21 @@ def _position(value):
     if (isinstance(value, list) and len(value) == 2
             and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in value)):
         return [max(0, min(10000, int(v))) for v in value]
+    return None
+
+
+# What the panel can be dragged to, in rem: wide enough for a name and a line
+# of chat, and never larger than a big screen, whatever a hand-edited file says.
+MIN_PANEL = (220, 120)
+MAX_PANEL = (1600, 1200)
+
+
+def panel_size(value):
+    """[width, height] in rem the player resized the garage panel to, or None for its own."""
+    if (isinstance(value, list) and len(value) == 2
+            and all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in value)):
+        return [max(low, min(high, int(v)))
+                for v, low, high in zip(value, MIN_PANEL, MAX_PANEL)]
     return None
 
 

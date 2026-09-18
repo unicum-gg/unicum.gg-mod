@@ -168,6 +168,33 @@
     padding: 6rem 10rem;
 }
 
+/* The corner that resizes the panel: two short rules, as the game's own
+   resizable windows draw theirs. Hidden folded or without a chat, where the
+   panel has no size of its own to speak of. */
+.UnicumTwitchPanel_grip {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 14rem;
+    height: 14rem;
+    /* The client draws the cursor itself and knows nothing of the resize ones:
+       its whole interface uses only pointer, default, auto, initial, grab,
+       grabbing, text, all-scroll, move, inherit and none. move is the closest
+       to "drag this corner"; anything else falls back to the plain arrow. */
+    cursor: move;
+    /* Stops written one by one: the two-position shorthand is newer than what
+       Gameface parses. */
+    background-image: linear-gradient(135deg,
+        rgba(255, 255, 255, 0) 55%, rgba(255, 255, 255, 0.3) 55%, rgba(255, 255, 255, 0.3) 66%,
+        rgba(255, 255, 255, 0) 66%, rgba(255, 255, 255, 0) 77%, rgba(255, 255, 255, 0.3) 77%,
+        rgba(255, 255, 255, 0.3) 88%, rgba(255, 255, 255, 0) 88%);
+}
+
+.UnicumTwitchPanel__collapsed .UnicumTwitchPanel_grip,
+.UnicumTwitchPanel__compact .UnicumTwitchPanel_grip {
+    display: none;
+}
+
 /* The empty chat, centred in the list: the list's 144 less its padding. */
 .UnicumTwitchPanel_empty {
     display: flex;

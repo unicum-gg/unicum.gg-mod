@@ -206,7 +206,7 @@ def check_twitch_panel():
 
     class Settings(object):
         def __getitem__(self, key):
-            return {'garageCollapsed': True, 'garagePosition': None}
+            return {'garageCollapsed': True, 'garagePosition': None, 'garageSize': [400, 300]}
 
         def shows_twitch_in_garage(self):
             return True
@@ -229,6 +229,7 @@ def check_twitch_panel():
           and not data['messages'][0]['own'] and data['messages'][1]['own']
           and data['collapsed'] and not data['linked'] and data['channel'] == 'license__')
     check('the panel is told whether the chat is joined', data['joined'])
+    check('the panel is told how large the player made it', data['size'] == [400, 300])
 
 
 def check_panel_position():
@@ -241,6 +242,20 @@ def check_panel_position():
     check('the panel position survives the settings file, and a bad one is dropped',
           validate({'twitch': {'garagePosition': [40, 50]}})['twitch']['garagePosition'] == [40, 50]
           and validate({'twitch': {'garagePosition': 'left'}})['twitch']['garagePosition'] is None)
+
+
+def check_panel_size():
+    from unicum.settings import MAX_PANEL, MIN_PANEL, validate
+    from unicum.twitch_panel import parse_size
+
+    check('a panel dragged by its corner is read in rem, and anything else puts its size back',
+          parse_size('400.6,301') == [401, 301] and parse_size('') is None
+          and parse_size('wide,tall') is None and parse_size(None) is None)
+    check('a size is held between what a chat needs and what a screen holds',
+          parse_size('10,10') == list(MIN_PANEL) and parse_size('9000,9000') == list(MAX_PANEL))
+    check('the panel size survives the settings file, and a bad one is dropped',
+          validate({'twitch': {'garageSize': [400, 300]}})['twitch']['garageSize'] == [400, 300]
+          and validate({'twitch': {'garageSize': 'large'}})['twitch']['garageSize'] is None)
 
 
 def check_channel_label():
