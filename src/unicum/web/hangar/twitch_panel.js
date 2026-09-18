@@ -289,6 +289,47 @@ function size(wanted) {
     empty.style.height = height > 0 ? `${height - LIST_PADDING}rem` : "";
 }
 
+// How far down the hangar's widget column goes: the tank carousel's top edge,
+// the page's bottom where a screen has no carousel. The mission cards and the
+// account card stop well short of it, but the panel hangs under them and, with
+// the account card's Connect adding a row, it ended up flush against the
+// carousel.
+function floorOf() {
+    const carousel = document.querySelector('[class*="Page_carousel"]');
+    if (carousel) {
+        const rect = carousel.getBoundingClientRect();
+        if (rect.height > 0 && rect.top > 0) {
+            return rect.top;
+        }
+    }
+    const page = document.querySelector('[class*="HangarScreen_hangarPage"]');
+    if (page) {
+        const rect = page.getBoundingClientRect();
+        if (rect.bottom > 0) {
+            return rect.bottom;
+        }
+    }
+    return window.innerHeight;
+}
+
+// The panel shortened to what is left above that floor, when what it is asking
+// for does not fit. Shorter beats hidden behind the carousel; the player's own
+// size is left in the settings, so a screen with room enough shows it again.
+function fit() {
+    if (root.classList.contains("UnicumTwitchPanel__collapsed")
+            || root.classList.contains("UnicumTwitchPanel__compact")) {
+        return;
+    }
+    const wanted = state.data && state.data.size;
+    const room = Math.round(toRem(floorOf() - root.getBoundingClientRect().top)) - CARD_GAP;
+    const height = wanted ? wanted[1] : DEFAULT_HEIGHT;
+    if (room < height) {
+        size([wanted ? wanted[0] : DEFAULT_WIDTH, Math.max(MIN_HEIGHT, room)]);
+    } else {
+        size(wanted);
+    }
+}
+
 // Where the player put the panel, or its own place: right under the account
 // card when it is on screen (its height changes with the link), else the
 // stylesheet's.
@@ -304,6 +345,9 @@ function place(position) {
     const card = document.querySelector(".UnicumAccountCard");
     const rect = card && card.style.display !== "none" ? card.getBoundingClientRect() : null;
     root.style.top = rect && rect.height > 0 ? `${Math.round(toRem(rect.bottom)) + CARD_GAP}rem` : "";
+    if (!state.resize) {
+        fit();
+    }
 }
 
 function onConnectClick(event) {
