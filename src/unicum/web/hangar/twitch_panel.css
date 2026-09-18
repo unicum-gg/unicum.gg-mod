@@ -1,3 +1,16 @@
+/* While the panel is being dragged or resized the pointer travels over the
+   hangar's own elements, each of which sets its own cursor: without this the
+   cursor flickers between ours and theirs all the way. Setting it on the body
+   alone is not enough -- an element's own rule wins over an inherited one --
+   so it is forced on everything for as long as the drag lasts. */
+body.UnicumPanelDragging, body.UnicumPanelDragging * {
+    cursor: grabbing !important;
+}
+
+body.UnicumPanelResizing, body.UnicumPanelResizing * {
+    cursor: move !important;
+}
+
 /* The garage's Twitch chat panel (twitch_panel.js). Sizes in rem, which the
    hangar scales with the interface. On the right, under the hangar's mission
    widgets and the unicum.gg account card, and drawn like them: a dark

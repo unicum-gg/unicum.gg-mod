@@ -146,9 +146,9 @@ function onDragMove(event) {
     if (!drag.moved) {
         drag.moved = true;
         root.classList.add("UnicumTwitchPanel__dragging");
-        // On the page too, or the cursor changes back as soon as it leaves the header.
-        drag.cursor = document.body.style.cursor;
-        document.body.style.cursor = "grabbing";
+        // On the whole page too: the pointer leaves the header at once, and
+        // every element it crosses would otherwise put its own cursor back.
+        document.body.classList.add("UnicumPanelDragging");
     }
     const rect = root.getBoundingClientRect();
     const left = Math.min(Math.max(0, drag.left + dx), Math.max(0, window.innerWidth - rect.width));
@@ -168,7 +168,7 @@ function onDragEnd(event) {
     event.stopPropagation();
     if (drag.moved) {
         root.classList.remove("UnicumTwitchPanel__dragging");
-        document.body.style.cursor = drag.cursor || "";
+        document.body.classList.remove("UnicumPanelDragging");
         const rect = root.getBoundingClientRect();
         send("twitchMove", `${Math.round(toRem(rect.left))},${Math.round(toRem(rect.top))}`);
     } else if (state.data) {
@@ -187,6 +187,7 @@ function onGripMouseDown(event) {
     state.resize = { x: event.clientX, y: event.clientY,
                      width: toRem(rect.width), height: toRem(rect.height),
                      left: rect.left, top: rect.top };
+    document.body.classList.add("UnicumPanelResizing");
     document.addEventListener("mousemove", onResizeMove);
     document.addEventListener("mouseup", onResizeEnd);
 }
@@ -214,6 +215,7 @@ function onResizeMove(event) {
 function onResizeEnd(event) {
     const resize = state.resize;
     state.resize = null;
+    document.body.classList.remove("UnicumPanelResizing");
     document.removeEventListener("mousemove", onResizeMove);
     document.removeEventListener("mouseup", onResizeEnd);
     if (!resize) {
@@ -520,9 +522,9 @@ return {
     stop() {
         state.alive = false;
         clearInterval(timer);
-        if (state.drag && state.drag.moved) {
-            document.body.style.cursor = state.drag.cursor || "";
-        }
+        // A reload mid-drag must not leave the page stuck on a drag cursor.
+        document.body.classList.remove("UnicumPanelDragging");
+        document.body.classList.remove("UnicumPanelResizing");
         input.removeEventListener("input", onInput);
         header.removeEventListener("mousedown", onHeaderMouseDown);
         reset.removeEventListener("mousedown", onResetMouseDown);
