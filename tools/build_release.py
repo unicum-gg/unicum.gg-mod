@@ -57,7 +57,7 @@ DIST = REPO / 'dist'
 MOD_ID = 'gg.unicum'
 
 # The client the package is built for: its mods/ folder in the zip.
-GAME_VERSION = '2.4.0.0'
+GAME_VERSION = '2.4.0.1'
 GAMEFACE = REPO / 'vendor' / 'openwg'
 NAME = 'unicum.gg'
 DESCRIPTION = ('Player ratings and language flags across the game, the unicum.gg tank menu in the '
