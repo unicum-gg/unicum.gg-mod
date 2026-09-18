@@ -6,6 +6,9 @@ class FakeBigWorld(object):
 
     def __init__(self):
         self.pending = {}
+        # Handles of the responses this class queues itself (fetchURL), which
+        # are the client's delivery rather than anything the mod scheduled.
+        self.deliveries = set()
         self.fetched = []
         self._next = 1
 
@@ -42,13 +45,20 @@ class FakeBigWorld(object):
             response = FakeResponse(raw.getcode(), raw.read())
         except Exception as error:
             response = FakeResponse(getattr(error, 'code', 0), '')
-        self.callback(0.0, lambda: callback(response))
+        self.deliveries.add(self.callback(0.0, lambda: callback(response)))
 
     def run_pending(self):
         """Fire everything queued right now, once."""
         due, self.pending = self.pending, {}
-        for _, func in sorted(due.items()):
+        for handle, func in sorted(due.items()):
+            self.deliveries.discard(handle)
             func()
+
+    @property
+    def scheduled(self):
+        """What the mod has queued: a response still on its way is the client's."""
+        return dict((handle, func) for handle, func in self.pending.items()
+                    if handle not in self.deliveries)
 
 
 class FakeResponse(object):
