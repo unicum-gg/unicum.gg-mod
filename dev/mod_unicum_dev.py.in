@@ -152,7 +152,7 @@ def _tick():
             _signature = signature
             _reload()
     except Exception:
-        _logger.error('watcher tick failed:\n%s', traceback.format_exc())
+        _logger.exception('watcher tick failed')
     _tick_handle = BigWorld.callback(POLL_SECONDS, _tick)
 
 
@@ -203,8 +203,9 @@ def _load():
         # A syntax error in a half-written file is the common case here.
         # Swallowing it keeps the watcher alive so the next save can fix it,
         # rather than costing a client restart over a typo.
-        _logger.error('load failed at generation %s:\n%s',
-                      _generation, traceback.format_exc())
+        # exception(), not error(): the record carries the exception itself,
+        # which is what an error reporter reads (src/unicum/reporting.py).
+        _logger.exception('load failed at generation %s', _generation)
 
 
 def _unload():
@@ -216,7 +217,7 @@ def _unload():
     except Exception:
         # Reported but not re-raised: a session that fails to tear down
         # cleanly must still not block the next load.
-        _logger.error('stop failed:\n%s', traceback.format_exc())
+        _logger.exception('stop failed')
     finally:
         _loaded = None
 
