@@ -138,8 +138,9 @@ function paint(button) {
     button.classList.toggle(CLASSES.MenuButton_base__opened, opened);
     const icon = button.querySelector(`.${CLASSES.MenuButton_icon}`);
     icon.style.backgroundImage = `url(img://gui/maps/icons/unicum/tankButton/${state.size}.png)`;
-    // Our image fills its square where the game's leave a margin around the glyph.
-    icon.style.backgroundSize = "62%";
+    // Our image fills its square where the game's leave a margin around the
+    // glyph; at 58% the mark, wider than most, weighs as much as its neighbours.
+    icon.style.backgroundSize = "58%";
     const enabled = !model.model || model.model.enabled !== false;
     button.style.display = enabled ? "" : "none";
     if (!enabled) {

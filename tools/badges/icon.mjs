@@ -6,7 +6,8 @@
  *                                         draws every icon at that size
  *   build/icon/tankButton/small.png       56x56  \
  *   build/icon/tankButton/large.png       64x64   } the hangar button, in the
- *   build/icon/tankButton/upscale.png    128x128 /  sizes the hangar's own use
+ *   build/icon/tankButton/upscale.png    128x128 /  sizes the hangar's own use,
+ *                                         in its glyphs' silver (metalMark)
  *   build/icon/twitch.png                 14x14, before Twitch messages in the
  *                                         battle chat (assets/brands/twitch.svg)
  *
@@ -25,20 +26,60 @@ const SOURCE = join(REPO, 'assets', 'icon.svg')
 const OUTPUT = join(REPO, 'build', 'icon')
 
 const ICONS = [
-  ['unicum.png', 50],
-  ['tankButton/small.png', 56],
-  ['tankButton/large.png', 64],
-  ['tankButton/upscale.png', 128],
+  ['unicum.png', 50, SOURCE],
+  ['tankButton/small.png', 56, metalMark()],
+  ['tankButton/large.png', 64, metalMark()],
+  ['tankButton/upscale.png', 128, metalMark()],
 ]
 
-for (const [name, size] of ICONS) {
+for (const [name, size, source] of ICONS) {
   const file = join(OUTPUT, name)
   mkdirSync(dirname(file), { recursive: true })
-  await sharp(SOURCE, { density: 600 })
+  const image = await sharp(source, { density: 600 })
     .resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .png()
-    .toFile(file)
+    .toBuffer()
+  await sharp(source === SOURCE ? image : await brushed(image, size)).toFile(file)
   console.log(`wrote ${file}`)
+}
+
+/** The grain of the hangar's metal glyphs: faint noise, kept within the glyph. */
+async function brushed(image, size) {
+  const noise = await sharp({
+    create: { width: size, height: size, channels: 3, noise: { type: 'gaussian', mean: 128, sigma: 40 } },
+  }).blur(0.4).ensureAlpha(0.35).png().toBuffer()
+  return sharp(image)
+    .composite([{ input: noise, blend: 'soft-light' }, { input: image, blend: 'dest-in' }])
+    .png()
+    .toBuffer()
+}
+
+/**
+ * The mark as the hangar's vehicle menu draws its own glyphs
+ * (gui/maps/icons/hangar/vehicleMenu/<size>/*.png): brushed silver, lighter
+ * at the top (about #D2D2D4) than at the bottom (#A1A3A6), with a thin dark
+ * rim and its details cut in dark. Its colours are measured on the crew,
+ * vehicle and customization icons. The outline is the mark's own outer edge;
+ * the rim between it and the face, and the face's details, are drawn dark.
+ */
+function metalMark() {
+  const svg = readFileSync(SOURCE, 'utf8')
+  const outer = svg.match(/<path d="M316\.11[^"]*?z(M8\.304[^"]*?z)"/)[1]
+  const face = svg.match(/<path d="(M316 56[^"]*)" fill="#fff"\/>/)[1]
+  const details = svg.match(/<g fill="#f25322">([\s\S]*?)<\/g>/)[1]
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="-40 -40 1184.586 1591.305">
+  <defs>
+    <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#DCDCDE"/>
+      <stop offset="0.45" stop-color="#C6C6C7"/>
+      <stop offset="0.7" stop-color="#BBBBBC"/>
+      <stop offset="1" stop-color="#9FA1A4"/>
+    </linearGradient>
+  </defs>
+  <path d="${outer}" fill="url(#metal)" stroke="#141517" stroke-opacity="0.85" stroke-width="44" stroke-linejoin="round" paint-order="stroke"/>
+  <path d="${face}" fill="none" stroke="#1B1C1E" stroke-opacity="0.9" stroke-width="22" stroke-linejoin="round"/>
+  <g fill="#1B1C1E" fill-opacity="0.92">${details}</g>
+</svg>`)
 }
 
 // The garage Twitch panel's own icons, drawn edge to edge in the hangar's own off-white (#EEEDE9, the colour of its text and icons)
