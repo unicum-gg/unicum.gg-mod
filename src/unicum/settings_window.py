@@ -91,6 +91,7 @@ CARD_VAR = 'accountCard'
 # Labels the garage's notices send the player looking for, so a notice and the
 # window cannot name the same box differently. The Twitch panel's notice once
 # pointed at "Twitch chat in the garage", a box that never existed.
+CARD_LABEL = 'unicum.gg account card'
 GARAGE_CHAT_LABEL = 'Chat panel in the garage'
 
 
@@ -163,8 +164,8 @@ def template(values, channel=u'', linked=False, card_shown=True):
                  tooltip='{HEADER}Tank menu button{/HEADER}{BODY}A unicum.gg button beside the vehicle menu, '
                          'with links for the selected tank: its unicum.gg tabs, AI assistants and its '
                          'build.{/BODY}'),
-        checkbox('unicum.gg account card', CARD_VAR,
-                 tooltip='{HEADER}unicum.gg account card{/HEADER}{BODY}The card under the mission cards that '
+        checkbox(CARD_LABEL, CARD_VAR,
+                 tooltip='{HEADER}' + CARD_LABEL + '{/HEADER}{BODY}The card under the mission cards that '
                          'links this game to your unicum.gg account, or says which one it is linked to. Its '
                          'cross hides it for the account logged in; tick this to bring it back.{/BODY}'),
         templates.createEmpty(_SPACER),

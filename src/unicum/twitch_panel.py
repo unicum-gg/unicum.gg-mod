@@ -113,6 +113,7 @@ class TwitchPanel(object):
             mods_list.open_settings()
         elif item == 'accountHide':
             self._link.hide_card()
+            _card_hidden_notice()
         elif item == 'accountConnect':
             from unicum.settings_window import _linked_notice
             self._link.connect(_linked_notice, twitch=False)
@@ -142,6 +143,13 @@ def _closed_notice():
     _notice(u'unicum.gg: the Twitch chat panel is off. Turn it back on with "%s" in the unicum.gg '
             u'settings.' % GARAGE_CHAT_LABEL)
 
+
+def _card_hidden_notice():
+    """Where the card went, as the Twitch panel says where it went: closing
+    something with no word on how to get it back reads as losing it."""
+    from unicum.settings_window import CARD_LABEL
+    _notice(u'unicum.gg: the account card is hidden. Bring it back with "%s" in the unicum.gg '
+            u'settings.' % CARD_LABEL)
 
 
 def parse_position(text):
