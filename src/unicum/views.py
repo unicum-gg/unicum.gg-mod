@@ -88,8 +88,17 @@ class SwfView(object):
                                    w.windowStatus not in _GONE)
 
     def loaded(self):
-        """Loaded into its app right now."""
+        """Loaded into its app right now, or on the way."""
         return bool(self.windows())
+
+    def ready(self):
+        """Loaded and running: its code is there to act on what it is sent.
+
+        A view still loading counts as loaded, not as ready. The battle one
+        can take seconds on a busy loading screen, and markup sent to its
+        fields meanwhile showed as written.
+        """
+        return any(window.windowStatus == WindowStatus.LOADED for window in self.windows())
 
     def register(self):
         if not ResMgr.isFile(self.res_path):
@@ -167,8 +176,8 @@ def battle_view():
 
 
 def html_team_names():
-    """Whether this battle's team names render markup: its view is loaded."""
-    return BATTLE.available() and BATTLE.loaded()
+    """Whether this battle's team names render markup: its view is running."""
+    return BATTLE.available() and BATTLE.ready()
 
 
 _WATCH_SECONDS = 1.0
