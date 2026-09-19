@@ -22,8 +22,8 @@ The .wotmod holds:
                                                there (src/unicum/resources.py)
   res/gui/flash/*.swf                          the AS3 views and the patched markers app
   res/gui/maps/icons/unicum/...                flags, the mod's icons
-  res/gui/gameface/..., res/mods/configs/...   res/ as it is: the hangar button's
-                                               Gameface module and its res_map entry
+  res/gui/gameface/..., res/mods/configs/...   res/ as it is: the Gameface modules (the hangar
+                                               button, the Twitch window) and their res_map entries
 
 Build its inputs first, as for development:
 

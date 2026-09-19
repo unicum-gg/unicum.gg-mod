@@ -11,7 +11,7 @@ is nothing more than stop() followed by a fresh start().
 import logging
 
 from unicum import (auto_reload, battle, battle_results, browser, config, lobby, mods_list, reporting, room_sort,
-                    settings_window, tank_button, twitch, twitch_panel, twitch_send, views)
+                    settings_window, tank_button, twitch, twitch_panel, twitch_send, twitch_window, views)
 from unicum.badges import Badges
 from unicum.game_link import GameLink
 from unicum.api.resolve import Lookup
@@ -64,6 +64,7 @@ def start(generation=0):
         window.follow_twitch(chat)
         sender = twitch_send.install(_session, link, chat)
         twitch_panel.install(_session, settings, chat, link, sender)
+        twitch_window.install(_session, settings, chat, link)
     except Exception:
         # A feature that fails halfway leaves the ones before it installed.
         # Without this the session is orphaned: the loader sees start() fail

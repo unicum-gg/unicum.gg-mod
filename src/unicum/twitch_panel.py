@@ -17,6 +17,7 @@ twitchCollapse, twitchMove (dragged, or back to its place), twitchResize
 (dragged by its corner, or back to its size) and twitchClose (turns the panel
 off, as the settings window's checkbox does).
 """
+import collections
 import json
 import logging
 import weakref
@@ -44,6 +45,9 @@ def state(settings, chat, link, icon=None):
         })
     return {
         'shown': settings.shows_twitch_in_garage(),
+        # The Twitch window lies over the panel, drawn the same: the panel
+        # steps aside rather than darken it with a second veil.
+        'covered': _covered,
         'collapsed': settings['twitch']['garageCollapsed'],
         'position': settings['twitch']['garagePosition'],
         'size': settings['twitch']['garageSize'],
@@ -102,6 +106,12 @@ class TwitchPanel(object):
         # Answer the panel now rather than on the next tick.
         self._publish()
 
+    def publish_now(self):
+        try:
+            self._publish()
+        except Exception:
+            _logger.exception('could not update the Twitch panel')
+
     def _act(self, args):
         item = args.get('item')
         if item == 'twitchSend':
@@ -129,6 +139,12 @@ class TwitchPanel(object):
             self._settings.update({'twitch': {'garagePosition': parse_position(args.get('text'))}})
         elif item == 'twitchResize':
             self._settings.update({'twitch': {'garageSize': parse_size(args.get('text'))}})
+        elif item == 'twitchRect':
+            global _rect, _reports
+            _rect = parse_rect(args.get('text')) or _rect
+            _reports += 1
+            if _report_hook is not None:
+                _report_hook()
 
 
 def _notice(text):
@@ -159,6 +175,75 @@ def parse_position(text):
     except (AttributeError, ValueError):
         return None
     return [max(0, left), max(0, top)]
+
+
+# Where the garage panel last was: a PanelRect, or None until it has said.
+# The battle queue screen, which replaces the hangar, opens the Twitch window
+# at the same place and size (twitch_window.py).
+_rect = None
+
+# How many reports the garage panel has sent: a new one is the sign a garage
+# panel is on screen, which the first report of a new hangar's panel is.
+_reports = 0
+
+# Called on every report, for the Twitch window to hand the screen back at once.
+_report_hook = None
+
+# Whether the Twitch window covers the panel (twitch_window.py).
+_covered = False
+
+PanelRect = collections.namedtuple('PanelRect', 'left top width height screen_width screen_height folded '
+                                                'rem_width rem_height own_left own_top')
+
+
+def panel_rect():
+    """The garage panel's last place on screen, or None."""
+    return _rect
+
+
+def panel_reports():
+    """How many times the garage panel has said where it is."""
+    return _reports
+
+
+def set_report_hook(hook):
+    """Have `hook()` called whenever the garage panel says where it is, or no longer with None."""
+    global _report_hook
+    _report_hook = hook
+
+
+def set_covered(covered):
+    """Hide the garage panel under the Twitch window, or show it again, now."""
+    global _covered
+    if covered == _covered:
+        return
+    _covered = covered
+    if _panel is not None:
+        _panel.publish_now()
+
+
+def parse_rect(text):
+    """A PanelRect from the panel's report, or None.
+
+    "left,top,width,height,screen width,screen height,folded,width,height,
+    own left,own top": the panel's box and the page's size in the hangar's
+    pixels, whether it is folded, its size in rem, the height it has
+    unfolded, then where it goes without the player's place, in pixels.
+    """
+    try:
+        parts = [int(round(float(part))) for part in text.split(',')]
+    except (AttributeError, ValueError):
+        return None
+    if len(parts) != 11 or min(parts[2:6] + parts[7:9]) <= 0:
+        return None
+    return PanelRect(*(parts[:6] + [bool(parts[6])] + parts[7:]))
+
+
+def update_rect(**fields):
+    """The garage panel's last place, changed where the Twitch window moved or sized it."""
+    global _rect
+    if _rect is not None:
+        _rect = _rect._replace(**fields)
 
 
 def parse_size(text):

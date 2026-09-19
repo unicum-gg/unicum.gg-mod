@@ -202,6 +202,17 @@ def compose(parts):
     return u'\n'.join(body)
 
 
+def panel_sources():
+    """The files the Twitch panel is made of, to tell when it changed."""
+    return [_PANEL_SCRIPT, _PANEL_STYLE] + _pngs(_PANEL_ICONS)
+
+
+def panel_code():
+    """The Twitch panel alone, as a loader runs it: (script, style)."""
+    panel = _read(_PANEL_SCRIPT).replace(_PANEL_ICONS_MARK, json.dumps(_data_uris(_pngs(_PANEL_ICONS))))
+    return compose([('twitch panel', panel)]), _read(_PANEL_STYLE)
+
+
 def open_item(item):
     """What a menu entry does: its link for the selected tank, in the browser."""
     if not g_currentVehicle.isPresent():

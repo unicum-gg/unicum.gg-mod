@@ -13,12 +13,22 @@
 // panel's own place under the mission widgets) and twitchResize
 // ("width,height" in rem, or "" for the stylesheet's size).
 //
+// The same code runs in the unicum.gg Twitch window (api.windowed), which
+// stands in for the garage where the hangar is gone, on the battle queue
+// screen (src/unicum/twitch_window.py). There the window is the panel's
+// place: the panel sits in its corner at the size Python gives it, and
+// keeps quiet about where it is, which is the garage panel's to say. A press
+// on its header or its corner only tells Python (twitchWindowDrag,
+// twitchWindowResize), which moves or sizes the window itself as the mouse
+// goes: the page cannot follow a mouse that leaves it.
+//
 // Gameface: a plain focused <input type="text"> is what the game's own chats
 // use, and the hangar's hotkeys skip themselves while one has focus. Images
 // are sized divs with a background (an <img> ignores its size). Scrolling is
 // done by hand on an overflow: hidden list, as the game does.
 
 const { model, report } = api;
+const windowed = Boolean(api.windowed);
 // Replaced by Python with data URIs of web/hangar/panel_icons/*.png.
 const PANEL_ICONS = __PANEL_ICONS__;
 
@@ -127,6 +137,11 @@ function onHeaderMouseDown(event) {
         return;
     }
     event.stopPropagation();
+    if (windowed) {
+        // Python moves the window, or folds the panel for a click.
+        send("twitchWindowDrag");
+        return;
+    }
     const rect = root.getBoundingClientRect();
     state.drag = { x: event.clientX, y: event.clientY, left: rect.left, top: rect.top, moved: false };
     document.addEventListener("mousemove", onDragMove);
@@ -183,6 +198,10 @@ function onGripMouseDown(event) {
         return;
     }
     event.stopPropagation();
+    if (windowed) {
+        send("twitchWindowResize");
+        return;
+    }
     const rect = root.getBoundingClientRect();
     state.resize = { x: event.clientX, y: event.clientY,
                      width: toRem(rect.width), height: toRem(rect.height),
@@ -278,6 +297,9 @@ const MAX_HEIGHT = 1200;
 // The stylesheet's own size, which the panel keeps until the player drags it.
 const DEFAULT_WIDTH = 322;
 const DEFAULT_HEIGHT = 220;
+// And its own place: its right and top offsets.
+const OWN_RIGHT = 46;
+const OWN_TOP = 890;
 
 // The panel at the size the player dragged it to, or the stylesheet's.
 function size(wanted) {
@@ -336,6 +358,12 @@ function fit() {
 // card when it is on screen (its height changes with the link), else the
 // stylesheet's.
 function place(position) {
+    if (windowed) {
+        root.style.left = "0";
+        root.style.top = "0";
+        root.style.right = "auto";
+        return;
+    }
     if (position) {
         root.style.left = `${position[0]}rem`;
         root.style.top = `${position[1]}rem`;
@@ -449,11 +477,16 @@ function line(message) {
 // The panel's frame alone: shown, folded, where. What a click changes, drawn
 // at once rather than after the round trip through Python.
 function renderFrame(data) {
+    // Covered by the Twitch window, which draws the same panel on top: two
+    // veils would show darker than one (src/unicum/twitch_window.py).
     root.style.display = data.shown ? "" : "none";
+    // Hidden but laid out, so it still says where it is.
+    root.style.visibility = data.covered ? "hidden" : "";
     // No channel, no chat to show: a card with its Connect, as the account's.
     const compact = !data.channel;
     root.className = "UnicumTwitchPanel" + (compact ? " UnicumTwitchPanel__compact" : "") +
         (data.collapsed && !compact ? " UnicumTwitchPanel__collapsed" : "") +
+        (windowed ? " UnicumTwitchPanel__windowed" : "") +
         (state.drag && state.drag.moved ? " UnicumTwitchPanel__dragging" : "");
     if (!state.resize) {
         size(data.size);
@@ -462,7 +495,9 @@ function renderFrame(data) {
         place(data.position);
     }
     // The arrow puts the panel back where and as the stylesheet has it.
-    reset.style.display = data.position || data.size ? "" : "none";
+    // In the window, position and size are the window's: `moved` says
+    // whether the player's own are set.
+    reset.style.display = (windowed ? data.moved : data.position || data.size) ? "" : "none";
     logo.style.backgroundImage = data.icon ? `url(${data.icon})` : "";
     title.textContent = data.channel ? `Twitch · ${data.channel}` : "Twitch";
     toggle.style.backgroundImage = `url(${data.collapsed ? PANEL_ICONS.expand : PANEL_ICONS.collapse})`;
@@ -515,7 +550,57 @@ function poll() {
     }
 }
 
-const timer = setInterval(poll, 250);
+// Where the panel is on screen, in the hangar's pixels, and its size in rem,
+// its height unfolded even while it is folded, then where it would go
+// without the player's place, in pixels: the battle queue screen, which
+// replaces the hangar and this panel with it, opens the Twitch window at the
+// same place and size, and puts it back there when reset
+// (src/unicum/twitch_window.py). Sent when it changes, and again now and
+// then, since a reload of the mod forgets it.
+const RECT_RESEND = 20;
+let rectSent = "";
+let rectTicks = 0;
+let openHeight = 0;
+
+// The panel's own top left corner, in pixels, as place(null) and the
+// stylesheet put it: right under the account card when it shows, 46rem from
+// the right edge, at the stylesheet's width.
+function ownPlace(pxPerRem) {
+    const card = document.querySelector(".UnicumAccountCard");
+    const cardRect = card && card.style.display !== "none" ? card.getBoundingClientRect() : null;
+    const top = cardRect && cardRect.height > 0
+        ? (Math.round(toRem(cardRect.bottom)) + CARD_GAP) * pxPerRem
+        : OWN_TOP * pxPerRem;
+    return [window.innerWidth - (OWN_RIGHT + DEFAULT_WIDTH) * pxPerRem, top];
+}
+
+function reportRect() {
+    if (windowed || !state.data || root.style.display === "none") {
+        return;
+    }
+    const rect = root.getBoundingClientRect();
+    const folded = root.classList.contains("UnicumTwitchPanel__collapsed");
+    if (!folded) {
+        openHeight = toRem(rect.height);
+    }
+    const height = openHeight || (state.data.size ? state.data.size[1] : DEFAULT_HEIGHT);
+    const own = ownPlace(rect.width / Math.max(1, toRem(rect.width)));
+    const text = [rect.left, rect.top, rect.width, rect.height, window.innerWidth, window.innerHeight,
+                  folded ? 1 : 0, toRem(rect.width), height, own[0], own[1]]
+        .map((value) => Math.round(value)).join(",");
+    rectTicks += 1;
+    if (text === rectSent && rectTicks < RECT_RESEND) {
+        return;
+    }
+    rectSent = text;
+    rectTicks = 0;
+    send("twitchRect", text);
+}
+
+const timer = setInterval(() => {
+    poll();
+    reportRect();
+}, 250);
 poll();
 
 return {

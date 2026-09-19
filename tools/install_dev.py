@@ -201,7 +201,7 @@ def install_icons(game: Path, version: str) -> int:
 
 
 def install_res(game: Path, version: str) -> int:
-    """Copy res/ as it is: the hangar button's Gameface files and its res_map entry.
+    """Copy res/ as it is: the Gameface modules (the hangar button, the Twitch window) and their res_map entries.
 
     openwg_gameface merges res_map entries into the client's resource map at
     startup, and restarts the client once when that map changes.

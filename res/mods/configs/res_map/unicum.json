@@ -8,5 +8,15 @@
             "impl": "gameface"
         },
         "itemID": "UnicumTankButton"
+    },
+    {
+        "type": "Layout",
+        "path": "coui://gui/gameface/mods/unicum/TwitchWindow/TwitchWindow.html",
+        "parameters": {
+            "extension": "",
+            "entrance": "UnicumTwitchWindow",
+            "impl": "gameface"
+        },
+        "itemID": "UnicumTwitchWindow"
     }
 ]

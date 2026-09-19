@@ -382,3 +382,41 @@ def check_error_reporting():
         session.close()
         for name in ('gui.mods.mod_error_reporter', 'gui.mods.mod_unicum', 'gui.mods.mod_unicum_dev'):
             sys.modules.pop(name, None)
+
+
+def check_twitch_window():
+    """The Twitch window on the queue screen: the garage panel's state, place and size."""
+    from unicum.twitch_panel import PanelRect, parse_rect
+    from unicum.twitch_window import is_queue_route, parse_size, resized, window_place, window_state
+
+    rect = parse_rect('1500,600,322,220,1920,1080,0,322,220,1552,700')
+    check('the garage panel reports its box, the screen, the fold, its size in rem and its own place',
+          rect == PanelRect(1500, 600, 322, 220, 1920, 1080, False, 322, 220, 1552, 700))
+    check('a report of an older shape or with an empty box is left out',
+          parse_rect('1500,600,322,220,1920,1080,0,322,220') is None
+          and parse_rect('1,2,0,4,5,6,0,7,8,9,10') is None and parse_rect(None) is None)
+    state = window_state({'position': [10, 20], 'size': [400, 300], 'collapsed': True}, rect, 'fr')
+    check('the window holds the panel in its corner at the garage panel\'s size, folded as it is',
+          state == {'position': None, 'size': [322, 220], 'collapsed': True, 'lang': 'fr', 'covered': False,
+                    'moved': True})
+    check('the reset arrow shows only for a place or a size of the player\'s',
+          window_state({'position': None, 'size': None}, rect)['moved'] is False)
+    check('a resize keeps to the panel\'s bounds and to the room on screen',
+          resized((322, 220), (100, -500), (2000, 2000)) == (422, 120)
+          and resized((322, 220), (5000, 5000), (700, 900)) == (700, 900))
+    check('every battle queue opens the window, and nothing else does',
+          is_queue_route('subScope/subLayer/battleQueue/battleQueue')
+          and is_queue_route('subScope/subLayer/battleQueue/battleStrongholdsQueue')
+          and not is_queue_route('subScope/subLayer/hangar') and not is_queue_route('battleQueue')
+          and not is_queue_route('subScope/subLayer/comp7/hangar/{root}') and not is_queue_route(None))
+    check('before the garage panel has said, the window keeps the settings\' size',
+          window_state({'position': None, 'size': [400, 300]}, None)['size'] == [400, 300])
+    check('the window goes where the garage panel was, in the window system\'s units',
+          window_place(rect, (1280, 720), (215, 147)) == (1000, 400))
+    check('it stays on screen',
+          window_place(PanelRect(1900, 1000, 322, 220, 1920, 1080, False, 322, 220, 0, 0), (1920, 1080), (322, 220))
+          == (1598, 860))
+    check('without a report, the right of the screen, halfway down',
+          window_place(None, (1920, 1080), (322, 220)) == (1552, 430))
+    check('the page\'s size is read in pixels, and nothing else',
+          parse_size('322,220') == (322, 220) and parse_size('0,5') is None and parse_size('x') is None)

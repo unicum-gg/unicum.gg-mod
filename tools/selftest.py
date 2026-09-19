@@ -44,7 +44,7 @@ from checks.surfaces import (
     check_skirmish_room)
 from checks.settings import check_live_settings, check_res_mods_version, check_settings, check_settings_window
 from checks.tank_menu import check_tank_menu
-from checks.twitch import check_error_reporting, check_links_per_account, check_channel_label, check_echo_guard, check_panel_position, check_own_message, check_panel_size, check_twitch_panel, check_regions, check_twitch, check_twitch_badges, check_twitch_receiver, check_twitch_send
+from checks.twitch import check_error_reporting, check_links_per_account, check_channel_label, check_echo_guard, check_panel_position, check_own_message, check_panel_size, check_twitch_window, check_twitch_panel, check_regions, check_twitch, check_twitch_badges, check_twitch_receiver, check_twitch_send
 
 
 def main():
@@ -115,6 +115,7 @@ def main():
         check_echo_guard()
         check_own_message()
         check_twitch_panel()
+        check_twitch_window()
         check_error_reporting()
         check_panel_position()
         check_panel_size()
