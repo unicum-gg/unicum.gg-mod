@@ -130,13 +130,18 @@ class TwitchPanel(object):
             self._settings.update({'twitch': {'garageSize': parse_size(args.get('text'))}})
 
 
-def _closed_notice():
+def _notice(text):
     from gui import SystemMessages
     from gui.shared.notifications import NotificationPriorityLevel
-    SystemMessages.pushMessage(u'unicum.gg: the Twitch chat panel is off. Turn it back on with '
-                               u'"Twitch chat in the garage" in the unicum.gg settings.',
-                               type=SystemMessages.SM_TYPE.Information,
+    SystemMessages.pushMessage(text, type=SystemMessages.SM_TYPE.Information,
                                priority=NotificationPriorityLevel.MEDIUM)
+
+
+def _closed_notice():
+    from unicum.settings_window import GARAGE_CHAT_LABEL
+    _notice(u'unicum.gg: the Twitch chat panel is off. Turn it back on with "%s" in the unicum.gg '
+            u'settings.' % GARAGE_CHAT_LABEL)
+
 
 
 def parse_position(text):

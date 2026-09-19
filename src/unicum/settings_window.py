@@ -88,6 +88,11 @@ def _button_line(templates, text, var, button, tooltip=None):
 # is the way back, which the cross alone never offered.
 CARD_VAR = 'accountCard'
 
+# Labels the garage's notices send the player looking for, so a notice and the
+# window cannot name the same box differently. The Twitch panel's notice once
+# pointed at "Twitch chat in the garage", a box that never existed.
+GARAGE_CHAT_LABEL = 'Chat panel in the garage'
+
 
 def template(values, channel=u'', linked=False, card_shown=True):
     """The API's page for these settings, showing `values` and the Twitch channel followed.
@@ -169,7 +174,7 @@ def template(values, channel=u'', linked=False, card_shown=True):
         (templates.createLabel(channel_label(channel, linked), tooltip=_CONNECT_TOOLTIP) if linked else
          _button_line(templates, channel_label(channel, linked), CONNECT_VAR, 'Connect', _CONNECT_TOOLTIP)),
         checkbox('Chat in battle', 'twitchBattleChat'),
-        checkbox('Chat panel in the garage', 'twitchGarage'),
+        checkbox(GARAGE_CHAT_LABEL, 'twitchGarage'),
     ])
     return {'modDisplayName': 'unicum.gg', 'enabled': values['enabled'],
             'column1': lobby, 'column2': battle}
