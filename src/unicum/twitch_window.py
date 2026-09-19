@@ -1,4 +1,4 @@
-"""The garage's Twitch panel where the garage is gone: the battle queue screen.
+"""The garage's Twitch panel where the garage is gone: the battle queue and loading screens.
 
 The panel lives in the hangar's Gameface view (twitch_panel.py), and queueing
 for a battle replaces the hangar with the queue screen, a Scaleform view: the
@@ -6,6 +6,16 @@ panel went with it, and a streamer watching the queue for minutes lost their
 chat. So while the queue screen is up, the panel is opened again in a window
 of its own, the same code (web/hangar/twitch_panel.js and .css) with the same
 state, at the same place and the same size, folded if it is.
+
+The battle's loading screen is the same story, in the battle app: the window
+opens as soon as the player is in the battle (onAvatarBecomePlayer), the
+battle's main window loaded, and closes when the game moves from the
+loading screen to the battle page (GameEvent.BATTLE_LOADING, whose isShown
+says which), after which the battle chat carries the Twitch messages as
+before. Opening before the screen shows matters: while the map loads, the
+page takes seconds to be drawn, and a loading screen can last only four.
+In battle the window sits on the OVERLAY layer, the one that stays above the
+battle's interface.
 
 The window is a Gameface view of our own, UnicumTwitchWindow
 (res/gui/gameface/mods/unicum/TwitchWindow/, declared in
@@ -45,7 +55,7 @@ up to a few seconds; the hangar's Gameface takes a second or two to come
 back. A battle found (onArenaCreated) leaves it on the queue screen, which
 stays a moment longer, then closes it as soon as the lobby leaves the queue,
 without waiting: the battle's loading must not have a lobby window over it.
-Only ever in the lobby: out of it, the window is closed and never opened.
+The lobby's window only in the lobby, the battle's only on its loading screen.
 
 Two panels on top of each other would show darker than one, their veils
 added. So the two hand over: once the window is drawn, the garage panel
@@ -112,6 +122,13 @@ def _in_lobby():
     import BigWorld
     from Account import PlayerAccount
     return isinstance(BigWorld.player(), PlayerAccount)
+
+
+def _in_battle():
+    """Whether the player is in a battle, its loading screen included."""
+    import BigWorld
+    from Avatar import PlayerAvatar
+    return isinstance(BigWorld.player(), PlayerAvatar)
 
 
 def is_queue_route(state_id):
@@ -216,14 +233,14 @@ def _model_class():
 
 
 def _window_class():
-    from frameworks.wulf import WindowFlags, WindowLayer
+    from frameworks.wulf import WindowFlags
     from gui.impl.pub import WindowImpl
 
     class TwitchWindow(WindowImpl):
         __slots__ = ()
 
-        def __init__(self, content, parent):
-            super(TwitchWindow, self).__init__(WindowFlags.WINDOW, content=content, layer=WindowLayer.WINDOW,
+        def __init__(self, content, parent, layer):
+            super(TwitchWindow, self).__init__(WindowFlags.WINDOW, content=content, layer=layer,
                                                parent=parent, name='unicumTwitchWindow')
 
         def _onReady(self):
@@ -268,6 +285,7 @@ class TwitchWindowHost(object):
         self._leaving = None  # (until, garage panel reports when the queue was left)
         self._to_battle = False
         self._gesture = None  # a drag or a resize under way, while the button is down
+        self._loading = False  # in a battle, its loading screen not over yet
 
     def install(self):
         try:
@@ -287,6 +305,10 @@ class TwitchWindowHost(object):
             self._session.subscribe(event, self._on_dequeued)
         self._session.subscribe(g_playerEvents.onArenaCreated, self._on_battle)
         self._session.subscribe(g_playerEvents.onAvatarBecomePlayer, self._on_avatar)
+        from gui.shared import EVENT_BUS_SCOPE, events, g_eventBus
+        g_eventBus.addListener(events.GameEvent.BATTLE_LOADING, self._on_loading, scope=EVENT_BUS_SCOPE.BATTLE)
+        self._session.on_close(lambda: g_eventBus.removeListener(
+            events.GameEvent.BATTLE_LOADING, self._on_loading, scope=EVENT_BUS_SCOPE.BATTLE))
         from unicum import twitch_panel
         twitch_panel.set_report_hook(self._on_panel_report)
         self._session.repeat(_TICK_SECONDS, self._tick)
@@ -311,6 +333,15 @@ class TwitchWindowHost(object):
         self._to_battle = True
 
     def _on_avatar(self, *args):
+        # The loading screen is next: the window is opened as soon as the
+        # battle's main window allows, for its page to be drawn by the time
+        # the screen shows, and not seconds into a loading that may be short.
+        self._loading = True
+        self._tick()
+
+    def _on_loading(self, event):
+        self._loading = bool(getattr(event, 'ctx', {}).get('isShown'))
+        _logger.info('battle loading screen %s', 'shown' if self._loading else 'gone')
         self._tick()
 
     def _close(self):
@@ -371,7 +402,8 @@ class TwitchWindowHost(object):
             self._entering_until = 0
             self._leaving = None
             self._to_battle = False
-            return False
+            return self._loading and _in_battle()
+        self._loading = False
         if queue_open():
             self._entering_until = 0
             self._leaving = None
@@ -431,20 +463,22 @@ class TwitchWindowHost(object):
         main = _main_window()
         if main is None:
             return
-        from frameworks.wulf import ViewFlags, ViewSettings
+        from frameworks.wulf import ViewFlags, ViewSettings, WindowLayer
         from gui.impl.pub import ViewImpl
+        battle = _in_battle()
         revision, script, style = self._code
         self._published = self._state_text()
         model = _model_class()((revision, script, style, self._published))
         model.onItemClick += self._on_item
         view = ViewImpl(ViewSettings(layoutID=self._layout, flags=ViewFlags.VIEW, model=model))
         self._model = model
-        self._window = _window_class()(view, main)
+        # Above the battle's interface; in the lobby, under its own menus.
+        self._window = _window_class()(view, main, WindowLayer.OVERLAY if battle else WindowLayer.WINDOW)
         self._ready = False
         self._size = None
         self._placed = None
         self._window.load()
-        _logger.info('Twitch window opened over the battle queue')
+        _logger.info('Twitch window opened over the %s', 'battle loading screen' if battle else 'battle queue')
 
     @staticmethod
     def _cover(covered):
