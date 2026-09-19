@@ -301,6 +301,14 @@ def check_links_per_account(workdir):
     logged_in[0] = '2002'
     link._follow_account()
     check('the card closed on one account stays closed for it', link.card_hidden and link.secret == secret_b)
+    link.show_card()
+    check('the settings window brings a closed card back', not link.card_hidden)
+    logged_in[0] = '1001'
+    link._follow_account()
+    link.show_card()
+    check('bringing back a card that is shown changes nothing', not link.card_hidden)
+    logged_in[0] = '2002'
+    link._follow_account()
     check('the site is told which account the game is logged in with',
           '&account=2002' in connect_url('https://unicum.gg', 'eu', secret_b, '2002', 't').split('#')[0])
 

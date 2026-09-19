@@ -73,7 +73,7 @@ def check_res_mods_version():
 def check_settings_window():
     """The window's values and settings.json's translate both ways."""
     from unicum.settings import DEFAULTS, validate
-    from unicum.settings_window import from_window, to_window
+    from unicum.settings_window import CARD_VAR, from_window, to_window
 
     values = validate(dict(DEFAULTS, metric='wn7', window='total', maxFlags=2,
                            battle={'flags': False, 'rating': True, 'average': True}))
@@ -82,6 +82,9 @@ def check_settings_window():
     check('surfaces are spelled flat', window['battleFlags'] is False and 'contactsAverage' not in window)
     check('and read back to the same settings', validate(dict(values, **from_window(window))) == values)
     check('an index out of range is ignored', 'metric' not in from_window({'metric': 9}))
+    check('the account card box shows the card by default and follows its state',
+          to_window(values)[CARD_VAR] is True and to_window(values, False)[CARD_VAR] is False)
+    check('the account card box is not a settings.json value', CARD_VAR not in from_window({CARD_VAR: False}))
 
 
 def check_live_settings(bigworld):

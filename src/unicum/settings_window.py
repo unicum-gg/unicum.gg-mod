@@ -83,13 +83,20 @@ def _button_line(templates, text, var, button, tooltip=None):
                 button=templates.createButton(width=90, height=24, text=button))
 
 
-def template(values, channel=u'', linked=False):
+# The account card's checkbox. Not a settings.json value: the card's own cross
+# hides it for the Wargaming account logged in, in account.json, and this box
+# is the way back, which the cross alone never offered.
+CARD_VAR = 'accountCard'
+
+
+def template(values, channel=u'', linked=False, card_shown=True):
     """The API's page for these settings, showing `values` and the Twitch channel followed.
 
-    `linked` is whether the Twitch chat can be written to.
+    `linked` is whether the Twitch chat can be written to, `card_shown` whether
+    the account card shows for the account logged in.
     """
     from gui.modsSettingsApi import templates
-    window = to_window(values)
+    window = to_window(values, card_shown)
 
     def checkbox(label, var, tooltip=None):
         return templates.createCheckbox(label, var, window[var], tooltip=tooltip)
@@ -151,6 +158,10 @@ def template(values, channel=u'', linked=False):
                  tooltip='{HEADER}Tank menu button{/HEADER}{BODY}A unicum.gg button beside the vehicle menu, '
                          'with links for the selected tank: its unicum.gg tabs, AI assistants and its '
                          'build.{/BODY}'),
+        checkbox('unicum.gg account card', CARD_VAR,
+                 tooltip='{HEADER}unicum.gg account card{/HEADER}{BODY}The card under the mission cards that '
+                         'links this game to your unicum.gg account, or says which one it is linked to. Its '
+                         'cross hides it for the account logged in; tick this to bring it back.{/BODY}'),
         templates.createEmpty(_SPACER),
         _heading(templates, 'Twitch'),
         # Connect only while it has something to do: once the chat can be
@@ -164,9 +175,10 @@ def template(values, channel=u'', linked=False):
             'column1': lobby, 'column2': battle}
 
 
-def to_window(values):
+def to_window(values, card_shown=True):
     """What the window stores for these settings: flat, dropdowns by index."""
-    window = {'enabled': values['enabled'], 'maxFlags': values['maxFlags'], 'tankButton': values['tankButton'],
+    window = {CARD_VAR: card_shown,
+              'enabled': values['enabled'], 'maxFlags': values['maxFlags'], 'tankButton': values['tankButton'],
               'autoReload': values['autoReload'],
               'altOnlyMarkers': values['altOnly']['markers'], 'altOnlyPanel': values['altOnly']['panel'],
               'altOnlyTab': values['altOnly']['tab'], 'altOnlyLoading': values['altOnly']['loading'],
@@ -246,8 +258,9 @@ class SettingsWindow(object):
         self._settings = settings
         self._link = link
         self._chat = None
-        # (channel followed, Twitch chat writable, game linked, account name) as the page shows them.
-        self._state = (u'', False, False, None)
+        # (channel followed, Twitch chat writable, game linked, account name,
+        # card shown) as the page shows them.
+        self._state = (u'', False, False, None, True)
         self._alive = True
         self._api = None
 
@@ -273,7 +286,8 @@ class SettingsWindow(object):
         link = self._link
         linked = bool(link is not None and link.secret)
         state = (self._chat.channel if self._chat is not None else u'',
-                 linked and link.twitch == 'ready', linked, link.name if linked else None)
+                 linked and link.twitch == 'ready', linked, link.name if linked else None,
+                 self._card_shown())
         if state == self._state:
             return
         self._state = state
@@ -282,14 +296,29 @@ class SettingsWindow(object):
         self._unregister()
         self._register()
 
+    def _card_shown(self):
+        return not (self._link is not None and self._link.card_hidden)
+
     def _register(self):
-        channel, writable, linked, name = self._state
-        self._api.setModTemplate(LINKAGE, template(self._settings.values(), channel, writable),
+        channel, writable, linked, name, card_shown = self._state
+        self._api.setModTemplate(LINKAGE, template(self._settings.values(), channel, writable, card_shown),
                                  self._on_window, self._on_button)
+        # The API keeps its own copy of every value and sends it back as the
+        # player's choice. For the card that copy can be stale (the card's
+        # cross changes the truth without going through the window), and an
+        # old "shown" coming back would undo the cross: so it is set to the
+        # truth first.
+        self._api.updateModSettings(LINKAGE, to_window(self._settings.values(), card_shown))
 
     def _on_window(self, linkage, raw):
         if not self._alive or linkage != LINKAGE or not isinstance(raw, dict):
             return
+        wanted = raw.get(CARD_VAR)
+        if isinstance(wanted, bool) and self._link is not None and wanted != self._card_shown():
+            if wanted:
+                self._link.show_card()
+            else:
+                self._link.hide_card()
         self._settings.update(from_window(raw))
 
     def _on_button(self, linkage, var_name, value=None):
@@ -302,7 +331,7 @@ class SettingsWindow(object):
         """Keep the window in step with a hand edit of settings.json."""
         # The API answers with onSettingsChanged, which lands in _on_window
         # with values that change nothing.
-        self._api.updateModSettings(LINKAGE, to_window(self._settings.values()))
+        self._api.updateModSettings(LINKAGE, to_window(self._settings.values(), self._card_shown()))
 
     def _remove(self):
         self._alive = False

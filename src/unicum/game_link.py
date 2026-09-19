@@ -172,6 +172,13 @@ class GameLink(object):
             self._save()
             self._changed()
 
+    def show_card(self):
+        """Bring the card back for the account logged in, the settings window's way."""
+        if self._account and self._account in self._hidden:
+            self._hidden.remove(self._account)
+            self._save()
+            self._changed()
+
     def on_change(self, callback):
         self._listeners.append(callback)
 
