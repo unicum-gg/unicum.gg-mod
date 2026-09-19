@@ -9,7 +9,7 @@ def check_battle_modes(workdir):
     from unicum.modes import mode_of
     from unicum.runtime.session import Session
     from unicum.settings import MODES, Settings, validate
-    from unicum.settings_window import from_window, to_window
+    from unicum.settings_window import TEAM_CHOICES, from_window, to_window
 
     class Bonus(object):
         REGULAR = 1
@@ -38,8 +38,13 @@ def check_battle_modes(workdir):
     check('a mode it does not know follows "other"', settings.shows_team('seasonal', False))
 
     window = to_window(settings.values())
-    check('modes are spelled flat in the window',
-          window['modeRankedEnemies'] is False and window['modeOnslaughtAllies'] is True)
+    check('a mode is one choice of teams in the window',
+          TEAM_CHOICES[window['modeRanked']][0] == 'Allies only'
+          and TEAM_CHOICES[window['modeOnslaught']][0] == 'Both teams')
+    check('every choice of teams reads back to its two switches',
+          [from_window({'modeRandom': index})['modes']['random'] for index in range(len(TEAM_CHOICES))]
+          == [{'allies': a, 'enemies': e} for _, a, e in TEAM_CHOICES]
+          and 'modes' not in from_window({'modeRandom': 7}) and 'modes' not in from_window({'modeRandom': True}))
     check('and read back to the same settings',
           validate(dict(settings.values(), **from_window(window))) == settings.values())
 
@@ -125,8 +130,8 @@ def check_alt_only():
     check('waiting for Alt is set per surface, a bad value keeps the default',
           values['altOnly'] == {'markers': True, 'panel': False, 'tab': False, 'loading': True, 'results': False})
     window = to_window(values)
-    check('the Alt switches go to the window and back',
-          window['altOnlyMarkers'] is True and window['altOnlyPanel'] is False and window['altOnlyLoading'] is True
+    check('the Alt choices go to the window and back',
+          window['altOnlyMarkers'] == 1 and window['altOnlyPanel'] == 0 and window['altOnlyLoading'] == 1
           and validate(dict(values, **from_window(window))) == values)
 
 

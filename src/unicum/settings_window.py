@@ -5,9 +5,10 @@ stays the way to change anything. With it, the window shows a page for the
 mod (in CHAMPi's settings window too, which reads the same API), and every
 change there is written to settings.json, the one source of truth.
 
-The window only knows flat values, so each surface's switches are spelled
-<surface>Flags, <surface>Rating and <surface>Average, and each battle mode's
-mode<Mode>Allies and mode<Mode>Enemies.
+The window only knows flat values, each choice by the index of its option:
+what a screen shows is <surface>Show (SHOW_CHOICES), whose stats a battle
+mode shows mode<Mode> (TEAM_CHOICES), and when a screen shows them
+altOnly<Screen> (WHEN_CHOICES).
 
 Two behaviours of the API (1.7.0) shape this:
 
@@ -36,19 +37,52 @@ _MODE_LABELS = {
     'training': 'Training rooms',
     'other': 'Other modes',
 }
-# The API has no sections, only labels and spacers in two columns, one control
-# a line. So the page is laid out by place: a block per screen of the game
-# holding its own switches, the lobby's screens in the first column, the
-# battle, the garage and Twitch in the second.
+# The API has two columns and no sections, one control a line. So the page is
+# the game's two places: the garage in the first column, the battle in the
+# second, each holding everything that happens there. Every line reads the
+# same way: where, then a dropdown among the same options as its neighbours,
+# all of one width. Not a radio button group: CHAMPi's window draws one as a
+# row of buttons, but Aslain's Mod Menu as a column of radio buttons, four
+# lines a choice.
 _SPACER = 12
 
-_SURFACE_HEADINGS = {
+# Wide enough for the longest option, "Ratings and flags".
+_CHOICE_WIDTH = 200
+
+# (label, rating, flags): what a screen shows. A team or detachment average
+# goes with the ratings, being one.
+SHOW_CHOICES = (
+    ('Ratings and flags', True, True),
+    ('Ratings only', True, False),
+    ('Flags only', False, True),
+    ('Nothing', False, False),
+)
+
+# (label, allies, enemies): whose stats a battle mode shows.
+TEAM_CHOICES = (
+    ('Both teams', True, True),
+    ('Allies only', True, False),
+    ('Enemies only', False, True),
+    ('Nobody', False, False),
+)
+
+# When a screen shows them: at once, or while the extended info key is held.
+WHEN_CHOICES = ('Always', 'While Alt is held')
+
+_SURFACE_LABELS = {
     'contacts': 'Contacts list',
     'profile': 'Profile',
     'skirmishRoom': 'Skirmish room',
     'stronghold': 'Stronghold',
     'battleResults': 'Battle results',
+    'battle': 'In battle',
 }
+_GARAGE_SURFACES = ('contacts', 'profile', 'skirmishRoom', 'stronghold', 'battleResults')
+
+# The battle's screens that can wait for Alt, and the altOnly key of each.
+_ALT_SCREENS = (('markers', 'Above tanks'), ('panel', 'Players list'), ('tab', 'Tab screen'),
+                ('loading', 'Loading screen'))
+_ALT_KEYS = ('markers', 'panel', 'tab', 'loading', 'results')
 
 # Nor any rule, so a heading draws its own with em dashes: box-drawing
 # characters are missing from the window's font and drew nothing.
@@ -107,59 +141,25 @@ def template(values, channel=u'', linked=False, card_shown=True):
     def checkbox(label, var, tooltip=None):
         return templates.createCheckbox(label, var, window[var], tooltip=tooltip)
 
-    def surface_block(surface, average_label='Average'):
-        block = [_heading(templates, _SURFACE_HEADINGS.get(surface, surface)),
-                 checkbox('Rating', surface + 'Rating'), checkbox('Flags', surface + 'Flags')]
-        if surface in AVERAGED:
-            block.append(checkbox(average_label, surface + 'Average'))
-        return block + [templates.createEmpty(_SPACER)]
+    def choice(label, var, options, tooltip=None):
+        return templates.createDropdown(label, var, list(options), window[var], tooltip=tooltip, width=_CHOICE_WIDTH)
 
-    lobby = [
-        _heading(templates, 'Stats'),
-        templates.createDropdown('Rating', 'metric', [metric.upper() for metric in METRICS], window['metric']),
-        templates.createDropdown('Period', 'window', [_WINDOW_LABELS[w] for w in WINDOWS], window['window'],
-                                 tooltip='{HEADER}Rating period{/HEADER}{BODY}Last 30 days falls back to '
-                                         'overall while the 30-day value is not computed yet.{/BODY}'),
+    def show(surface):
+        return choice(_SURFACE_LABELS[surface], _show_key(surface), [c[0] for c in SHOW_CHOICES])
+
+    garage = [
+        _heading(templates, 'Garage'),
+        choice('Rating', 'metric', [metric.upper() for metric in METRICS]),
+        choice('Period', 'window', [_WINDOW_LABELS[w] for w in WINDOWS],
+               tooltip='{HEADER}Rating period{/HEADER}{BODY}Last 30 days falls back to overall while the '
+                       '30-day value is not computed yet.{/BODY}'),
         templates.createNumericStepper('Flags per player or clan', 'maxFlags', window['maxFlags'], 1, MAX_FLAGS, 1),
         templates.createEmpty(_SPACER),
     ]
-    for surface in ('contacts', 'profile', 'skirmishRoom', 'stronghold', 'battleResults'):
-        block = surface_block(surface)
-        if surface == 'battleResults':
-            block.insert(-1, checkbox('Only while Alt is held', 'altOnlyResults'))
-        lobby.extend(block)
-
-    battle = [
-        _heading(templates, 'Battle'),
-        checkbox('Rating', 'battleRating'),
-        checkbox('Flags', 'battleFlags'),
-        checkbox('Team average', 'battleAverage'),
-        checkbox('Above tanks: only while Alt is held', 'altOnlyMarkers'),
-        checkbox('Players list: only while Alt is held', 'altOnlyPanel'),
-        checkbox('Tab screen: only while Alt is held', 'altOnlyTab',
-                 tooltip='{HEADER}Tab screen{/HEADER}{BODY}Press Tab first, then Alt: Alt then Tab switches '
-                         'windows. The random battles\' Tab screen shows no ratings either way.{/BODY}'),
-        checkbox('Loading screen: only while Alt is held', 'altOnlyLoading'),
-        templates.createEmpty(_SPACER / 2),
-        templates.createLabel('Whose stats to show, per mode',
-                              tooltip='{HEADER}Whose stats to show, per mode{/HEADER}{BODY}Untick enemies to '
-                                      'hide the other team\'s ratings and flags in a mode, in ranked battles '
-                                      'for instance. It applies everywhere in battle: players list, Tab, '
-                                      'loading screen and above tanks.{/BODY}'),
-    ]
-    for mode in MODES:
-        battle.extend([
-            checkbox('%s: allies' % _MODE_LABELS[mode], _mode_key(mode, 'allies')),
-            checkbox('%s: enemies' % _MODE_LABELS[mode], _mode_key(mode, 'enemies')),
-        ])
-    battle.extend([
-        templates.createEmpty(_SPACER / 2),
-        checkbox('Announce reloading', 'autoReload',
-                 tooltip='{HEADER}Announce reloading{/HEADER}{BODY}Sends the "Reloading!" message to your team '
-                         'by itself, as F8 does: after each shot, or once a magazine is empty. Reloads shorter '
-                         'than the 5-second limit of the chat are not announced.{/BODY}'),
+    garage.extend(show(surface) for surface in _GARAGE_SURFACES)
+    garage.extend([
+        choice('Battle results: when', _alt_key('results'), WHEN_CHOICES),
         templates.createEmpty(_SPACER),
-        _heading(templates, 'Garage'),
         checkbox('Tank menu button', 'tankButton',
                  tooltip='{HEADER}Tank menu button{/HEADER}{BODY}A unicum.gg button beside the vehicle menu, '
                          'with links for the selected tank: its unicum.gg tabs, AI assistants and its '
@@ -168,38 +168,58 @@ def template(values, channel=u'', linked=False, card_shown=True):
                  tooltip='{HEADER}' + CARD_LABEL + '{/HEADER}{BODY}The card under the mission cards that '
                          'links this game to your unicum.gg account, or says which one it is linked to. Its '
                          'cross hides it for the account logged in; tick this to bring it back.{/BODY}'),
-        templates.createEmpty(_SPACER),
-        _heading(templates, 'Twitch'),
+        checkbox(GARAGE_CHAT_LABEL, 'twitchGarage'),
         # Connect only while it has something to do: once the chat can be
         # written to, the line only says which channel it is.
         (templates.createLabel(channel_label(channel, linked), tooltip=_CONNECT_TOOLTIP) if linked else
          _button_line(templates, channel_label(channel, linked), CONNECT_VAR, 'Connect', _CONNECT_TOOLTIP)),
-        checkbox('Chat in battle', 'twitchBattleChat'),
-        checkbox(GARAGE_CHAT_LABEL, 'twitchGarage'),
+    ])
+
+    battle = [
+        _heading(templates, 'Battle'),
+        show('battle'),
+        templates.createEmpty(_SPACER),
+    ]
+    battle.extend(choice(_MODE_LABELS[mode], _mode_key(mode), [c[0] for c in TEAM_CHOICES],
+                         tooltip=_MODES_TOOLTIP if mode == MODES[0] else None) for mode in MODES)
+    battle.append(templates.createEmpty(_SPACER))
+    battle.extend(choice(label, _alt_key(key), WHEN_CHOICES, tooltip=_TAB_TOOLTIP if key == 'tab' else None)
+                  for key, label in _ALT_SCREENS)
+    battle.extend([
+        templates.createEmpty(_SPACER),
+        checkbox('Twitch chat in battle', 'twitchBattleChat'),
+        checkbox('Announce reloading', 'autoReload',
+                 tooltip='{HEADER}Announce reloading{/HEADER}{BODY}Sends the "Reloading!" message to your team '
+                         'by itself, as F8 does: after each shot, or once a magazine is empty. Reloads shorter '
+                         'than the 5-second limit of the chat are not announced.{/BODY}'),
     ])
     return {'modDisplayName': 'unicum.gg', 'enabled': values['enabled'],
-            'column1': lobby, 'column2': battle}
+            'column1': garage, 'column2': battle}
+
+
+_MODES_TOOLTIP = ('{HEADER}Whose stats, per mode{/HEADER}{BODY}Enemies only or Nobody keep the other team\'s '
+                  'ratings and flags out of a mode, ranked battles for instance. It applies everywhere in battle: '
+                  'players list, Tab, loading screen and above tanks.{/BODY}')
+
+_TAB_TOOLTIP = ('{HEADER}Tab screen{/HEADER}{BODY}Press Tab first, then Alt: Alt then Tab switches windows. The '
+                'random battles\' Tab screen shows no ratings either way.{/BODY}')
 
 
 def to_window(values, card_shown=True):
-    """What the window stores for these settings: flat, dropdowns by index."""
+    """What the window stores for these settings: flat, choices by index."""
     window = {CARD_VAR: card_shown,
               'enabled': values['enabled'], 'maxFlags': values['maxFlags'], 'tankButton': values['tankButton'],
               'autoReload': values['autoReload'],
-              'altOnlyMarkers': values['altOnly']['markers'], 'altOnlyPanel': values['altOnly']['panel'],
-              'altOnlyTab': values['altOnly']['tab'], 'altOnlyLoading': values['altOnly']['loading'],
-              'altOnlyResults': values['altOnly']['results'],
               'twitchChannel': values['twitch']['channel'], 'twitchBattleChat': values['twitch']['battleChat'],
               'twitchGarage': values['twitch']['garage'],
               'metric': METRICS.index(values['metric']), 'window': WINDOWS.index(values['window'])}
+    for key in _ALT_KEYS:
+        window[_alt_key(key)] = 1 if values['altOnly'][key] else 0
     for mode in MODES:
-        for team in ('allies', 'enemies'):
-            window[_mode_key(mode, team)] = values['modes'][mode][team]
+        teams = values['modes'][mode]
+        window[_mode_key(mode)] = _choice_of(TEAM_CHOICES, teams['allies'], teams['enemies'])
     for surface in SURFACES:
-        window[surface + 'Flags'] = values[surface]['flags']
-        window[surface + 'Rating'] = values[surface]['rating']
-        if surface in AVERAGED:
-            window[surface + 'Average'] = values[surface]['average']
+        window[_show_key(surface)] = _choice_of(SHOW_CHOICES, values[surface]['rating'], values[surface]['flags'])
     return window
 
 
@@ -209,8 +229,8 @@ def from_window(raw):
     for key in ('enabled', 'tankButton', 'autoReload'):
         if isinstance(raw.get(key), bool):
             changes[key] = raw[key]
-    alt_only = dict((key, raw['altOnly' + key.capitalize()]) for key in ('markers', 'panel', 'tab', 'loading', 'results')
-                    if isinstance(raw.get('altOnly' + key.capitalize()), bool))
+    alt_only = dict((key, bool(raw[_alt_key(key)])) for key in _ALT_KEYS
+                    if _index(raw.get(_alt_key(key)), WHEN_CHOICES) is not None)
     if alt_only:
         changes['altOnly'] = alt_only
     twitch = {}
@@ -229,26 +249,41 @@ def from_window(raw):
     if isinstance(raw.get('maxFlags'), (int, float)) and not isinstance(raw.get('maxFlags'), bool):
         changes['maxFlags'] = int(raw['maxFlags'])
     for surface in SURFACES:
-        section = {}
-        for key in ('flags', 'rating', 'average'):
-            value = raw.get(surface + key.capitalize())
-            if isinstance(value, bool) and (key != 'average' or surface in AVERAGED):
-                section[key] = value
-        if section:
-            changes[surface] = section
+        index = _index(raw.get(_show_key(surface)), SHOW_CHOICES)
+        if index is not None:
+            _, rating, flags = SHOW_CHOICES[index]
+            changes[surface] = {'rating': rating, 'flags': flags}
+            if surface in AVERAGED:
+                changes[surface]['average'] = rating
     modes = {}
     for mode in MODES:
-        teams = dict((team, raw[_mode_key(mode, team)]) for team in ('allies', 'enemies')
-                     if isinstance(raw.get(_mode_key(mode, team)), bool))
-        if teams:
-            modes[mode] = teams
+        index = _index(raw.get(_mode_key(mode)), TEAM_CHOICES)
+        if index is not None:
+            _, allies, enemies = TEAM_CHOICES[index]
+            modes[mode] = {'allies': allies, 'enemies': enemies}
     if modes:
         changes['modes'] = modes
     return changes
 
 
-def _mode_key(mode, team):
-    return 'mode%s%s' % (mode[0].upper() + mode[1:], team.capitalize())
+def _show_key(surface):
+    return surface + 'Show'
+
+
+def _mode_key(mode):
+    return 'mode%s' % (mode[0].upper() + mode[1:])
+
+
+def _alt_key(key):
+    return 'altOnly' + key.capitalize()
+
+
+def _choice_of(choices, first, second):
+    """The index of the (label, first, second) option in `choices` matching two switches."""
+    for index, (_, a, b) in enumerate(choices):
+        if a == first and b == second:
+            return index
+    return 0
 
 
 def _index(value, options):

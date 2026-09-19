@@ -73,13 +73,17 @@ def check_res_mods_version():
 def check_settings_window():
     """The window's values and settings.json's translate both ways."""
     from unicum.settings import DEFAULTS, validate
-    from unicum.settings_window import CARD_VAR, from_window, to_window
+    from unicum.settings_window import CARD_VAR, SHOW_CHOICES, from_window, to_window
 
     values = validate(dict(DEFAULTS, metric='wn7', window='total', maxFlags=2,
                            battle={'flags': False, 'rating': True, 'average': True}))
     window = to_window(values)
     check('dropdowns are stored by index', window['metric'] == 0 and window['window'] == 1)
-    check('surfaces are spelled flat', window['battleFlags'] is False and 'contactsAverage' not in window)
+    check('a screen is one choice of what it shows',
+          SHOW_CHOICES[window['battleShow']][0] == 'Ratings only' and 'contactsAverage' not in window)
+    check('an average goes with the ratings',
+          from_window({'battleResultsShow': 2})['battleResults'] == {'rating': False, 'flags': True, 'average': False}
+          and 'average' not in from_window({'contactsShow': 0})['contacts'])
     check('and read back to the same settings', validate(dict(values, **from_window(window))) == values)
     check('an index out of range is ignored', 'metric' not in from_window({'metric': 9}))
     check('the account card box shows the card by default and follows its state',
