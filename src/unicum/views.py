@@ -27,7 +27,10 @@ Whether a field may carry markup is decided here too, because both halves
 must agree: an <IMG> sent to a field still in plain text shows as written.
 
 AS3 hot reload: a view whose SWF changes on disk is destroyed and loaded
-again, which picks up the new code without a client restart. Only for a SWF
+again. That new load does not bring new code: an app keeps the first
+definition it loaded of a class, so a changed class (a new property that
+Python sets, for one) takes effect when the app itself is built again, the
+battle app for every battle, the lobby app back from one. Only for a SWF
 that existed when the client started: ResMgr indexes the resource tree then,
 and a file added later stays invisible until the next start.
 """
