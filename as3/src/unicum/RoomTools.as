@@ -47,6 +47,7 @@ package unicum
          this._host = host;
          App.stage.addEventListener(Event.ADDED, this.onAdded, true, 0, true);
          host.addEventListener(Event.ENTER_FRAME, this.onFrame);
+         App.stage.addEventListener(Event.RENDER, this.onRender);
          // A room already open when this view loads, after a hot reload.
          this.search(App.stage, 0);
       }
@@ -78,6 +79,7 @@ package unicum
       {
          App.stage.removeEventListener(Event.ADDED, this.onAdded, true);
          this._host.removeEventListener(Event.ENTER_FRAME, this.onFrame);
+         App.stage.removeEventListener(Event.RENDER, this.onRender);
          // Put the room back as the client drew it, so a reloaded view
          // starts from there.
          for each(var section:MembersSection in this._sections)
@@ -121,6 +123,17 @@ package unicum
          this.sortMode = mode;
       }
 
+      private function onRender(event:Event) : void
+      {
+         for each(var section:MembersSection in this._sections)
+         {
+            if(section.section != null && section.section.stage != null)
+            {
+               section.reorder();
+            }
+         }
+      }
+
       private function onFrame(event:Event) : void
       {
          for(var i:int = this._sections.length - 1; i >= 0; i--)
@@ -136,6 +149,12 @@ package unicum
                continue;
             }
             section.update(this.roomEnabled, this.sortMode, this.sortLabels, this._scores, this.averageHtml);
+         }
+         // The rows are placed again in the render phase, which comes after
+         // the client has laid them out for this frame.
+         if(this._sections.length > 0)
+         {
+            App.stage.invalidate();
          }
       }
    }

@@ -225,6 +225,14 @@ package unicum
          }
       }
 
+      // Again at the last moment, after the client has laid its rows out:
+      // moved in the frame's first half, they would be put back before the
+      // frame is drawn, and the list would jump.
+      public function reorder() : void
+      {
+         this.order();
+      }
+
       private function order() : void
       {
          var rows:Array = [];
