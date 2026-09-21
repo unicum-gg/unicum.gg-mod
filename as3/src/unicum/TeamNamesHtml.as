@@ -62,6 +62,31 @@ package unicum
 
       public var loadingHidden:Boolean = false;
 
+      // The unicum.gg tab of the settings window, opened from the battle's menu.
+      private var _settingsTabs:SettingsTabs;
+
+      public function get settingsTab() : String
+      {
+         return "";
+      }
+
+      // The page of the settings window's unicum.gg tab (src/unicum/settings_tab.py).
+      public function set settingsTab(value:String) : void
+      {
+         SettingsTab.page = value;
+      }
+
+      // What the tab's Apply or OK committed, for Python to take.
+      public function get settingsTabOut() : String
+      {
+         return SettingsTab.out.join("\n");
+      }
+
+      public function set settingsTabOut(value:String) : void
+      {
+         SettingsTab.out = value ? value.split("\n") : [];
+      }
+
       public function TeamNamesHtml()
       {
          super();
@@ -74,6 +99,7 @@ package unicum
          mouseChildren = false;
          App.stage.addEventListener(Event.ADDED, this.onAdded, true, 0, true);
          addEventListener(Event.ENTER_FRAME, this.onFrame);
+         this._settingsTabs = new SettingsTabs(this);
          // Screens drawn before this view loaded: Onslaught builds its stats
          // table first, and a hot reload finds everything already there.
          this.search(App.stage, 0);
@@ -83,6 +109,7 @@ package unicum
       {
          App.stage.removeEventListener(Event.ADDED, this.onAdded, true);
          removeEventListener(Event.ENTER_FRAME, this.onFrame);
+         this._settingsTabs.dispose();
          this._fields = new Dictionary(true);
          this._stripped = new Dictionary(true);
          this._searched = new Dictionary(true);

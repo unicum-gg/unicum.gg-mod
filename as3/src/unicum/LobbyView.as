@@ -11,6 +11,7 @@ package unicum
    //   TitleHtml   profile window titles that render HTML
    //   RoomTools   the skirmish room's members sort and average
    //   ContactColumns  the contacts list's flags and rating, right of each row
+   //   SettingsTabs    the unicum.gg tab of the game's settings window
    //
    // Python reads and writes RoomTools' state through the GFx proxy, which
    // sees this view's public properties, so they are forwarded here.
@@ -21,6 +22,8 @@ package unicum
       private var _room:RoomTools;
 
       private var _contacts:ContactColumns;
+
+      private var _settingsTabs:SettingsTabs;
 
       public function LobbyView()
       {
@@ -92,6 +95,28 @@ package unicum
          }
       }
 
+      public function get settingsTab() : String
+      {
+         return "";
+      }
+
+      // The page of the settings window's unicum.gg tab (src/unicum/settings_tab.py).
+      public function set settingsTab(value:String) : void
+      {
+         SettingsTab.page = value;
+      }
+
+      // What the tab's Apply or OK committed, for Python to take.
+      public function get settingsTabOut() : String
+      {
+         return SettingsTab.out.join("\n");
+      }
+
+      public function set settingsTabOut(value:String) : void
+      {
+         SettingsTab.out = value ? value.split("\n") : [];
+      }
+
       public function get roomEnabled() : Boolean
       {
          return this._room == null || this._room.roomEnabled;
@@ -112,6 +137,7 @@ package unicum
          this._titles = new TitleHtml(this);
          this._room = new RoomTools(this);
          this._contacts = new ContactColumns(this);
+         this._settingsTabs = new SettingsTabs(this);
       }
 
       override protected function onDispose() : void
@@ -119,6 +145,7 @@ package unicum
          this._titles.dispose();
          this._room.dispose();
          this._contacts.dispose();
+         this._settingsTabs.dispose();
          super.onDispose();
       }
    }

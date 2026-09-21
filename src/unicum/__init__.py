@@ -11,7 +11,7 @@ is nothing more than stop() followed by a fresh start().
 import logging
 
 from unicum import (auto_reload, battle, battle_results, browser, config, lobby, mods_list, reporting, room_sort,
-                    settings_window, tank_button, twitch, twitch_panel, twitch_send, twitch_window, views)
+                    settings_tab, settings_window, tank_button, twitch, twitch_panel, twitch_send, twitch_window, views)
 from unicum.badges import Badges
 from unicum.game_link import GameLink
 from unicum.api.resolve import Lookup
@@ -47,6 +47,7 @@ def start(generation=0):
         link = GameLink(_session)
         link.install()
         window = settings_window.install(_session, settings, link)
+        tab = settings_tab.install(_session, settings, link)
         mods_list.install(_session)
         lookup = Lookup(_session, config.REGION)
         scales = RatingScales(_session)
@@ -62,6 +63,7 @@ def start(generation=0):
         auto_reload.install(_session, settings)
         chat = twitch.install(_session, settings, link)
         window.follow_twitch(chat)
+        tab.follow_twitch(chat)
         sender = twitch_send.install(_session, link, chat)
         twitch_panel.install(_session, settings, chat, link, sender)
         twitch_window.install(_session, settings, chat, link)

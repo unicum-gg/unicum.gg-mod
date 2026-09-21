@@ -47,6 +47,10 @@ VIEWS = (
     (Path('src') / 'unicum' / 'LobbyView.as', WORK / 'unicum.lobby.swf'),
     (Path('src') / 'unicum' / 'TeamNamesHtml.as', WORK / 'unicum.battle.swf'),
     (Path('src') / 'unicum' / 'MarkersLibrary.as', WORK / 'unicum.markers.swf'),
+    # What the settings window's unicum.gg tab shows, loaded by its shell
+    # (unicum.SettingsTab) into a domain of its own: a new build shows the
+    # next time the window opens.
+    (Path('src') / 'unicum' / 'settings' / 'SettingsLibrary.as', WORK / 'unicum.settings.swf'),
 )
 
 # Ratings by the names above vehicles (see as3/src/unicum/markers/MarkersBoot.as):

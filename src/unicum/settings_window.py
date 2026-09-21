@@ -197,6 +197,112 @@ def template(values, channel=u'', linked=False, card_shown=True):
             'column1': garage, 'column2': battle}
 
 
+def native_page(values, channel=u'', linked=False, card_shown=True):
+    """The same settings for the unicum.gg tab of the game's settings window (settings_tab.py).
+
+    The same variables and the same choices as template(), laid out for a
+    window this mod draws itself: sub-tabs, framed groups in two columns, a
+    line a setting. As text the AS3 side reads without a JSON parser, a line
+    an item, its fields apart by tabs:
+
+      tab       label
+      group     column (0 or 1), title
+      dropdown  var, label, selected index, offset, options apart by "|"
+      checkbox  var, label, 1 or 0
+      text      label
+      button    var, label, button text
+
+    A dropdown sends back its index plus its offset: maxFlags counts from 1.
+    """
+    window = to_window(values, card_shown)
+    lines = []
+
+    def tab(label):
+        lines.append(u'tab\t' + label)
+
+    def group(column, title):
+        lines.append(u'group\t%d\t%s' % (column, title))
+
+    def dropdown(label, var, options, offset=0):
+        lines.append(u'dropdown\t%s\t%s\t%d\t%d\t%s' % (var, label, window[var] - offset, offset,
+                                                         u'|'.join(options)))
+
+    def show(surface):
+        dropdown(_SURFACE_LABELS[surface], _show_key(surface), [c[0] for c in SHOW_CHOICES])
+
+    def checkbox(label, var):
+        lines.append(u'checkbox\t%s\t%s\t%d' % (var, label, 1 if window[var] else 0))
+
+    tab(u'Garage')
+    group(0, u'Stats')
+    dropdown(u'Rating', 'metric', [metric.upper() for metric in METRICS])
+    dropdown(u'Period', 'window', [_WINDOW_LABELS[w] for w in WINDOWS])
+    dropdown(u'Flags per player or clan', 'maxFlags', [str(n) for n in range(1, MAX_FLAGS + 1)], offset=1)
+    group(0, u'Garage')
+    checkbox(u'Tank menu button', 'tankButton')
+    checkbox(CARD_LABEL, CARD_VAR)
+    group(1, u'Screens')
+    for surface in _GARAGE_SURFACES:
+        show(surface)
+    dropdown(u'Battle results: when', _alt_key('results'), WHEN_CHOICES)
+
+    tab(u'Battle')
+    group(0, u'What and when')
+    show('battle')
+    for key, label in _ALT_SCREENS:
+        dropdown(label, _alt_key(key), WHEN_CHOICES)
+    group(0, u'Tools')
+    checkbox(u'Announce reloading', 'autoReload')
+    group(1, u'Whose stats, per mode')
+    for mode in MODES:
+        dropdown(_MODE_LABELS[mode], _mode_key(mode), [c[0] for c in TEAM_CHOICES])
+
+    tab(u'Twitch')
+    group(0, u'Twitch')
+    if linked:
+        lines.append(u'text\t' + channel_label(channel, linked))
+    else:
+        lines.append(u'button\t%s\t%s\tConnect' % (CONNECT_VAR, channel_label(channel, linked)))
+    checkbox(GARAGE_CHAT_LABEL, 'twitchGarage')
+    checkbox(u'Chat in battle', 'twitchBattleChat')
+    return u'\n'.join(line.replace(u'\n', u' ') for line in lines)
+
+
+def read_native(text):
+    """What the settings tab sends back ("var\tkind\tvalue" a line), as the window's raw values.
+
+    Kinds: d a dropdown's index (offset added), c a checkbox, b a button.
+    Returns (raw values, buttons clicked).
+    """
+    raw, buttons = {}, []
+    for line in (text or u'').split(u'\n'):
+        parts = line.split(u'\t')
+        if len(parts) != 3:
+            continue
+        var, kind, value = parts
+        if kind == u'd':
+            try:
+                raw[str(var)] = int(value)
+            except ValueError:
+                continue
+        elif kind == u'c':
+            raw[str(var)] = value == u'1'
+        elif kind == u'b':
+            buttons.append(str(var))
+    return raw, buttons
+
+
+def apply_window(raw, settings, link):
+    """A page's values into settings.json, and the account card's box into its own state."""
+    wanted = raw.get(CARD_VAR)
+    if isinstance(wanted, bool) and link is not None and wanted != (not link.card_hidden):
+        if wanted:
+            link.show_card()
+        else:
+            link.hide_card()
+    settings.update(from_window(raw))
+
+
 _MODES_TOOLTIP = ('{HEADER}Whose stats, per mode{/HEADER}{BODY}Enemies only or Nobody keep the other team\'s '
                   'ratings and flags out of a mode, ranked battles for instance. It applies everywhere in battle: '
                   'players list, Tab, loading screen and above tanks.{/BODY}')
@@ -354,13 +460,7 @@ class SettingsWindow(object):
     def _on_window(self, linkage, raw):
         if not self._alive or linkage != LINKAGE or not isinstance(raw, dict):
             return
-        wanted = raw.get(CARD_VAR)
-        if isinstance(wanted, bool) and self._link is not None and wanted != self._card_shown():
-            if wanted:
-                self._link.show_card()
-            else:
-                self._link.hide_card()
-        self._settings.update(from_window(raw))
+        apply_window(raw, self._settings, self._link)
 
     def _on_button(self, linkage, var_name, value=None):
         if not self._alive or linkage != LINKAGE or self._link is None:

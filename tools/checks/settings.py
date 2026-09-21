@@ -90,6 +90,22 @@ def check_settings_window():
           to_window(values)[CARD_VAR] is True and to_window(values, False)[CARD_VAR] is False)
     check('the account card box is not a settings.json value', CARD_VAR not in from_window({CARD_VAR: False}))
 
+    from unicum.settings_window import CONNECT_VAR, native_page, read_native
+    lines = [line.split(u'\t') for line in native_page(values, u'license__', True).split(u'\n')]
+    check('the settings tab has the Garage, Battle and Twitch sub-tabs',
+          [line[1] for line in lines if line[0] == u'tab'] == [u'Garage', u'Battle', u'Twitch'])
+    flags = [line for line in lines if line[0] == u'dropdown' and line[1] == u'maxFlags'][0]
+    check('a dropdown carries its index, its offset and its options',
+          flags[3:] == [u'1', u'1', u'1|2|3'] and len([l for l in lines if l[0] == u'dropdown']) == 21)
+    check('a linked Twitch shows its channel, an unlinked one a Connect button',
+          [u'text', u'Channel: license__'] in lines
+          and [u'button', CONNECT_VAR, u'Channel: not linked', u'Connect'] in
+          [line.split(u'\t') for line in native_page(values, u'', False).split(u'\n')])
+    raw, buttons = read_native(u'maxFlags\td\t3\nmetric\td\t1\ntankButton\tc\t0\n%s\tb\t1\nbad line' % CONNECT_VAR)
+    check('what the tab sends back reads as the window\'s values',
+          raw == {'maxFlags': 3, 'metric': 1, 'tankButton': False} and buttons == [CONNECT_VAR]
+          and from_window(raw) == {'maxFlags': 3, 'metric': 'wn8', 'tankButton': False})
+
 
 def check_live_settings(bigworld):
     """Editing settings.json while the mod runs reaches the surfaces.
