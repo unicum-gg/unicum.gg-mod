@@ -7,6 +7,7 @@ package unicum.settings
    import flash.events.MouseEvent;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
+   import flash.system.ApplicationDomain;
    import flash.utils.getQualifiedClassName;
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.events.ButtonEvent;
@@ -50,11 +51,6 @@ package unicum.settings
       private static const GROUND_BOTTOM:int = 511;
 
       private static const GROUND_TOP:int = 19;
-
-      // The page's own pale edge, at x 10 and x 783 in the General tab.
-      private static const PANE_RIGHT:int = 783;
-
-      private static const PANE_EDGE:uint = 0x323023;
 
       private static const INSET:int = 22;
 
@@ -111,6 +107,30 @@ package unicum.settings
          this.hideOthers(true);
          this.takeGround();
          this.build();
+         if(_ground == null)
+         {
+            // The General tab is not always in the window's stack yet when
+            // this one is built first: its ground is waited for, and the page
+            // drawn again on it once it is there.
+            this._tries = 60;
+            addEventListener(Event.ENTER_FRAME, this.onGround);
+         }
+      }
+
+      private var _tries:int = 0;
+
+      private function onGround(event:Event) : void
+      {
+         this.takeGround();
+         if(_ground == null && this._tries-- > 0)
+         {
+            return;
+         }
+         removeEventListener(Event.ENTER_FRAME, this.onGround);
+         if(_ground != null)
+         {
+            this.build();
+         }
       }
 
       private var _logged:int = 0;
@@ -165,12 +185,36 @@ package unicum.settings
          var view:DisplayObject = this.nativeTab();
          if(view == null)
          {
+            // The window's stack only holds the tab it shows, so coming
+            // straight to this one leaves no General tab to copy: one is made
+            // from the window's own library instead, and thrown away after.
+            view = this.makeNativeTab();
+            if(view == null)
+            {
+               return;
+            }
+            this.shootGround(view);
             return;
          }
          var was:Boolean = view.visible;
          view.visible = true;
          this.shootGround(view);
          view.visible = was;
+      }
+
+      private function makeNativeTab() : DisplayObject
+      {
+         try
+         {
+            var domain:ApplicationDomain = DisplayObject(this._window).loaderInfo.applicationDomain;
+            var made:Class = domain.getDefinition("GameSettings") as Class;
+            return new made() as DisplayObject;
+         }
+         catch(e:Error)
+         {
+            this.log("no General tab to copy the ground from: " + e);
+         }
+         return null;
       }
 
       public function update() : void
@@ -182,6 +226,7 @@ package unicum.settings
       {
          this.hideOthers(false);
          this.unhookWindow();
+         removeEventListener(Event.ENTER_FRAME, this.onGround);
          removeEventListener(Event.ENTER_FRAME, this.onRebuild);
          // Closed without Apply or OK: what was changed is dropped.
          this.memory.pending = {};
@@ -522,41 +567,24 @@ package unicum.settings
          }
       }
 
-      // The pale line the General tab has down each side of its page and along
-      // its top: it belongs to the scroll pane, which is hidden for the shot,
-      // so it is drawn here, lowered with the ground under the sub-tabs.
-      private function edges() : Sprite
-      {
-         var height:int = HEIGHT - SUB_TABS_HEIGHT;
-         var edge:Sprite = new Sprite();
-         edge.graphics.beginFill(PANE_EDGE);
-         edge.graphics.drawRect(GROUND_LEFT, SUB_TABS_HEIGHT, 1, height);
-         edge.graphics.drawRect(PANE_RIGHT, SUB_TABS_HEIGHT, 1, height);
-         edge.graphics.drawRect(GROUND_LEFT, SUB_TABS_HEIGHT, PANE_RIGHT - GROUND_LEFT + 1, 1);
-         edge.graphics.endFill();
-         edge.mouseEnabled = false;
-         return edge;
-      }
-
       private function background() : void
       {
          if(_ground != null)
          {
-            // As it was taken, not stretched: only lowered so its top edge
-            // falls just under the sub-tabs (the General tab has none). What
-            // it never drew stays clear, and the window's frame shows through.
+            // As it was taken, not stretched, and starting under the sub-tabs
+            // rather than behind them: its first row of ground falls on the
+            // row below the bar, as Battle Notifications has it, and nothing
+            // of it is drawn above. What it never drew stays clear, so the
+            // window's own frame shows through it.
             var picture:flash.display.Bitmap = new flash.display.Bitmap(_ground);
-            picture.y = SUB_TABS_HEIGHT - GROUND_TOP;
-            // The few rows it leaves bare above, in its own dark: the window's
-            // ground there is lighter, and would draw a band under the tabs.
-            var fill:Sprite = new Sprite();
-            fill.graphics.beginFill(_ground.getPixel(WIDTH >> 1, 0));
-            fill.graphics.drawRect(GROUND_LEFT, 0, GROUND_RIGHT - GROUND_LEFT + 1, picture.y);
-            fill.graphics.endFill();
-            fill.mouseEnabled = false;
+            picture.y = SUB_TABS_HEIGHT - GROUND_TOP - 1;
+            var clip:Sprite = new Sprite();
+            clip.graphics.beginFill(0);
+            clip.graphics.drawRect(0, SUB_TABS_HEIGHT, WIDTH, HEIGHT - SUB_TABS_HEIGHT);
+            clip.graphics.endFill();
             addChildAt(picture, 0);
-            addChildAt(fill, 0);
-            addChildAt(this.edges(), 2);
+            addChildAt(clip, 1);
+            picture.mask = clip;
             return;
          }
          var width:int = GROUND_RIGHT - GROUND_LEFT + 1;
