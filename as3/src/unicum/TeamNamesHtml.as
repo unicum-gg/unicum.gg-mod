@@ -76,11 +76,19 @@ package unicum
          SettingsTab.page = value;
       }
 
-      // What the tab's buttons, Apply or OK sent, for Python to take. Reading
-      // takes the lines and leaves none: Python must not write this property
-      // back to clear it, because a value written to a view's property is the
-      // one read from it ever after, and everything the tab sent next would
-      // pile up unread.
+      // What the tab's buttons, Apply or OK sent, for Python to take. A call,
+      // not a property: the proxy Python holds this view by reads a property
+      // once and answers with that value ever after, so anything the tab sent
+      // later would pile up unread. The call hands the lines over and leaves
+      // none behind.
+      public function takeSettingsTabOut() : String
+      {
+         return SettingsTab.take();
+      }
+
+      // The same, as a property, for a client whose proxy cannot call it.
+      // Read once by the proxy and answered from its copy ever after, so it
+      // is a fallback only.
       public function get settingsTabOut() : String
       {
          return SettingsTab.take();

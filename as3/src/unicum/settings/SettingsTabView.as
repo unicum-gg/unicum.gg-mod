@@ -710,6 +710,12 @@ package unicum.settings
          var menu:Object = App.utils.classFactory.getComponent("DropdownMenuUI", DisplayObject);
          menu.dropdown = "DropdownMenu_ScrollingList";
          menu.itemRenderer = "DropDownListItemRendererSound";
+         // As many rows as it has options, not the five it falls back on: the
+         // game's dropdown works its row count out itself and, left fixed,
+         // takes maxRowCount, which is -1 and reads as five
+         // (DropdownMenu.calcMenuAvailableRowCount).
+         menu.menuRowsFixed = false;
+         menu.maxRowCount = 10;
          menu.dataProvider = new DataProvider(list);
          menu.menuRowCount = list.length;
          menu.selectedIndex = selected;
