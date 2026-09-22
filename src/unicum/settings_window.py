@@ -117,6 +117,25 @@ def _button_line(templates, text, var, button, tooltip=None):
                 button=templates.createButton(width=90, height=24, text=button))
 
 
+# The button opening the site's support page in the player's browser. Not a
+# setting: nothing is stored, the click only opens the page.
+SUPPORT_VAR = 'support'
+
+SUPPORT_LABEL = 'unicum.gg is free and has no ads'
+
+SUPPORT_BUTTON = 'Support'
+
+_SUPPORT_TOOLTIP = ('{HEADER}Support unicum.gg{/HEADER}{BODY}The site and this mod are free, with no ads and '
+                    'nothing held back for payers. Opens the support page in your browser, where you choose '
+                    'what you give, if anything.{/BODY}')
+
+
+def open_support(content):
+    """The support page in the player's browser, tagged by the window it was opened from."""
+    from unicum import tank_button
+    tank_button.open_url(tank_button.support_url(content))
+
+
 # The account card's checkbox. Not a settings.json value: the card's own cross
 # hides it for the Wargaming account logged in, in account.json, and this box
 # is the way back, which the cross alone never offered.
@@ -173,6 +192,8 @@ def template(values, channel=u'', linked=False, card_shown=True):
         # written to, the line only says which channel it is.
         (templates.createLabel(channel_label(channel, linked), tooltip=_CONNECT_TOOLTIP) if linked else
          _button_line(templates, channel_label(channel, linked), CONNECT_VAR, 'Connect', _CONNECT_TOOLTIP)),
+        templates.createEmpty(_SPACER),
+        _button_line(templates, SUPPORT_LABEL, SUPPORT_VAR, SUPPORT_BUTTON, _SUPPORT_TOOLTIP),
     ])
 
     battle = [
@@ -245,6 +266,8 @@ def native_page(values, channel=u'', linked=False, card_shown=True):
     for surface in _GARAGE_SURFACES:
         show(surface)
     dropdown(u'Battle results: when', _alt_key('results'), WHEN_CHOICES)
+    group(1, u'Support')
+    lines.append(u'button	%s	%s	%s' % (SUPPORT_VAR, SUPPORT_LABEL, SUPPORT_BUTTON))
 
     tab(u'Battle')
     group(0, u'What and when')
@@ -463,9 +486,12 @@ class SettingsWindow(object):
         apply_window(raw, self._settings, self._link)
 
     def _on_button(self, linkage, var_name, value=None):
-        if not self._alive or linkage != LINKAGE or self._link is None:
+        if not self._alive or linkage != LINKAGE:
             return
-        if var_name == CONNECT_VAR:
+        if var_name == SUPPORT_VAR:
+            open_support('mods-list')
+            return
+        if self._link is not None and var_name == CONNECT_VAR:
             self._link.connect(_linked_notice)
 
     def _on_settings(self):

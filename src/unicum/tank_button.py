@@ -124,6 +124,18 @@ def tank_url(int_cd, tab='specifications', setup=None, content=None, region=conf
     return '%s/%s/tanks/%d%s?%s' % (SITE_BASE, region, int_cd, TABS[tab], query)
 
 
+def support_url(content):
+    """The unicum.gg support page, opened from `content` (which window asked)."""
+    return '%s/support?%sutm_source=wot-mod&utm_medium=settings&utm_campaign=support&utm_content=%s' % (
+        SITE_BASE, _client(), content)
+
+
+def open_url(url):
+    """A link in the player's own browser."""
+    _logger.info('opening %s', url)
+    BigWorld.wg_openWebBrowser(url)
+
+
 def _client():
     """`client=ct&` on the Common Test client, whose vehicles the site keeps apart."""
     try:
@@ -225,8 +237,7 @@ def open_item(item):
     if item == 'share':
         _share(url)
         return
-    _logger.info('opening %s', url)
-    BigWorld.wg_openWebBrowser(url)
+    open_url(url)
 
 
 def _share(url):

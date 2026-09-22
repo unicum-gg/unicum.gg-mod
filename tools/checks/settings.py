@@ -101,6 +101,15 @@ def check_settings_window():
           [u'text', u'Channel: license__'] in lines
           and [u'button', CONNECT_VAR, u'Channel: not linked', u'Connect'] in
           [line.split(u'\t') for line in native_page(values, u'', False).split(u'\n')])
+    from unicum.settings_window import SUPPORT_BUTTON, SUPPORT_LABEL, SUPPORT_VAR
+    from unicum.tank_button import support_url
+    support = [u'button', SUPPORT_VAR, SUPPORT_LABEL, SUPPORT_BUTTON]
+    check('the settings tab has a support button, whatever the Twitch state',
+          support in lines
+          and support in [line.split(u'\t') for line in native_page(values, u'', False).split(u'\n')])
+    check("the support button opens the site's support page, tagged with what opened it",
+          support_url('settings-tab').startswith('https://unicum.gg/support?')
+          and 'utm_content=settings-tab' in support_url('settings-tab'))
     raw, buttons = read_native(u'maxFlags\td\t3\nmetric\td\t1\ntankButton\tc\t0\n%s\tb\t1\nbad line' % CONNECT_VAR)
     check('what the tab sends back reads as the window\'s values',
           raw == {'maxFlags': 3, 'metric': 1, 'tankButton': False} and buttons == [CONNECT_VAR]

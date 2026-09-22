@@ -755,7 +755,8 @@ package unicum.settings
          button.y = y;
          button.width = 110;
          var self:SettingsTabView = this;
-         button.addEventListener(MouseEvent.CLICK, function(event:Event):void
+         // buttonClick, not click: the game's buttons say so (ButtonEvent).
+         button.addEventListener(ButtonEvent.CLICK, function(event:Event):void
          {
             self._shell.send(key + "\tb\t1");
          });
