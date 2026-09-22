@@ -106,15 +106,14 @@ package unicum
          SettingsTab.page = value;
       }
 
-      // What the tab's Apply or OK committed, for Python to take.
+      // What the tab's buttons, Apply or OK sent, for Python to take. Reading
+      // takes the lines and leaves none: Python must not write this property
+      // back to clear it, because a value written to a view's property is the
+      // one read from it ever after, and everything the tab sent next would
+      // pile up unread.
       public function get settingsTabOut() : String
       {
-         return SettingsTab.out.join("\n");
-      }
-
-      public function set settingsTabOut(value:String) : void
-      {
-         SettingsTab.out = value ? value.split("\n") : [];
+         return SettingsTab.take();
       }
 
       public function get roomEnabled() : Boolean

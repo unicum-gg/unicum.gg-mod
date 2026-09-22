@@ -70,10 +70,12 @@ class SettingsTab(object):
                     _logger.exception('no settings tab in the %s view', name)
 
     def _take(self, flash):
+        # Reading takes the lines: the view hands them over and keeps none.
+        # Writing the property back would be worse than useless, since a value
+        # written to a view's property is the one read from it ever after.
         text = flash.settingsTabOut
         if not text:
             return
-        flash.settingsTabOut = u''
         # A line for the log from the tab's AS3, which cannot write to it.
         for line in text.split(u'\n'):
             if line.startswith(u'log\tl\t'):

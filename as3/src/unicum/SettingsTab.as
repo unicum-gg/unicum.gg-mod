@@ -89,6 +89,19 @@ package unicum
          out.push(line);
       }
 
+      // Everything sent since the last read, and nothing twice: the view's
+      // settingsTabOut hands this to Python, which never writes it back.
+      public static function take() : String
+      {
+         if(out.length == 0)
+         {
+            return "";
+         }
+         var lines:Array = out;
+         out = [];
+         return lines.join("\n");
+      }
+
       // Called when the view commits: the window is about to rebuild itself.
       public function hold() : void
       {

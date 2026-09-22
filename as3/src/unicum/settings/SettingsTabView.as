@@ -755,11 +755,16 @@ package unicum.settings
          button.y = y;
          button.width = 110;
          var self:SettingsTabView = this;
-         // buttonClick, not click: the game's buttons say so (ButtonEvent).
-         button.addEventListener(ButtonEvent.CLICK, function(event:Event):void
+         // Both: the game's own buttons say buttonClick (ButtonEvent), a plain
+         // symbol says click, and which of the two this one is depends on the
+         // library it came from. Being told twice is harmless: Python acts on
+         // a button once, however often the message names it.
+         var clicked:Function = function(event:Event):void
          {
             self._shell.send(key + "\tb\t1");
-         });
+         };
+         button.addEventListener(ButtonEvent.CLICK, clicked);
+         button.addEventListener(MouseEvent.CLICK, clicked);
          this._content.addChild(DisplayObject(button));
          button.validateNow();
       }
