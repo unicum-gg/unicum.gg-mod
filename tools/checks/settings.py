@@ -96,7 +96,7 @@ def check_settings_window():
           [line[1] for line in lines if line[0] == u'tab'] == [u'Garage', u'Battle', u'Twitch'])
     flags = [line for line in lines if line[0] == u'dropdown' and line[1] == u'maxFlags'][0]
     check('a dropdown carries its index, its offset and its options',
-          flags[3:] == [u'1', u'1', u'1|2|3'] and len([l for l in lines if l[0] == u'dropdown']) == 23)
+          flags[3:] == [u'1', u'1', u'1|2|3'] and len([l for l in lines if l[0] == u'dropdown']) == 24)
     check('a linked Twitch shows its channel, an unlinked one a Connect button',
           [u'text', u'Channel: license__'] in lines
           and [u'button', CONNECT_VAR, u'Channel: not linked', u'Connect'] in

@@ -27,7 +27,11 @@ def check_battle_modes(workdir):
     values = validate({})
     check('every mode shows both teams by default',
           all(values['modes'][mode] == {'allies': True, 'enemies': True} for mode in MODES))
-    check('announcing reloads is off by default', values['autoReload'] is False)
+    check('announcing reloads is off by default', values['autoReload'] == 'off')
+    check('a settings.json that said true or false still says what it meant',
+          validate({'autoReload': True})['autoReload'] == 'all'
+          and validate({'autoReload': False})['autoReload'] == 'off'
+          and validate({'autoReload': 'nonsense'})['autoReload'] == 'off')
 
     store = os.path.join(workdir, 'modes-check', 'settings.json')
     settings = Settings(Session(generation=0), store=store)
@@ -117,6 +121,25 @@ def check_reload_announcer():
     announcer.reload(12.0, False)
     announcer.tick()
     check('a shot and a reload far apart are not paired', len(sent) == 4)
+
+    # Autoloaders only: a gun that reloads after every shot says nothing.
+    picked = []
+    only = ReloadAnnouncer(lambda: now[0], lambda: picked.append(now[0]),
+                           allows=lambda magazine: bool(magazine))
+    def settle_only():
+        now[0] += 0.6
+        only.tick()
+
+    now[0] += 60.0
+    only.shells(1, 10, 1)
+    only.reload(20.0, False)
+    settle_only()
+    check('a single-shot gun is left out when only autoloaders are announced', picked == [])
+    now[0] += 60.0
+    only.shells(1, 9, 0)
+    only.reload(20.0, True)
+    settle_only()
+    check('an autoloader with its magazine empty is still announced', len(picked) == 1)
 
 
 def check_alt_only():

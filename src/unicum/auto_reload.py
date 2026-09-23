@@ -1,7 +1,9 @@
 """Sends the "Reloading!" chat command by itself, the way F8 does.
 
 After a shot that starts a reload: every shot of a single-shot gun, the last
-shell of a magazine or autoloader. The message is the client's own: the
+shell of a magazine or autoloader. Which of the two is announced is a
+setting: a gun firing one shell at a time reloads after every shot, an
+autoloader only when its magazine runs out. The message is the client's own: the
 battle's chat commands controller builds it from the reload time and shells
 left (sendReloadingCommand), special reloads included. This only chooses when.
 
@@ -42,11 +44,13 @@ class ReloadAnnouncer(object):
     announces, and tick() is called often to decide on a settled shot.
     """
 
-    def __init__(self, clock, send, skipped=None):
+    def __init__(self, clock, send, skipped=None, allows=None):
         self._clock = clock
         self._send = send
         # skipped(reason): a shot that is not announced, and why.
         self._skipped = skipped or (lambda reason: None)
+        # allows(magazine): whether this kind of reload is announced at all.
+        self._allows = allows or (lambda magazine: True)
         self._quantities = {}
         self._shot = None
         self._reloads = []
@@ -83,6 +87,9 @@ class ReloadAnnouncer(object):
         if magazine and in_clip > 0:
             self._skipped('%d shells still in the magazine' % in_clip)
             return
+        if not self._allows(magazine):
+            self._skipped('this gun is not announced by the settings')
+            return
         if time_left < COOLDOWN:
             self._skipped('a %.1fs reload, under the chat cooldown' % time_left)
             return
@@ -118,7 +125,8 @@ class AutoReload(object):
             return
         import BigWorld
         self._ammo = ammo
-        self._announcer = ReloadAnnouncer(BigWorld.time, self._send, self._on_skipped)
+        self._announcer = ReloadAnnouncer(BigWorld.time, self._send, self._on_skipped,
+                                          self._settings.announces_reload)
         ammo.onShellsUpdated += self._on_shells
         ammo.onGunReloadTimeSet += self._on_reload
         _logger.info('following the reloads of this battle, announcing %s',

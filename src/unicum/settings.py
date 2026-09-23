@@ -70,7 +70,8 @@ DEFAULTS = dict({
     'maxFlags': MAX_FLAGS,
     'tankButton': True,
     # Off until the player turns it on: it writes in the team chat for them.
-    'autoReload': False,
+    # Never, after every shot, or only when an autoloader's magazine runs out.
+    'autoReload': 'off',
     # Ratings shown only while the extended info key (Alt) is held: the battle
     # ones, and the skirmish room, which is the one outside a battle.
     'altOnly': {'markers': False, 'panel': False, 'tab': False, 'loading': False, 'results': False,
@@ -81,6 +82,19 @@ DEFAULTS = dict({
 }, **dict((surface, _surface(surface)) for surface in SURFACES))
 
 _CHECK_SECONDS = 1.0
+
+
+# What is announced: nothing, every reload, or only an autoloader's.
+RELOAD_CHOICES = ('off', 'all', 'magazine')
+
+
+def _reload_choice(raw):
+    """The announcing choice; True and False are what it was before it was one."""
+    if raw is True:
+        return 'all'
+    if raw is False or raw is None:
+        return 'off'
+    return raw if raw in RELOAD_CHOICES else DEFAULTS['autoReload']
 
 
 def validate(raw):
@@ -94,7 +108,7 @@ def validate(raw):
         'window': raw.get('window') if raw.get('window') in WINDOWS else DEFAULTS['window'],
         'maxFlags': DEFAULTS['maxFlags'],
         'tankButton': _bool(raw.get('tankButton'), DEFAULTS['tankButton']),
-        'autoReload': _bool(raw.get('autoReload'), DEFAULTS['autoReload']),
+        'autoReload': _reload_choice(raw.get('autoReload')),
     }
     alt_only = raw.get('altOnly') if isinstance(raw.get('altOnly'), dict) else {}
     values['altOnly'] = dict((key, _bool(alt_only.get(key), default))
@@ -226,7 +240,19 @@ class Settings(object):
         return self._values['altOnly'].get(surface, False)
 
     def shows_auto_reload(self):
-        return self._values['enabled'] and self._values['autoReload']
+        """Whether reloads are announced at all."""
+        return self._values['enabled'] and self._values['autoReload'] != 'off'
+
+    def announces_reload(self, magazine):
+        """Whether this reload is announced: `magazine` for a clip or autoloader.
+
+        A gun that fires one shell at a time reloads after every shot, which
+        is a great deal of announcing; an autoloader only when its magazine
+        runs out. So the two can be chosen apart.
+        """
+        if not self.shows_auto_reload():
+            return False
+        return self._values['autoReload'] == 'all' or bool(magazine)
 
     def twitch_channel(self, linked=''):
         """The Twitch channel to follow, or '' when there is none or the mod is off.

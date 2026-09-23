@@ -22,7 +22,7 @@ Two behaviours of the API (1.7.0) shape this:
 import json
 import logging
 
-from unicum.settings import AVERAGED, MAX_FLAGS, METRICS, MODES, SURFACES, WINDOWS
+from unicum.settings import AVERAGED, MAX_FLAGS, METRICS, MODES, RELOAD_CHOICES, SURFACES, WINDOWS
 
 _logger = logging.getLogger('unicum.settings_window')
 
@@ -69,6 +69,9 @@ TEAM_CHOICES = (
 
 # When a screen shows them: at once, or while the extended info key is held.
 WHEN_CHOICES = ('Always', 'While Alt is held')
+
+# Which reloads are announced, in the order of RELOAD_CHOICES.
+RELOAD_LABELS = ('Never', 'Every gun', 'Autoloaders only')
 
 _SURFACE_LABELS = {
     'contacts': 'Contacts list',
@@ -282,10 +285,11 @@ def template(values, channel=u'', linked=False, card_shown=True):
     battle.extend([
         templates.createEmpty(_SPACER),
         checkbox('Twitch chat in battle', 'twitchBattleChat'),
-        checkbox('Announce reloading', 'autoReload',
-                 tooltip='{HEADER}Announce reloading{/HEADER}{BODY}Sends the "Reloading!" message to your team '
-                         'by itself, as F8 does: after each shot, or once a magazine is empty. Reloads shorter '
-                         'than the 5-second limit of the chat are not announced.{/BODY}'),
+        choice('Announce reloading', 'autoReload', RELOAD_LABELS,
+               tooltip='{HEADER}Announce reloading{/HEADER}{BODY}Sends the "Reloading!" message to your team '
+                       'by itself, as F8 does. Every gun announces after each shot; autoloaders only, once a '
+                       'magazine is empty, which is far less talking. Reloads shorter than the 5-second limit '
+                       'of the chat are never announced.{/BODY}'),
     ])
     return {'modDisplayName': 'unicum.gg', 'enabled': values['enabled'],
             'column1': garage, 'column2': battle}
@@ -352,7 +356,7 @@ def native_page(values, channel=u'', linked=False, card_shown=True):
     for key, label in _ALT_SCREENS:
         dropdown(label, _alt_key(key), WHEN_CHOICES)
     group(0, u'Tools')
-    checkbox(u'Announce reloading', 'autoReload')
+    dropdown(u'Announce reloading', 'autoReload', RELOAD_LABELS)
     group(1, u'Whose stats, per mode')
     for mode in MODES:
         dropdown(_MODE_LABELS[mode], _mode_key(mode), [c[0] for c in TEAM_CHOICES])
@@ -415,7 +419,7 @@ def to_window(values, card_shown=True):
     """What the window stores for these settings: flat, choices by index."""
     window = {CARD_VAR: card_shown,
               'enabled': values['enabled'], 'maxFlags': values['maxFlags'], 'tankButton': values['tankButton'],
-              'autoReload': values['autoReload'],
+              'autoReload': RELOAD_CHOICES.index(values['autoReload']),
               'twitchChannel': values['twitch']['channel'], 'twitchBattleChat': values['twitch']['battleChat'],
               'twitchGarage': values['twitch']['garage'],
               'metric': METRICS.index(values['metric']), 'window': WINDOWS.index(values['window'])}
@@ -432,9 +436,12 @@ def to_window(values, card_shown=True):
 def from_window(raw):
     """settings.json changes from what the window sends back."""
     changes = {}
-    for key in ('enabled', 'tankButton', 'autoReload'):
+    for key in ('enabled', 'tankButton'):
         if isinstance(raw.get(key), bool):
             changes[key] = raw[key]
+    announced = _index(raw.get('autoReload'), RELOAD_CHOICES)
+    if announced is not None:
+        changes['autoReload'] = RELOAD_CHOICES[announced]
     alt_only = dict((key, bool(raw[_alt_key(key)])) for key in _ALT_KEYS
                     if _index(raw.get(_alt_key(key)), WHEN_CHOICES) is not None)
     if alt_only:
