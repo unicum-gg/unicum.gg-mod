@@ -74,7 +74,13 @@ class RoomSort(object):
                 self._labels = u''
         if self._labels and getattr(view, 'sortLabels', None) != self._labels:
             view.sortLabels = self._labels
-        chosen = getattr(view, 'sortMode', None)
+        # Asked for, not read off the view: a property is read once by the
+        # proxy and answered from that copy ever after, so the order the
+        # player picks would never come back.
+        try:
+            chosen = view.takeSortMode()
+        except Exception:
+            chosen = getattr(view, 'sortMode', None)
         if not chosen:
             view.sortMode = self._mode
         elif chosen != self._mode and chosen in MODES:

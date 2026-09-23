@@ -43,6 +43,14 @@ package unicum
          }
       }
 
+      // The order in force, for Python to notice the player changing it. A
+      // call, not the property above: a property is read once by the proxy
+      // Python holds this view by and answered from that copy ever after.
+      public function takeSortMode() : String
+      {
+         return this._room != null ? this._room.sortMode : "";
+      }
+
       public function get sortLabels() : String
       {
          return this._room != null ? this._room.sortLabels : "";
