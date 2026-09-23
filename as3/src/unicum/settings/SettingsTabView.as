@@ -765,12 +765,12 @@ package unicum.settings
          // symbol says click, and which of the two this one is depends on the
          // library it came from. Being told twice is harmless: Python acts on
          // a button once, however often the message names it.
-         var clicked:Function = function(event:Event):void
+         // buttonClick alone: the game's button says that, and it says click
+         // as well, so listening for both sent every press twice.
+         button.addEventListener(ButtonEvent.CLICK, function(event:Event):void
          {
             self._shell.send(key + "\tb\t1");
-         };
-         button.addEventListener(ButtonEvent.CLICK, clicked);
-         button.addEventListener(MouseEvent.CLICK, clicked);
+         });
          this._content.addChild(DisplayObject(button));
          button.validateNow();
       }

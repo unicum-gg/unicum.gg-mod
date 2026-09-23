@@ -11,7 +11,8 @@ The views are handed the page as text (settings_window.native_page) in their
 What the player changes waits in the tab until Apply or OK, as the window's
 own settings do, then comes back in `settingsTabOut` (settings_window.read_native),
 taken on the next tick and applied as the modsSettingsApi page's are; Cancel or
-the window's cross drop it. The buttons, Connect and Support, act at once.
+the window's cross drop it. The buttons act at once: Connect, and the ones
+that only open a page.
 """
 import logging
 
@@ -87,8 +88,9 @@ class SettingsTab(object):
         raw, buttons = settings_window.read_native(text)
         if raw:
             settings_window.apply_window(raw, self._settings, self._link)
-        if settings_window.SUPPORT_VAR in buttons:
-            settings_window.open_support('settings-tab')
+        # Each button once, however many times the message names it.
+        for var in dict.fromkeys(buttons):
+            settings_window.open_link(var, 'settings-tab')
         if settings_window.CONNECT_VAR in buttons and self._link is not None:
             self._link.connect(settings_window._linked_notice)
 

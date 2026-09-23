@@ -121,19 +121,49 @@ def _button_line(templates, text, var, button, tooltip=None):
 # setting: nothing is stored, the click only opens the page.
 SUPPORT_VAR = 'support'
 
-SUPPORT_LABEL = 'unicum.gg is free and has no ads'
+DISCORD_VAR = 'discord'
 
-SUPPORT_BUTTON = 'Support'
+SOURCE_VAR = 'source'
 
-_SUPPORT_TOOLTIP = ('{HEADER}Support unicum.gg{/HEADER}{BODY}The site and this mod are free, with no ads and '
-                    'nothing held back for payers. Opens the support page in your browser, where you choose '
-                    'what you give, if anything.{/BODY}')
+DISCORD_URL = 'https://discord.gg/Hqbfb8YPbU'
+
+SOURCE_URL = 'https://github.com/unicum-gg/unicum.gg-mod'
+
+# Each line of the unicum.gg section: the variable, what it says, and the
+# button's own word. Order matters, it is the order they are drawn in.
+LINKS = (
+    (SUPPORT_VAR, 'unicum.gg is free and has no ads', 'Support'),
+    (DISCORD_VAR, 'Questions, ideas and bug reports', 'Discord'),
+    (SOURCE_VAR, "The mod's source and its issues", 'GitHub'),
+)
+
+_LINK_TOOLTIPS = {
+    SUPPORT_VAR: ('{HEADER}Support unicum.gg{/HEADER}{BODY}The site and this mod are free, with no ads and '
+                  'nothing held back for payers. Opens the support page in your browser, where you choose '
+                  'what you give, if anything.{/BODY}'),
+    DISCORD_VAR: ('{HEADER}Discord{/HEADER}{BODY}The unicum.gg server, where the mod is talked about: ask a '
+                  'question, say what is missing, or report what went wrong. Opens in your browser.{/BODY}'),
+    SOURCE_VAR: ('{HEADER}GitHub{/HEADER}{BODY}Everything this mod does is written down and open to read. '
+                 'Opens the repository in your browser, where issues are filed too.{/BODY}'),
+}
 
 
-def open_support(content):
-    """The support page in the player's browser, tagged by the window it was opened from."""
+def link_url(var, content):
+    """Where a link button goes, or None for a variable that is not one."""
     from unicum import tank_button
-    tank_button.open_url(tank_button.support_url(content))
+    if var == SUPPORT_VAR:
+        return tank_button.support_url(content)
+    return {DISCORD_VAR: DISCORD_URL, SOURCE_VAR: SOURCE_URL}.get(var)
+
+
+def open_link(var, content):
+    """A link button's page in the player's browser; True if it was one."""
+    url = link_url(var, content)
+    if url is None:
+        return False
+    from unicum import tank_button
+    tank_button.open_url(url)
+    return True
 
 
 # The account card's checkbox. Not a settings.json value: the card's own cross
@@ -193,8 +223,8 @@ def template(values, channel=u'', linked=False, card_shown=True):
         (templates.createLabel(channel_label(channel, linked), tooltip=_CONNECT_TOOLTIP) if linked else
          _button_line(templates, channel_label(channel, linked), CONNECT_VAR, 'Connect', _CONNECT_TOOLTIP)),
         templates.createEmpty(_SPACER),
-        _button_line(templates, SUPPORT_LABEL, SUPPORT_VAR, SUPPORT_BUTTON, _SUPPORT_TOOLTIP),
     ])
+    garage.extend(_button_line(templates, text, var, word, _LINK_TOOLTIPS[var]) for var, text, word in LINKS)
 
     battle = [
         _heading(templates, 'Battle'),
@@ -266,8 +296,9 @@ def native_page(values, channel=u'', linked=False, card_shown=True):
     for surface in _GARAGE_SURFACES:
         show(surface)
     dropdown(u'Battle results: when', _alt_key('results'), WHEN_CHOICES)
-    group(1, u'Support')
-    lines.append(u'button	%s	%s	%s' % (SUPPORT_VAR, SUPPORT_LABEL, SUPPORT_BUTTON))
+    group(1, u'unicum.gg')
+    for var, text, word in LINKS:
+        lines.append(u'button	%s	%s	%s' % (var, text, word))
 
     tab(u'Battle')
     group(0, u'What and when')
@@ -488,8 +519,7 @@ class SettingsWindow(object):
     def _on_button(self, linkage, var_name, value=None):
         if not self._alive or linkage != LINKAGE:
             return
-        if var_name == SUPPORT_VAR:
-            open_support('mods-list')
+        if open_link(var_name, 'mods-list'):
             return
         if self._link is not None and var_name == CONNECT_VAR:
             self._link.connect(_linked_notice)

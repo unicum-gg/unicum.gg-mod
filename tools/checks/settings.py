@@ -101,15 +101,17 @@ def check_settings_window():
           [u'text', u'Channel: license__'] in lines
           and [u'button', CONNECT_VAR, u'Channel: not linked', u'Connect'] in
           [line.split(u'\t') for line in native_page(values, u'', False).split(u'\n')])
-    from unicum.settings_window import SUPPORT_BUTTON, SUPPORT_LABEL, SUPPORT_VAR
-    from unicum.tank_button import support_url
-    support = [u'button', SUPPORT_VAR, SUPPORT_LABEL, SUPPORT_BUTTON]
-    check('the settings tab has a support button, whatever the Twitch state',
-          support in lines
-          and support in [line.split(u'\t') for line in native_page(values, u'', False).split(u'\n')])
-    check("the support button opens the site's support page, tagged with what opened it",
-          support_url('settings-tab').startswith('https://unicum.gg/support?')
-          and 'utm_content=settings-tab' in support_url('settings-tab'))
+    from unicum.settings_window import DISCORD_VAR, LINKS, SOURCE_VAR, SUPPORT_VAR, link_url
+    unlinked = [line.split(u'\t') for line in native_page(values, u'', False).split(u'\n')]
+    check('the settings tab has the link buttons, whatever the Twitch state',
+          all([u'button', var, text, word] in lines and [u'button', var, text, word] in unlinked
+              for var, text, word in LINKS))
+    check('each one opens its own page, the support one tagged with what opened it',
+          link_url(SUPPORT_VAR, 'settings-tab').startswith('https://unicum.gg/support?')
+          and 'utm_content=settings-tab' in link_url(SUPPORT_VAR, 'settings-tab')
+          and link_url(DISCORD_VAR, 'x').startswith('https://discord.gg/')
+          and link_url(SOURCE_VAR, 'x') == 'https://github.com/unicum-gg/unicum.gg-mod'
+          and link_url('maxFlags', 'x') is None)
     raw, buttons = read_native(u'maxFlags\td\t3\nmetric\td\t1\ntankButton\tc\t0\n%s\tb\t1\nbad line' % CONNECT_VAR)
     check('what the tab sends back reads as the window\'s values',
           raw == {'maxFlags': 3, 'metric': 1, 'tankButton': False} and buttons == [CONNECT_VAR]
