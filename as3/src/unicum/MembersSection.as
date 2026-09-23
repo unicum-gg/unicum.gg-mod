@@ -84,6 +84,10 @@ package unicum
          this._dropdown.itemRenderer = "DropDownListItemRendererSound";
          this._dropdown.width = DROPDOWN_WIDTH;
          this._dropdown.menuWidth = DROPDOWN_WIDTH;
+         // As many rows as it has orders: left fixed, the game's dropdown works
+         // its row count out from maxRowCount, which is -1 and reads as five
+         // whatever it holds (DropdownMenu.calcMenuAvailableRowCount).
+         this._dropdown.menuRowsFixed = false;
          this._dropdown.menuRowCount = MODES.length;
          this._dropdown.dataProvider = new DataProvider(FALLBACK_LABELS.concat());
          this._dropdown.addEventListener(ListEvent.INDEX_CHANGE, this.onIndexChange);
