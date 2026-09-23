@@ -510,11 +510,29 @@ package unicum.settings
       // rows and the last twenty. Its own is part of the art this tab copies,
       // and the copy loses it -- the top rows are where the sub-tabs go, and
       // the bottom falls past the page -- so it is drawn again here.
-      private static const FADE_TOP:int = 22;
+      private static const FADE_TOP:int = 21;
 
-      private static const FADE_BOTTOM:int = 20;
+      private static const FADE_BOTTOM:int = 21;
 
-      private static const FADE_ALPHA:Number = 0.38;
+      // Where the page's own ground stops and the window's bottom frame
+      // starts: HEIGHT is the room the tab is given, which runs one row past
+      // it, and the fade has to sit on the ground to be seen.
+      private static const PAGE_BOTTOM:int = 521;
+
+      // The ground reads 0x19 where nothing is drawn on it, and 0x11 under the
+      // darkest part of the General tab's fade: a black veil at about a third.
+      private static const FADE_ALPHA:Number = 0.32;
+
+      // Edge to edge, inside the window's own frame: the General tab's fade
+      // covers every column of the page, not only the ground between its
+      // borders. Column 2 and column 799 are that frame; 3 to 798 is the page.
+      private static const FADE_LEFT:int = 3;
+
+      private static const FADE_RIGHT:int = 798;
+
+      // And it is not a plain ramp: the half of the band against the edge
+      // stays at full strength, and only the inner half fades out.
+      private static const FADE_SOLID:int = 115;
 
       private function fade() : void
       {
@@ -522,7 +540,7 @@ package unicum.settings
          box.mouseEnabled = false;
          box.mouseChildren = false;
          this.gradient(box, SUB_TABS_HEIGHT, FADE_TOP, false);
-         this.gradient(box, HEIGHT - FADE_BOTTOM, FADE_BOTTOM, true);
+         this.gradient(box, PAGE_BOTTOM - FADE_BOTTOM, FADE_BOTTOM, true);
          addChild(box);
       }
 
@@ -532,10 +550,11 @@ package unicum.settings
       private function gradient(box:Sprite, top:int, height:int, upwards:Boolean) : void
       {
          var turn:Matrix = new Matrix();
-         turn.createGradientBox(GROUND_RIGHT - GROUND_LEFT + 1, height, Math.PI / 2, GROUND_LEFT, top);
-         var alphas:Array = upwards ? [0, FADE_ALPHA] : [FADE_ALPHA, 0];
-         box.graphics.beginGradientFill(GradientType.LINEAR, [0, 0], alphas, [0, 255], turn);
-         box.graphics.drawRect(GROUND_LEFT, top, GROUND_RIGHT - GROUND_LEFT + 1, height);
+         turn.createGradientBox(FADE_RIGHT - FADE_LEFT + 1, height, Math.PI / 2, FADE_LEFT, top);
+         var alphas:Array = upwards ? [0, FADE_ALPHA, FADE_ALPHA] : [FADE_ALPHA, FADE_ALPHA, 0];
+         var stops:Array = upwards ? [0, 255 - FADE_SOLID, 255] : [0, FADE_SOLID, 255];
+         box.graphics.beginGradientFill(GradientType.LINEAR, [0, 0, 0], alphas, stops, turn);
+         box.graphics.drawRect(FADE_LEFT, top, FADE_RIGHT - FADE_LEFT + 1, height);
          box.graphics.endFill();
       }
 
@@ -559,6 +578,11 @@ package unicum.settings
       // under where it is put.
       private static const SCROLL_BOTTOM:int = 15;
 
+      // And of the top by as much as the General tab leaves: the top of its
+      // arrow sits 10 under the top of its page. Ours sits 10 under the
+      // sub-tabs, which are what fills that place on this page.
+      private static const SCROLL_TOP:int = 10;
+
       // The page is taller than the window once every setting is drawn, so it
       // is shown through a viewport, with the game's own scroll bar beside it
       // and the wheel, as the General tab has.
@@ -577,8 +601,8 @@ package unicum.settings
          {
             var bar:Object = App.utils.classFactory.getComponent("ScrollBar", DisplayObject);
             bar.x = SCROLL_X;
-            bar.y = SUB_TABS_HEIGHT;
-            bar.height = height - SCROLL_BOTTOM;
+            bar.y = SUB_TABS_HEIGHT + SCROLL_TOP;
+            bar.height = height - SCROLL_TOP - SCROLL_BOTTOM;
             addChild(DisplayObject(bar));
             bar.setScrollProperties(height, 0, over);
             bar.addEventListener(Event.SCROLL, this.onScroll);
