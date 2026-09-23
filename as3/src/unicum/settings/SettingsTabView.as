@@ -5,6 +5,8 @@ package unicum.settings
    import flash.display.Sprite;
    import flash.events.Event;
    import flash.events.MouseEvent;
+   import flash.display.GradientType;
+   import flash.geom.Matrix;
    import flash.geom.Rectangle;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
@@ -498,7 +500,43 @@ package unicum.settings
          this._viewport.y = SUB_TABS_HEIGHT;
          this._viewport.addChild(this._content);
          addChild(this._viewport);
+         this.fade();
          this.fitScroll();
+      }
+
+      // The General tab darkens its page at the top and at the bottom, so what
+      // scrolls under either edge goes out rather than being cut off. Measured
+      // in the client: #191... at rest, down to #111... over the first twenty
+      // rows and the last twenty. Its own is part of the art this tab copies,
+      // and the copy loses it -- the top rows are where the sub-tabs go, and
+      // the bottom falls past the page -- so it is drawn again here.
+      private static const FADE_TOP:int = 22;
+
+      private static const FADE_BOTTOM:int = 20;
+
+      private static const FADE_ALPHA:Number = 0.38;
+
+      private function fade() : void
+      {
+         var box:Sprite = new Sprite();
+         box.mouseEnabled = false;
+         box.mouseChildren = false;
+         this.gradient(box, SUB_TABS_HEIGHT, FADE_TOP, false);
+         this.gradient(box, HEIGHT - FADE_BOTTOM, FADE_BOTTOM, true);
+         addChild(box);
+      }
+
+      // One band of the fade: black where it meets the edge, clear where it
+      // meets the page. `upwards` for the band at the bottom, which is the
+      // same the other way round.
+      private function gradient(box:Sprite, top:int, height:int, upwards:Boolean) : void
+      {
+         var turn:Matrix = new Matrix();
+         turn.createGradientBox(GROUND_RIGHT - GROUND_LEFT + 1, height, Math.PI / 2, GROUND_LEFT, top);
+         var alphas:Array = upwards ? [0, FADE_ALPHA] : [FADE_ALPHA, 0];
+         box.graphics.beginGradientFill(GradientType.LINEAR, [0, 0], alphas, [0, 255], turn);
+         box.graphics.drawRect(GROUND_LEFT, top, GROUND_RIGHT - GROUND_LEFT + 1, height);
+         box.graphics.endFill();
       }
 
       // The page seen through the window, and how far down it is seen from.
@@ -508,9 +546,10 @@ package unicum.settings
 
       private var _scrolled:Number = 0;
 
-      // Where the General tab's own scroll bar stands, and what a notch of
-      // the wheel moves.
-      private static const SCROLL_X:int = 785;
+      // Where the General tab's own scroll bar stands, measured in the client:
+      // its frame on columns 777 and 789, so it is not against the right edge
+      // of the page. And what a notch of the wheel moves.
+      private static const SCROLL_X:int = 777;
 
       private static const WHEEL_STEP:int = 40;
 
