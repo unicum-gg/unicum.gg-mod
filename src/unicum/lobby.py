@@ -389,9 +389,8 @@ class LobbyFlags(object):
         self._redraw_rooms()
 
     def _waits_for_alt(self, surface):
-        """Whether this surface shows nothing until the key is held."""
-        return (self._alt is not None and self._settings.alt_only(surface)
-                and not self._alt.down)
+        from unicum.extended_info import waits
+        return waits(self._alt, self._settings, surface)
 
     def _marker(self, account_id, surface):
         """The surface's flags and rating, as htmlText markup."""

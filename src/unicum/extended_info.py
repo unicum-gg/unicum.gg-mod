@@ -39,6 +39,11 @@ def _bound_key():
 _GARAGE_POLL = 0.1
 
 
+def waits(alt, settings, surface):
+    """Whether this surface shows nothing until the extended info key is held."""
+    return alt is not None and settings.alt_only(surface) and not alt.down
+
+
 class ExtendedInfo(object):
 
     def __init__(self, session):

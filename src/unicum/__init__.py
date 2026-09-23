@@ -53,12 +53,12 @@ def start(generation=0):
         scales = RatingScales(_session)
         flags = FlagCache(_session)
         badges = Badges(scales)
-        browser.install(_session, lookup, flags, scales, settings)
-        # One reader of the extended info key for the battle and the lobby:
-        # the skirmish room can wait for it as the battle screens do.
+        # One reader of the extended info key for every surface that can wait
+        # for it: the battle screens, the skirmish room and the stronghold.
         from unicum.extended_info import ExtendedInfo
         alt = ExtendedInfo(_session)
         alt.install()
+        browser.install(_session, lookup, flags, scales, settings, alt)
         battle.install(_session, lookup, flags, badges, settings, alt)
         battle_results.install(_session, lookup, flags, scales, settings)
         views.install(_session)

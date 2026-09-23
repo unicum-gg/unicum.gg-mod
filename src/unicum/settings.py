@@ -74,7 +74,7 @@ DEFAULTS = dict({
     # Ratings shown only while the extended info key (Alt) is held: the battle
     # ones, and the skirmish room, which is the one outside a battle.
     'altOnly': {'markers': False, 'panel': False, 'tab': False, 'loading': False, 'results': False,
-                'skirmishRoom': False},
+                'skirmishRoom': False, 'stronghold': False},
     'twitch': {'channel': '', 'battleChat': True, 'garage': True, 'garageCollapsed': False,
                'garagePosition': None, 'garageSize': None},
     'modes': dict((mode, {'allies': True, 'enemies': True}) for mode in MODES),

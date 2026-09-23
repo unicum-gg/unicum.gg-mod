@@ -19,6 +19,7 @@ Two behaviours of the API (1.7.0) shape this:
     reload of this package would stack one. The session removes its own on
     close, and a callback that outlives its session does nothing.
 """
+import json
 import logging
 
 from unicum.settings import AVERAGED, MAX_FLAGS, METRICS, MODES, SURFACES, WINDOWS
@@ -82,7 +83,7 @@ _GARAGE_SURFACES = ('contacts', 'profile', 'skirmishRoom', 'stronghold', 'battle
 # The battle's screens that can wait for Alt, and the altOnly key of each.
 _ALT_SCREENS = (('markers', 'Above tanks'), ('panel', 'Players list'), ('tab', 'Tab screen'),
                 ('loading', 'Loading screen'))
-_ALT_KEYS = ('markers', 'panel', 'tab', 'loading', 'results', 'skirmishRoom')
+_ALT_KEYS = ('markers', 'panel', 'tab', 'loading', 'results', 'skirmishRoom', 'stronghold')
 
 # Nor any rule, so a heading draws its own with em dashes: box-drawing
 # characters are missing from the window's font and drew nothing.
@@ -148,6 +149,42 @@ _LINK_TOOLTIPS = {
 }
 
 
+# The button putting every setting back to what it was before anything was
+# changed. Not a setting either: the click acts, nothing is stored.
+RESET_VAR = 'resetDefaults'
+
+RESET_LABEL = 'Every setting back to its default'
+
+RESET_BUTTON = 'Reset'
+
+_RESET_TOOLTIP = ('{HEADER}Reset{/HEADER}{BODY}Puts every setting of this mod back to what it was when it '
+                  'was installed, at once, in this window and in the mods list alike. Nothing else is '
+                  'touched: the account this game is linked to stays linked.{/BODY}')
+
+
+def reset_defaults(settings):
+    """Every setting back to its default, and a system message saying so."""
+    from unicum.settings import DEFAULTS
+    settings.update(json.loads(json.dumps(DEFAULTS)))
+    _logger.info('the settings were put back to their defaults')
+    try:
+        from gui import SystemMessages
+        from gui.shared.notifications import NotificationPriorityLevel
+        SystemMessages.pushMessage(u'unicum.gg: the settings are back to their defaults.',
+                                   type=SystemMessages.SM_TYPE.Information,
+                                   priority=NotificationPriorityLevel.MEDIUM)
+    except Exception:
+        _logger.debug('could not say that the settings were reset', exc_info=True)
+
+
+def handle_button(var, settings, content):
+    """What a button of either page does, apart from Twitch's Connect."""
+    if var == RESET_VAR:
+        reset_defaults(settings)
+        return True
+    return open_link(var, content)
+
+
 def link_url(var, content):
     """Where a link button goes, or None for a variable that is not one."""
     from unicum import tank_button
@@ -211,6 +248,7 @@ def template(values, channel=u'', linked=False, card_shown=True):
                tooltip='{HEADER}Skirmish room{/HEADER}{BODY}While Alt is held, the members ratings and '
                        'flags show, and the average of the detachment with them. The order they are '
                        'sorted in stays whatever you chose.{/BODY}'),
+        choice('Stronghold: when', _alt_key('stronghold'), WHEN_CHOICES),
         choice('Battle results: when', _alt_key('results'), WHEN_CHOICES),
         templates.createEmpty(_SPACER),
         checkbox('Tank menu button', 'tankButton',
@@ -229,6 +267,7 @@ def template(values, channel=u'', linked=False, card_shown=True):
         templates.createEmpty(_SPACER),
     ])
     garage.extend(_button_line(templates, text, var, word, _LINK_TOOLTIPS[var]) for var, text, word in LINKS)
+    garage.append(_button_line(templates, RESET_LABEL, RESET_VAR, RESET_BUTTON, _RESET_TOOLTIP))
 
     battle = [
         _heading(templates, 'Battle'),
@@ -300,10 +339,12 @@ def native_page(values, channel=u'', linked=False, card_shown=True):
     for surface in _GARAGE_SURFACES:
         show(surface)
     dropdown(u'Skirmish room: when', _alt_key('skirmishRoom'), WHEN_CHOICES)
+    dropdown(u'Stronghold: when', _alt_key('stronghold'), WHEN_CHOICES)
     dropdown(u'Battle results: when', _alt_key('results'), WHEN_CHOICES)
     group(1, u'unicum.gg')
     for var, text, word in LINKS:
         lines.append(u'button	%s	%s	%s' % (var, text, word))
+    lines.append(u'button	%s	%s	%s' % (RESET_VAR, RESET_LABEL, RESET_BUTTON))
 
     tab(u'Battle')
     group(0, u'What and when')
@@ -524,7 +565,7 @@ class SettingsWindow(object):
     def _on_button(self, linkage, var_name, value=None):
         if not self._alive or linkage != LINKAGE:
             return
-        if open_link(var_name, 'mods-list'):
+        if handle_button(var_name, self._settings, 'mods-list'):
             return
         if self._link is not None and var_name == CONNECT_VAR:
             self._link.connect(_linked_notice)

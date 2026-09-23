@@ -124,12 +124,14 @@ def parse_need(message):
 class BrowserBridge(object):
     """Keeps the content script running in every Stronghold page."""
 
-    def __init__(self, session, lookup, flags, scales, settings):
+    def __init__(self, session, lookup, flags, scales, settings, alt=None):
         self._session = session
         self._lookup = lookup
         self._flags = flags
         self._scales = scales
         self._settings = settings
+        # Whether the extended info key is held, when the page waits for it.
+        self._alt = alt
         # Bumped by every settings change, so the page sees a new version.
         self._revision = 0
         self._controller = dependency.instance(IBrowserController)
@@ -145,6 +147,11 @@ class BrowserBridge(object):
         for browser_id in list(self._controller.getAllBrowsers()):
             self._attach(browser_id)
         self._settings.on_change(self._on_settings)
+        if self._alt is not None:
+            # The key is read outside a battle only while something asks for
+            # it, and a page put up or taken down is a settings change here.
+            self._alt.watch_outside_battle()
+            self._alt.on_change(self._on_settings)
 
     def _on_settings(self):
         """Stop the page's script, and start one with the new settings."""
@@ -189,7 +196,10 @@ class BrowserBridge(object):
     def _inject(self, ref, url):
         # Checked again on every load: a browser that started on a Stronghold
         # page can navigate somewhere else.
+        from unicum.extended_info import waits
         if not is_stronghold_page(url) or not self._settings.shows('stronghold'):
+            return
+        if waits(self._alt, self._settings, 'stronghold'):
             return
         generation = self._session.generation * 1000 + self._revision
         metric = self._settings.metric('stronghold')
@@ -256,5 +266,5 @@ class BrowserBridge(object):
             _logger.exception('could not run script in the page')
 
 
-def install(session, lookup, flags, scales, settings):
-    BrowserBridge(session, lookup, flags, scales, settings).install()
+def install(session, lookup, flags, scales, settings, alt=None):
+    BrowserBridge(session, lookup, flags, scales, settings, alt).install()

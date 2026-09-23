@@ -90,7 +90,7 @@ class SettingsTab(object):
             settings_window.apply_window(raw, self._settings, self._link)
         # Each button once, however many times the message names it.
         for var in dict.fromkeys(buttons):
-            settings_window.open_link(var, 'settings-tab')
+            settings_window.handle_button(var, self._settings, 'settings-tab')
         if settings_window.CONNECT_VAR in buttons and self._link is not None:
             self._link.connect(settings_window._linked_notice)
 

@@ -5,6 +5,7 @@ package unicum.settings
    import flash.display.Sprite;
    import flash.events.Event;
    import flash.events.MouseEvent;
+   import flash.geom.Rectangle;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
    import flash.system.ApplicationDomain;
@@ -350,6 +351,23 @@ package unicum.settings
             }
             this._bar = null;
          }
+         removeEventListener(MouseEvent.MOUSE_WHEEL, this.onWheel);
+         if(this._scrollBar != null)
+         {
+            try
+            {
+               this._scrollBar.removeEventListener(Event.SCROLL, this.onScroll);
+            }
+            catch(e:Error)
+            {
+            }
+            this._scrollBar = null;
+         }
+         if(this._viewport != null)
+         {
+            this._viewport.scrollRect = null;
+            this._viewport = null;
+         }
          if(this._pane != null)
          {
             try
@@ -476,8 +494,91 @@ package unicum.settings
       private function drawPane() : void
       {
          this.background();
-         this._content.y = SUB_TABS_HEIGHT;
-         addChild(this._content);
+         this._viewport = new Sprite();
+         this._viewport.y = SUB_TABS_HEIGHT;
+         this._viewport.addChild(this._content);
+         addChild(this._viewport);
+         this.fitScroll();
+      }
+
+      // The page seen through the window, and how far down it is seen from.
+      private var _viewport:Sprite;
+
+      private var _scrollBar:Object;
+
+      private var _scrolled:Number = 0;
+
+      // Where the General tab's own scroll bar stands, and what a notch of
+      // the wheel moves.
+      private static const SCROLL_X:int = 785;
+
+      private static const WHEEL_STEP:int = 40;
+
+      // The page is taller than the window once every setting is drawn, so it
+      // is shown through a viewport, with the game's own scroll bar beside it
+      // and the wheel, as the General tab has.
+      private function fitScroll() : void
+      {
+         var height:int = HEIGHT - SUB_TABS_HEIGHT;
+         this._viewport.scrollRect = new Rectangle(0, 0, WIDTH, height);
+         this._scrolled = 0;
+         var over:Number = this._bottom + SECTION_BOTTOM - height;
+         if(over <= 0)
+         {
+            return;
+         }
+         addEventListener(MouseEvent.MOUSE_WHEEL, this.onWheel);
+         try
+         {
+            var bar:Object = App.utils.classFactory.getComponent("ScrollBar", DisplayObject);
+            bar.x = SCROLL_X;
+            bar.y = SUB_TABS_HEIGHT;
+            bar.height = height;
+            addChild(DisplayObject(bar));
+            bar.setScrollProperties(height, 0, over);
+            bar.addEventListener(Event.SCROLL, this.onScroll);
+            bar.validateNow();
+            this._scrollBar = bar;
+         }
+         catch(e:Error)
+         {
+            this.log("no scroll bar, the wheel alone scrolls: " + e);
+         }
+      }
+
+      private function onScroll(event:Event) : void
+      {
+         this.scrollTo(Number(this._scrollBar.position));
+      }
+
+      private function onWheel(event:MouseEvent) : void
+      {
+         var wanted:Number = this._scrolled - event.delta * WHEEL_STEP;
+         if(this._scrollBar != null)
+         {
+            // Its own limits, and it says so back through onScroll.
+            this._scrollBar.position = wanted;
+            return;
+         }
+         this.scrollTo(wanted);
+      }
+
+      private function scrollTo(offset:Number) : void
+      {
+         if(this._viewport == null)
+         {
+            return;
+         }
+         var box:Rectangle = this._viewport.scrollRect;
+         var lowest:Number = Math.max(0, this._bottom + SECTION_BOTTOM - box.height);
+         var to:Number = Math.round(Math.max(0, Math.min(lowest, offset)));
+         if(to == box.y)
+         {
+            return;
+         }
+         box.y = to;
+         this._viewport.scrollRect = box;
+         this._scrolled = to;
       }
 
       private function onSubTab(event:Object) : void
@@ -640,7 +741,11 @@ package unicum.settings
             }
             tops[column] += height;
          }
+         this._bottom = Math.max(tops[0], tops[1]);
       }
+
+      // How far down the page goes, from its longest column.
+      private var _bottom:int = 0;
 
       private function frame(title:String, x:int, y:int, width:int, height:int) : void
       {
