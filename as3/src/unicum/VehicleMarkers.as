@@ -296,10 +296,14 @@ package unicum
       {
          var icons:Object = field(table, "vehicleIconCollection");
          var count:int = icons != null ? int(icons.length) : 0;
-         // Before anything: working the teams' middle out measures every icon,
-         // and the placing that follows measures every neighbour of every row.
-         if(this.settled(table, this.readingOf(icons, count)))
+         // Working the teams' middle out measures every icon, and the placing
+         // that follows measures every neighbour of every row, so both wait
+         // for something to move. The averages are placed either way: they
+         // are two fields, and a team whose average is not placed loses it.
+         var kept:Object = this._placed[table];
+         if(this.settled(table, this.readingOf(icons, count)) && kept != null && kept.result != null)
          {
+            this.placeAverages(table, kept.result.middle, kept.result.left, kept.result.right, hidden);
             return;
          }
          var middle:Number = 0;
@@ -331,6 +335,17 @@ package unicum
          }
          var leftColumn:Array = this.placeTeam(lefts, hidden ? [] : this._left, null, false, middle);
          var rightColumn:Array = this.placeTeam(rights, hidden ? [] : this._right, null, true, middle);
+         if(this._placed[table] != null)
+         {
+            this._placed[table].result = {"middle":middle, "left":leftColumn, "right":rightColumn};
+         }
+         this.placeAverages(table, middle, leftColumn, rightColumn, hidden);
+      }
+
+      // Each team's average, moved from its name into its badge column.
+      private function placeAverages(table:Object, middle:Number, leftColumn:Array, rightColumn:Array,
+                                     hidden:Boolean) : void
+      {
          for each(var name:String in ["team1TF", "team2TF"])
          {
             var team:TextField = field(table, name) as TextField;
@@ -390,12 +405,23 @@ package unicum
          }
          if(taken == null || column == null)
          {
-            if(taken != null && team.text == taken[0])
+            if(taken == null)
+            {
+               delete this._averages[team];
+            }
+            else if(team.text == taken[0])
             {
                // No column any more: the average goes back after the name.
                team.htmlText = taken[0] + "  \u00d8 " + taken[1];
+               delete this._averages[team];
             }
-            delete this._averages[team];
+            else
+            {
+               // The name is not the one the average was taken out of, so it
+               // cannot go back into it yet. What was taken is kept, or the
+               // average would be lost for as long as that name stands.
+               this._averages[team] = taken;
+            }
             for each(var gone:TextField in fields)
             {
                gone.visible = false;
