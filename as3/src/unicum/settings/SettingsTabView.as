@@ -514,6 +514,12 @@ package unicum.settings
 
       private static const WHEEL_STEP:int = 40;
 
+      // The General tab's own bar stops short of the bottom of the page: it
+      // runs to 507 of the 522 the content is tall, measured in the client.
+      // The top needs nothing, the bar's own first row already sits twelve
+      // under where it is put.
+      private static const SCROLL_BOTTOM:int = 15;
+
       // The page is taller than the window once every setting is drawn, so it
       // is shown through a viewport, with the game's own scroll bar beside it
       // and the wheel, as the General tab has.
@@ -533,7 +539,7 @@ package unicum.settings
             var bar:Object = App.utils.classFactory.getComponent("ScrollBar", DisplayObject);
             bar.x = SCROLL_X;
             bar.y = SUB_TABS_HEIGHT;
-            bar.height = height;
+            bar.height = height - SCROLL_BOTTOM;
             addChild(DisplayObject(bar));
             bar.setScrollProperties(height, 0, over);
             bar.addEventListener(Event.SCROLL, this.onScroll);
