@@ -561,9 +561,24 @@ package unicum
             }
             var owner:DisplayObjectContainer = node.parent;
             reading += (i + 1) * (node.x + node.y * 7 + (node.visible ? 3 : 0));
-            if(owner != null)
+            if(owner == null)
             {
-               reading += owner.y * 13 + owner.numChildren * 17 + (owner.visible ? 5 : 0);
+               continue;
+            }
+            reading += owner.y * 13 + owner.numChildren * 17 + (owner.visible ? 5 : 0);
+            // The neighbours too, and whether each shows: the columns start
+            // past the farthest one, so one appearing without anything moving
+            // -- a spotted indicator, a ping -- must place the row again.
+            // Only where they are and whether they show is read, which costs
+            // nothing; their bounds are what the placing itself measures.
+            for(var j:int = 0; j < owner.numChildren; j++)
+            {
+               var neighbour:DisplayObject = owner.getChildAt(j);
+               if(neighbour.name == NAME)
+               {
+                  continue;
+               }
+               reading += (j + 1) * (neighbour.x + (neighbour.visible ? 2 : 0));
             }
          }
          return reading;
