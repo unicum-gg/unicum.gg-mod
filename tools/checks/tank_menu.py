@@ -125,11 +125,14 @@ def _check_tank_menu(build_module):
           '+and+help+me+analyze+it%3A+https%3A%2F%2Funicum.gg%2Feu%2Ftanks%2F5137.md%3Fsetup%3D' + token
           and item_url('chatgpt', _vehicle()).startswith('https://chatgpt.com/?hints=search&prompt=Read+this'))
     # A reader that refuses a long address is given the bare page, with the
-    # build beside it rather than on it.
+    # build written out beside it rather than encoded onto it.
     short = item_url('claude', _vehicle())
     check('an assistant with a short URL limit gets the page without the setup on it',
           'tanks%2F5137.md' in short and 'tanks%2F5137.md%3Fsetup' not in short
-          and token in short and len('https://unicum.gg/eu/tanks/5137.md') < 250)
+          and token not in short)
+    check('and the build in the game\'s own names, which needs no decoding',
+          'improvedVentilation_tier1' in short and 'largeRepairkit' in short
+          and 'turbochargerBattleBooster' in short)
     check('share build links the same setup, tagged as shared',
           item_url('share', _vehicle()) == build.replace('utm_content=build', 'utm_content=share-build'))
     check('an unknown entry opens nothing', item_url('nope', _vehicle()) is None)

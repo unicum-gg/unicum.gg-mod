@@ -111,11 +111,12 @@ AI = {
 
 _PROMPT = 'Read this World of Tanks stats page and help me analyze it: %s'
 
-# The same, for a reader that will not open the page with the build on it. The
-# token is the site's own `setup` parameter, which is a base64url of a compact
-# query string, and an assistant reads it well enough to name the equipment.
-_PROMPT_WITH_SETUP = (_PROMPT + ' The page is the vehicle as it comes; my own build is in the site\'s '
-                      'setup token below, which is base64url of a compact query string: %s')
+# The same, for a reader that will not open the page with the build on it: the
+# page as the vehicle comes, and the build written out beside it. In the
+# client's own words rather than the site's token, which would have to be
+# decoded before it said anything (build.plain_setup).
+_PROMPT_WITH_SETUP = (_PROMPT + ' That page is the vehicle as it comes. Mine is set up as follows, '
+                      'in the game\'s own names -- %s')
 
 # The command's arguments are the eval's locals: {'item': ..., 'text': ...}.
 _ON_ITEM = functools.partial(
@@ -169,11 +170,13 @@ def item_url(item, vehicle):
         return tank_url(vehicle.intCD, setup=build.setup_token(vehicle), content=content)
     if item in AI:
         base, query, long_url = AI[item]
-        setup = build.setup_token(vehicle)
-        if long_url or not setup:
-            prompt = _PROMPT % markdown_url(vehicle.intCD, setup)
+        written = None if long_url else build.plain_setup(vehicle)
+        if written:
+            prompt = _PROMPT_WITH_SETUP % (markdown_url(vehicle.intCD), written)
         else:
-            prompt = _PROMPT_WITH_SETUP % (markdown_url(vehicle.intCD), setup)
+            # Long enough to carry it, or nothing to say: the page as it is.
+            prompt = _PROMPT % markdown_url(vehicle.intCD,
+                                            build.setup_token(vehicle) if long_url else None)
         return '%s?%s' % (base, urllib.urlencode(query(prompt)))
     return None
 

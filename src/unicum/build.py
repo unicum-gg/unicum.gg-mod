@@ -241,3 +241,37 @@ def _crew_skills(vehicle):
             if entry not in skills:
                 skills.append(entry)
     return ','.join(skills)
+
+
+# What the build is, in the client's own words rather than a token: the parts
+# that carry a name, in the order they are worth reading. The modules are left
+# out, being intCDs, and the cosmetics with them: neither says anything about
+# how the vehicle plays.
+_IN_WORDS = (
+    ('equipment', _equipment),
+    ('role slot', _role_slot),
+    ('consumables', _consumables),
+    ('directives', _directives),
+    ('field modifications', _field_mod_pairs),
+    ('crew skills', _crew_skills),
+)
+
+
+def plain_setup(vehicle):
+    """The build written out, for a reader that cannot open the page carrying it.
+
+    The site's own token is base64url and has to be decoded before it says
+    anything; these are the same choices as words, which an assistant reads
+    without being asked to. Every name is the client's, which is what the
+    game's own wiki and every guide call them.
+    """
+    said = []
+    for label, reader in _IN_WORDS:
+        try:
+            value = reader(vehicle)
+        except Exception:
+            _logger.exception('could not read the %s of the build', label)
+            continue
+        if value:
+            said.append('%s: %s' % (label, value))
+    return '; '.join(said) or None
