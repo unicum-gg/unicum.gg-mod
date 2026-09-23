@@ -359,10 +359,11 @@ def _default_order(arena):
             'rightItemsIDs': ids(vos_collections.EnemyItemsCollection)}
 
 
-def install(session, lookup, flags, badges, settings):
-    from unicum.extended_info import ExtendedInfo
-    alt = ExtendedInfo(session)
-    alt.install()
+def install(session, lookup, flags, badges, settings, alt=None):
+    if alt is None:
+        from unicum.extended_info import ExtendedInfo
+        alt = ExtendedInfo(session)
+        alt.install()
     battle_flags = BattleFlags(session, lookup, flags, badges, settings)
     battle_flags.alt = alt
     battle_flags.install()

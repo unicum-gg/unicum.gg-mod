@@ -82,7 +82,7 @@ _GARAGE_SURFACES = ('contacts', 'profile', 'skirmishRoom', 'stronghold', 'battle
 # The battle's screens that can wait for Alt, and the altOnly key of each.
 _ALT_SCREENS = (('markers', 'Above tanks'), ('panel', 'Players list'), ('tab', 'Tab screen'),
                 ('loading', 'Loading screen'))
-_ALT_KEYS = ('markers', 'panel', 'tab', 'loading', 'results')
+_ALT_KEYS = ('markers', 'panel', 'tab', 'loading', 'results', 'skirmishRoom')
 
 # Nor any rule, so a heading draws its own with em dashes: box-drawing
 # characters are missing from the window's font and drew nothing.
@@ -207,6 +207,10 @@ def template(values, channel=u'', linked=False, card_shown=True):
     ]
     garage.extend(show(surface) for surface in _GARAGE_SURFACES)
     garage.extend([
+        choice('Skirmish room: when', _alt_key('skirmishRoom'), WHEN_CHOICES,
+               tooltip='{HEADER}Skirmish room{/HEADER}{BODY}While Alt is held, the members ratings and '
+                       'flags show, and the average of the detachment with them. The order they are '
+                       'sorted in stays whatever you chose.{/BODY}'),
         choice('Battle results: when', _alt_key('results'), WHEN_CHOICES),
         templates.createEmpty(_SPACER),
         checkbox('Tank menu button', 'tankButton',
@@ -295,6 +299,7 @@ def native_page(values, channel=u'', linked=False, card_shown=True):
     group(1, u'Screens')
     for surface in _GARAGE_SURFACES:
         show(surface)
+    dropdown(u'Skirmish room: when', _alt_key('skirmishRoom'), WHEN_CHOICES)
     dropdown(u'Battle results: when', _alt_key('results'), WHEN_CHOICES)
     group(1, u'unicum.gg')
     for var, text, word in LINKS:

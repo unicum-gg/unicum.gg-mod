@@ -54,10 +54,15 @@ def start(generation=0):
         flags = FlagCache(_session)
         badges = Badges(scales)
         browser.install(_session, lookup, flags, scales, settings)
-        battle.install(_session, lookup, flags, badges, settings)
+        # One reader of the extended info key for the battle and the lobby:
+        # the skirmish room can wait for it as the battle screens do.
+        from unicum.extended_info import ExtendedInfo
+        alt = ExtendedInfo(_session)
+        alt.install()
+        battle.install(_session, lookup, flags, badges, settings, alt)
         battle_results.install(_session, lookup, flags, scales, settings)
         views.install(_session)
-        lobby.install(_session, lookup, flags, badges, settings)
+        lobby.install(_session, lookup, flags, badges, settings, alt)
         room_sort.install(_session, settings)
         tank_button.install(_session, settings)
         auto_reload.install(_session, settings)

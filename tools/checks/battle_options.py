@@ -125,10 +125,15 @@ def check_alt_only():
     from unicum.settings_window import from_window, to_window
 
     values = validate({})
-    check('ratings show without Alt by default', values['altOnly'] == {'markers': False, 'panel': False, 'tab': False, 'loading': False, 'results': False})
+    check('ratings show without Alt by default',
+          values['altOnly'] == {'markers': False, 'panel': False, 'tab': False, 'loading': False,
+                                'results': False, 'skirmishRoom': False})
+    check('the skirmish room waits for Alt like a battle screen, the contacts never do',
+          'skirmishRoom' in values['altOnly'] and 'contacts' not in values['altOnly'])
     values = validate({'altOnly': {'markers': True, 'panel': 'yes', 'loading': True}})
     check('waiting for Alt is set per surface, a bad value keeps the default',
-          values['altOnly'] == {'markers': True, 'panel': False, 'tab': False, 'loading': True, 'results': False})
+          values['altOnly'] == {'markers': True, 'panel': False, 'tab': False, 'loading': True,
+                                'results': False, 'skirmishRoom': False})
     window = to_window(values)
     check('the Alt choices go to the window and back',
           window['altOnlyMarkers'] == 1 and window['altOnlyPanel'] == 0 and window['altOnlyLoading'] == 1

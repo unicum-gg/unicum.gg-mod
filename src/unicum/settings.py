@@ -71,8 +71,10 @@ DEFAULTS = dict({
     'tankButton': True,
     # Off until the player turns it on: it writes in the team chat for them.
     'autoReload': False,
-    # Battle ratings shown only while the extended info key (Alt) is held.
-    'altOnly': {'markers': False, 'panel': False, 'tab': False, 'loading': False, 'results': False},
+    # Ratings shown only while the extended info key (Alt) is held: the battle
+    # ones, and the skirmish room, which is the one outside a battle.
+    'altOnly': {'markers': False, 'panel': False, 'tab': False, 'loading': False, 'results': False,
+                'skirmishRoom': False},
     'twitch': {'channel': '', 'battleChat': True, 'garage': True, 'garageCollapsed': False,
                'garagePosition': None, 'garageSize': None},
     'modes': dict((mode, {'allies': True, 'enemies': True}) for mode in MODES),
@@ -219,8 +221,9 @@ class Settings(object):
 
     def alt_only(self, surface):
         """Whether a surface waits for Alt: 'markers' above tanks, the 'panel' of players,
-        the 'tab' screen or the 'loading' screen, team averages included, or the battle 'results'."""
-        return self._values['altOnly'][surface]
+        the 'tab' screen or the 'loading' screen, team averages included, the battle
+        'results', or the 'skirmishRoom'. A surface that never waits says so."""
+        return self._values['altOnly'].get(surface, False)
 
     def shows_auto_reload(self):
         return self._values['enabled'] and self._values['autoReload']

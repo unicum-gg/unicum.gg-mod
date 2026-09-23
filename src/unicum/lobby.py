@@ -48,12 +48,15 @@ _COLUMNS_SECONDS = 0.5
 
 class LobbyFlags(object):
 
-    def __init__(self, session, lookup, flags, badges, settings):
+    def __init__(self, session, lookup, flags, badges, settings, alt=None):
         self._session = session
         self._lookup = lookup
         self._textures = flags
         self._badges = badges
         self._settings = settings
+        # Whether the extended info key is held, for the surfaces that wait
+        # for it. None: nothing waits, everything shows.
+        self._alt = alt
         self._pending = set()
         self._scheduled = False
         # Views that drew before their languages arrived, and have to be told
@@ -71,6 +74,7 @@ class LobbyFlags(object):
         self._published_markers = None
 
     def install(self):
+        self._watch_alt()
         self._session.patch(ContactConverter, 'makeBaseUserProps', self._wrap)
         self._session.patch(ProfileWindow, 'as_setInitDataS', self._wrap_profile)
         self._session.patch(ContactsDataProvider, 'buildList', self._wrap_build)
@@ -166,7 +170,7 @@ class LobbyFlags(object):
         if getattr(view, 'ratingByPlayer', None) != by_player:
             view.ratingByPlayer = by_player
         markup = ''
-        if values and self._settings.shows_average('skirmishRoom'):
+        if values and self._settings.shows_average('skirmishRoom') and not self._waits_for_alt('skirmishRoom'):
             average = sum(values) / float(len(values))
             badge = self._badges.markup(self._settings.metric('skirmishRoom'), average) or '%d' % round(average)
             # The badge alone: the title's embedded font has no average sign,
@@ -241,14 +245,7 @@ class LobbyFlags(object):
                 provider.onTotalStatusChanged()
             except Exception:
                 _logger.exception('could not rebuild a contacts list')
-        for room in list(self._rooms):
-            try:
-                if getattr(room, 'isDisposed', lambda: False)():
-                    continue
-                room._updateMembersData()
-                room._rebuildCandidatesDP()
-            except Exception:
-                _logger.exception('could not refresh a skirmish room')
+        self._redraw_rooms()
         for view in list(self._profiles):
             try:
                 if getattr(view, 'isDisposed', lambda: False)():
@@ -258,6 +255,16 @@ class LobbyFlags(object):
                     update()
             except Exception:
                 _logger.exception('could not refresh a profile window')
+
+    def _redraw_rooms(self):
+        for room in list(self._rooms):
+            try:
+                if getattr(room, 'isDisposed', lambda: False)():
+                    continue
+                room._updateMembersData()
+                room._rebuildCandidatesDP()
+            except Exception:
+                _logger.exception('could not refresh a skirmish room')
 
     def _wrap_profile(self, original):
         """The profile window title: a flag, or a language code without one.
@@ -363,9 +370,32 @@ class LobbyFlags(object):
         # class declared; the callers invoke it off the class.
         return classmethod(makeBaseUserProps)
 
+    def _watch_alt(self):
+        """Follow the extended info key while a surface here waits for it.
+
+        Only the skirmish room does, and only when its setting says so; the
+        key is read in the garage only while it is asked for. A change
+        redraws the room, which is what puts the ratings in or takes them out.
+        """
+        if self._alt is None:
+            return
+        self._alt.watch_outside_battle()
+        self._alt.on_change(self._on_alt)
+        self._settings.on_change(self._on_alt)
+
+    def _on_alt(self):
+        if not self._settings.alt_only('skirmishRoom'):
+            return
+        self._redraw_rooms()
+
+    def _waits_for_alt(self, surface):
+        """Whether this surface shows nothing until the key is held."""
+        return (self._alt is not None and self._settings.alt_only(surface)
+                and not self._alt.down)
+
     def _marker(self, account_id, surface):
         """The surface's flags and rating, as htmlText markup."""
-        if not account_id or not self._settings.shows(surface):
+        if not account_id or not self._settings.shows(surface) or self._waits_for_alt(surface):
             return ''
         entry = self._entry(account_id)
         marker = ''
@@ -404,5 +434,5 @@ class LobbyFlags(object):
             self._redraw()
 
 
-def install(session, lookup, flags, badges, settings):
-    LobbyFlags(session, lookup, flags, badges, settings).install()
+def install(session, lookup, flags, badges, settings, alt=None):
+    LobbyFlags(session, lookup, flags, badges, settings, alt).install()

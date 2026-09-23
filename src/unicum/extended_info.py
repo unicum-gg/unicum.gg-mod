@@ -12,6 +12,10 @@ tell the loading screen anything. The key itself is also followed through
 gui.InputHandler, which the client feeds every key before the avatar, the GUI
 or the chat see it, loading or not, and checked against the same command, so
 a rebound key counts the same. Either one held is held.
+
+Both of those speak for a battle only. In the garage the key is read straight
+from the client instead (BigWorld.isKeyDown), and only while something asks
+for it: the skirmish room, whose ratings can wait for the key the same way.
 """
 import logging
 
@@ -24,18 +28,41 @@ def _command_fired(key):
     return CommandMapping.g_instance.isFired(CommandMapping.CMD_VEHICLE_MARKERS_SHOW_INFO, key)
 
 
+def _bound_key():
+    """The key the extended info is bound to, or None."""
+    import CommandMapping
+    return CommandMapping.g_instance.get('CMD_VEHICLE_MARKERS_SHOW_INFO')
+
+
+# How often the key is read in the garage. Short enough that holding it shows
+# at once, and it is read only while a surface asks for it.
+_GARAGE_POLL = 0.1
+
+
 class ExtendedInfo(object):
 
     def __init__(self, session):
         self._session = session
         self._event_down = False
         self._key_down = False
+        self._garage_down = False
+        self._wanted = 0
         self._last = False
         self._listeners = []
 
     @property
     def down(self):
-        return self._event_down or self._key_down
+        return self._event_down or self._key_down or self._garage_down
+
+    def watch_outside_battle(self):
+        """Ask for the key to be read in the garage too, for as long as this runs.
+
+        The event bus and the input handler both speak for a battle alone, so
+        without this the key is never down outside one.
+        """
+        self._wanted += 1
+        if self._wanted == 1:
+            self._session.repeat(_GARAGE_POLL, self._read_garage_key)
 
     def on_change(self, callback):
         self._listeners.append(callback)
@@ -93,6 +120,24 @@ class ExtendedInfo(object):
             self._changed()
         except Exception:
             _logger.debug('could not read a key', exc_info=True)
+
+    def _read_garage_key(self):
+        try:
+            from helpers import isPlayerAvatar
+            if isPlayerAvatar():
+                # In a battle the event and the input handler say it better.
+                down = False
+            else:
+                import BigWorld
+                key = _bound_key()
+                down = bool(key is not None and BigWorld.isKeyDown(key))
+        except Exception:
+            _logger.debug('could not read the extended info key', exc_info=True)
+            return
+        if down == self._garage_down:
+            return
+        self._garage_down = down
+        self._changed()
 
     def _outside_battle(self):
         try:
