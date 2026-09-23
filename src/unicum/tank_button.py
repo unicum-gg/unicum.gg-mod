@@ -93,14 +93,29 @@ TABS = {
     'community': '/community',
 }
 
-# As the site builds them: the base URL and the query, with the prompt under `q`.
+# As the site builds them: the base URL, the query with the prompt under `q`,
+# and whether the assistant's own reader opens a long address.
+#
+# The setup token carries the whole build -- every device, the crew's skills,
+# the field modifications -- and runs to about 1500 characters. Scira opens
+# that as it is (checked). Claude's reader refuses anything past roughly 250
+# and answers that the URL is too long, which is no answer at all, so it is
+# given the bare page and the token beside it, in the prompt: the address it
+# has to open stays short, and the build is still there to be read. ChatGPT is
+# given the same, not having been checked.
 AI = {
-    'chatgpt': ('https://chatgpt.com/', lambda q: [('hints', 'search'), ('prompt', q)]),
-    'claude': ('https://claude.ai/new', lambda q: [('q', q)]),
-    'scira': ('https://scira.ai/', lambda q: [('q', q)]),
+    'chatgpt': ('https://chatgpt.com/', lambda q: [('hints', 'search'), ('prompt', q)], False),
+    'claude': ('https://claude.ai/new', lambda q: [('q', q)], False),
+    'scira': ('https://scira.ai/', lambda q: [('q', q)], True),
 }
 
 _PROMPT = 'Read this World of Tanks stats page and help me analyze it: %s'
+
+# The same, for a reader that will not open the page with the build on it. The
+# token is the site's own `setup` parameter, which is a base64url of a compact
+# query string, and an assistant reads it well enough to name the equipment.
+_PROMPT_WITH_SETUP = (_PROMPT + ' The page is the vehicle as it comes; my own build is in the site\'s '
+                      'setup token below, which is base64url of a compact query string: %s')
 
 # The command's arguments are the eval's locals: {'item': ..., 'text': ...}.
 _ON_ITEM = functools.partial(
@@ -153,9 +168,13 @@ def item_url(item, vehicle):
         content = 'share-build' if item == 'share' else 'build'
         return tank_url(vehicle.intCD, setup=build.setup_token(vehicle), content=content)
     if item in AI:
-        base, query = AI[item]
-        page = markdown_url(vehicle.intCD, build.setup_token(vehicle))
-        return '%s?%s' % (base, urllib.urlencode(query(_PROMPT % page)))
+        base, query, long_url = AI[item]
+        setup = build.setup_token(vehicle)
+        if long_url or not setup:
+            prompt = _PROMPT % markdown_url(vehicle.intCD, setup)
+        else:
+            prompt = _PROMPT_WITH_SETUP % (markdown_url(vehicle.intCD), setup)
+        return '%s?%s' % (base, urllib.urlencode(query(prompt)))
     return None
 
 
