@@ -7,6 +7,7 @@ package unicum
    import flash.text.TextField;
    import flash.text.TextFormatAlign;
    import flash.utils.Dictionary;
+   import flash.utils.getTimer;
 
    // Rating badge and flags for each player in the battle's Scaleform
    // screens, the badge nearest the row. In the players panel they sit beside
@@ -141,6 +142,12 @@ package unicum
                              panelHidden:Boolean = false, tabHidden:Boolean = false,
                              loadingHidden:Boolean = false) : void
       {
+         var hiding:String = String(panelHidden) + String(tabHidden) + String(loadingHidden);
+         if(hiding != this._hiding)
+         {
+            this._hiding = hiding;
+            this._revision++;
+         }
          this._names = names;
          this.read(markers, left, right);
          // No ids: every row's fields are hidden, as for a player with no rating.
@@ -200,6 +207,7 @@ package unicum
       {
          if(markers != this._given[0])
          {
+            this._revision++;
             this._given[0] = markers;
             this._markers = {};
             for each(var line:String in (markers || "").split("\n"))
@@ -213,11 +221,13 @@ package unicum
          }
          if(left != this._given[1])
          {
+            this._revision++;
             this._given[1] = left;
             this._left = left ? left.split(",") : [];
          }
          if(right != this._given[2])
          {
+            this._revision++;
             this._given[2] = right;
             this._right = right ? right.split(",") : [];
          }
@@ -286,6 +296,12 @@ package unicum
       {
          var icons:Object = field(table, "vehicleIconCollection");
          var count:int = icons != null ? int(icons.length) : 0;
+         // Before anything: working the teams' middle out measures every icon,
+         // and the placing that follows measures every neighbour of every row.
+         if(this.settled(table, this.readingOf(icons, count)))
+         {
+            return;
+         }
          var middle:Number = 0;
          var placed:int = 0;
          for(var i:int = 0; i < count; i++)
@@ -424,6 +440,10 @@ package unicum
       private function drawIcons(icons:Object, ids:Array, ally:Boolean) : void
       {
          var count:int = icons != null ? int(icons.length) : 0;
+         if(icons != null && this.settled(icons, this.readingOf(icons, count) + (ally ? 0.5 : 0)))
+         {
+            return;
+         }
          var team:Array = [];
          for(var i:int = 0; i < count; i++)
          {
@@ -439,6 +459,18 @@ package unicum
       // of the columns drawn, or null when none is.
       private function placeTeam(icons:Array, ids:Array, shown:Array, ally:Boolean, middle:Number) : Array
       {
+         // Placing a team is expensive: an edge measures every neighbour of
+         // every row, and a screen has thirty of them. Where the icons sit is
+         // cheap to read, so a placement stands while that reading holds, and
+         // is done again every RESTING_MS anyway, since a neighbour's text can
+         // grow without anything having moved.
+         var key:Object = icons.length > 0 ? icons[0] : null;
+         var reading:Number = this.readingOf(icons, icons.length) + (ally ? 0.5 : 0) +
+                              (isNaN(middle) ? 0 : Math.round(middle));
+         if(this.settled(key, reading))
+         {
+            return this._placed[key].result as Array;
+         }
          var edge:Number = NaN;
          var badges:Number = 0;
          var drawn:Array = [];
@@ -477,8 +509,66 @@ package unicum
          {
             this.placeRow(item[0], item[1], item[2], item[3], edge, badges, ally);
          }
-         return drawn.length > 0 ? [edge, badges] : null;
+         var result:Array = drawn.length > 0 ? [edge, badges] : null;
+         if(key != null)
+         {
+            this._placed[key].result = result;
+         }
+         return result;
       }
+
+      // How long a placement stands when nothing has moved, in milliseconds.
+      private static const RESTING_MS:int = 250;
+
+      // Where a row of things sits, as one number, from properties that cost
+      // nothing to read: no bounds are measured, no text is laid out.
+      private function readingOf(nodes:Object, count:int) : Number
+      {
+         var reading:Number = this._revision * 1000003 + count * 1009;
+         for(var i:int = 0; i < count; i++)
+         {
+            var node:DisplayObject = nodes[i] as DisplayObject;
+            if(node == null)
+            {
+               reading += (i + 1) * 3;
+               continue;
+            }
+            var owner:DisplayObjectContainer = node.parent;
+            reading += (i + 1) * (node.x + node.y * 7 + (node.visible ? 3 : 0));
+            if(owner != null)
+            {
+               reading += owner.y * 13 + owner.numChildren * 17 + (owner.visible ? 5 : 0);
+            }
+         }
+         return reading;
+      }
+
+      // Whether this screen can be left as it is: nothing has moved since it
+      // was placed, and it was placed recently enough.
+      private function settled(key:Object, reading:Number) : Boolean
+      {
+         if(key == null)
+         {
+            return false;
+         }
+         var kept:Object = this._placed[key];
+         var now:int = getTimer();
+         if(kept != null && kept.reading == reading && now - kept.when < RESTING_MS)
+         {
+            return true;
+         }
+         this._placed[key] = {"reading":reading, "when":now, "result":kept != null ? kept.result : null};
+         return false;
+      }
+
+      // icons[0] -> the reading it was placed on, when, and what it gave.
+      private var _placed:Dictionary = new Dictionary(true);
+
+      // Changes whenever what is drawn changes, not only where: new markup,
+      // another order, or a screen hidden or shown.
+      private var _revision:int = 0;
+
+      private var _hiding:String = "";
 
       private function fieldsFor(icon:DisplayObject, create:Boolean) : Array
       {
