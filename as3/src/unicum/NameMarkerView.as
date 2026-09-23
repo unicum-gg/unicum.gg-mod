@@ -7,7 +7,6 @@ package unicum
    import flash.events.Event;
    import flash.events.IOErrorEvent;
    import flash.external.ExternalInterface;
-   import flash.filters.DropShadowFilter;
    import flash.geom.Rectangle;
    import flash.net.URLRequest;
    import flash.text.TextField;
@@ -44,6 +43,11 @@ package unicum
 
       private var _label:TextField;
 
+      // Drawn under the label, in black, one pixel across: the shadow.
+      private var _shadow:TextField;
+
+      private static const SHADOW_OFFSET:int = 1;
+
       private var _row:Sprite;
 
       private var _anchor:TextField = null;
@@ -59,7 +63,15 @@ package unicum
          this._label.selectable = false;
          this._label.mouseEnabled = false;
          this._label.autoSize = TextFieldAutoSize.LEFT;
-         this._label.filters = [new DropShadowFilter(0, 0, 0, 1, 2, 2, 2)];
+         // Its shadow is a second field behind it, not a filter: a filter on
+         // something that moves is rasterised again every frame, and a marker
+         // moves with its vehicle. Thirty of them cost about twenty frames a
+         // second, measured in battle.
+         this._shadow = new TextField();
+         this._shadow.selectable = false;
+         this._shadow.mouseEnabled = false;
+         this._shadow.autoSize = TextFieldAutoSize.LEFT;
+         addChild(this._shadow);
          addChild(this._label);
          this._row = new Sprite();
          addChild(this._row);
@@ -100,6 +112,11 @@ package unicum
          format.align = TextFormatAlign.LEFT;
          this._label.defaultTextFormat = format;
          this._label.text = text;
+         var shadow:TextFormat = new TextFormat(format.font, format.size, 0x000000);
+         shadow.align = TextFormatAlign.LEFT;
+         shadow.bold = format.bold;
+         this._shadow.defaultTextFormat = shadow;
+         this._shadow.text = text;
          this._wanted = [];
          for each(var part:String in (images || "").split(";"))
          {
@@ -183,6 +200,7 @@ package unicum
          }
          this._row.visible = ready;
          this._label.visible = !ready;
+         this._shadow.visible = !ready;
          if(ready)
          {
             var x:Number = 0;
@@ -232,6 +250,8 @@ package unicum
          x = Math.round(right + GAP);
          y = Math.round(middle);
          this._label.y = Math.round(-this._label.height / 2);
+         this._shadow.x = this._label.x + SHADOW_OFFSET;
+         this._shadow.y = this._label.y + SHADOW_OFFSET;
          this._row.y = 0;
       }
    }
