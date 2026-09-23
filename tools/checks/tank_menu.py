@@ -133,6 +133,12 @@ def _check_tank_menu(build_module):
     check('and the build in the game\'s own names, which needs no decoding',
           'improvedVentilation_tier1' in short and 'largeRepairkit' in short
           and 'turbochargerBattleBooster' in short)
+    # %0A is a newline once the query is decoded: one line a part, so the
+    # build reads as a list rather than as a paragraph, and an empty slot
+    # (a hole in the token) is left out of it.
+    check('the build is written a line a part, with its empty slots left out',
+          '%0A-+equipment' in short and '%0A-+consumables' in short
+          and 'largeRepairkit%2C+autoExtinguishers' in short)
     check('share build links the same setup, tagged as shared',
           item_url('share', _vehicle()) == build.replace('utm_content=build', 'utm_content=share-build'))
     check('an unknown entry opens nothing', item_url('nope', _vehicle()) is None)

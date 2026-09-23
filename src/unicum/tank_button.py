@@ -115,8 +115,8 @@ _PROMPT = 'Read this World of Tanks stats page and help me analyze it: %s'
 # page as the vehicle comes, and the build written out beside it. In the
 # client's own words rather than the site's token, which would have to be
 # decoded before it said anything (build.plain_setup).
-_PROMPT_WITH_SETUP = (_PROMPT + ' That page is the vehicle as it comes. Mine is set up as follows, '
-                      'in the game\'s own names -- %s')
+_PROMPT_WITH_SETUP = (_PROMPT + '\n\nThat page is the vehicle as it comes. Mine is set up as follows, '
+                      'in the game\'s own names:\n\n%s')
 
 # The command's arguments are the eval's locals: {'item': ..., 'text': ...}.
 _ON_ITEM = functools.partial(

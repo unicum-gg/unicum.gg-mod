@@ -272,6 +272,9 @@ def plain_setup(vehicle):
         except Exception:
             _logger.exception('could not read the %s of the build', label)
             continue
-        if value:
-            said.append('%s: %s' % (label, value))
-    return '; '.join(said) or None
+        # The token keeps an empty slot as an empty field, since the position
+        # of the next one depends on it. Written out, a hole says nothing.
+        worn = ', '.join(part for part in str(value or '').split(',') if part)
+        if worn:
+            said.append('- %s: %s' % (label, worn))
+    return '\n'.join(said) or None
