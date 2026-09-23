@@ -98,13 +98,15 @@ TABS = {
 #
 # The setup token carries the whole build -- every device, the crew's skills,
 # the field modifications -- and runs to about 1500 characters. Scira opens
-# that as it is (checked). Claude's reader refuses anything past roughly 250
-# and answers that the URL is too long, which is no answer at all, so it is
-# given the bare page and the token beside it, in the prompt: the address it
-# has to open stays short, and the build is still there to be read. ChatGPT is
-# given the same, not having been checked.
+# that as it is (checked), and so does ChatGPT (checked since: it was given the
+# short form while the page it was handed answered at all, which turned out to
+# be a fault of the site rather than a limit of its reader). Claude's refuses
+# anything past roughly 250 and answers that the URL is too long, which is no
+# answer at all, so it alone is given the bare page and the build beside it in
+# the prompt: the address it has to open stays short, and the build is still
+# there to be read.
 AI = {
-    'chatgpt': ('https://chatgpt.com/', lambda q: [('hints', 'search'), ('prompt', q)], False),
+    'chatgpt': ('https://chatgpt.com/', lambda q: [('hints', 'search'), ('prompt', q)], True),
     'claude': ('https://claude.ai/new', lambda q: [('q', q)], False),
     'scira': ('https://scira.ai/', lambda q: [('q', q)], True),
 }

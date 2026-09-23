@@ -124,6 +124,12 @@ def _check_tank_menu(build_module):
           item_url('scira', _vehicle()) == 'https://scira.ai/?q=Read+this+World+of+Tanks+stats+page'
           '+and+help+me+analyze+it%3A+https%3A%2F%2Funicum.gg%2Feu%2Ftanks%2F5137.md%3Fsetup%3D' + token
           and item_url('chatgpt', _vehicle()).startswith('https://chatgpt.com/?hints=search&prompt=Read+this'))
+    # A reader with no URL limit of its own opens the page already carrying the
+    # build, which is the whole setup and not the parts that have a name.
+    carries = item_url('chatgpt', _vehicle())
+    check('a reader that opens a long address gets the setup on the page itself',
+          'tanks%2F5137.md%3Fsetup%3D' + token in carries
+          and 'improvedVentilation_tier1' not in carries)
     # A reader that refuses a long address is given the bare page, with the
     # build written out beside it rather than encoded onto it.
     short = item_url('claude', _vehicle())
