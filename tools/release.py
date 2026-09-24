@@ -170,15 +170,29 @@ def to_clipboard(text):
     return False
 
 
+def client_python(given):
+    """The client's Python 2.7, found where `build_release.py` looks for it.
+
+    Its own list rather than a second one here, and never a bare `python2.7`:
+    that name is on no Windows PATH, so the fallback only ever produced a
+    FileNotFoundError after the package had already been built.
+    """
+    sys.path.insert(0, os.path.join(REPO, 'tools'))
+    from install_dev import PYTHON27_CANDIDATES
+    for candidate in ([given] if given else PYTHON27_CANDIDATES):
+        if os.path.isfile(str(candidate)):
+            return str(candidate)
+    raise SystemExit('Python 2.7 not found; pass --python27')
+
+
 def build(version, py27, game):
     """The package, then the two checks that read it the way the client does."""
+    py27 = client_python(py27)
     run([sys.executable, os.path.join('tools', 'build_as3.py'), '--game', game])
-    release = [sys.executable, os.path.join('tools', 'build_release.py'), '--version', version]
-    if py27:
-        release += ['--python27', py27]
-    run(release)
-    run([py27 or 'python2.7', os.path.join('tools', 'selftest.py')])
-    run([py27 or 'python2.7', os.path.join('tools', 'release_check.py'),
+    run([sys.executable, os.path.join('tools', 'build_release.py'),
+         '--version', version, '--python27', py27])
+    run([py27, os.path.join('tools', 'selftest.py')])
+    run([py27, os.path.join('tools', 'release_check.py'),
          os.path.join('dist', 'gg.unicum_%s.wotmod' % version)])
 
 
