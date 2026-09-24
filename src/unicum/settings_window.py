@@ -88,6 +88,10 @@ _ALT_SCREENS = (('markers', 'Above tanks'), ('panel', 'Players list'), ('tab', '
                 ('loading', 'Loading screen'))
 _ALT_KEYS = ('markers', 'panel', 'tab', 'loading', 'results', 'skirmishRoom', 'stronghold')
 
+# The two right-click switches, kept apart because they are wanted apart: the
+# tank menus reach the tech tree and the shop, where a player menu never goes.
+_MENU_KEYS = ('players', 'vehicles')
+
 # Nor any rule, so a heading draws its own with em dashes: box-drawing
 # characters are missing from the window's font and drew nothing.
 _RULE = u'\u2014' * 16
@@ -258,6 +262,13 @@ def template(values, channel=u'', linked=False, card_shown=True):
                  tooltip='{HEADER}Tank menu button{/HEADER}{BODY}A unicum.gg button beside the vehicle menu, '
                          'with links for the selected tank: its unicum.gg tabs, AI assistants and its '
                          'build.{/BODY}'),
+        checkbox('Right-click a player', _menu_key('players'),
+                 tooltip='{HEADER}Right-click a player{/HEADER}{BODY}Adds unicum.gg entries to the menu the '
+                         'game opens on a player: their page, and the AI assistants. In battle, in the battle '
+                         'results, in your contacts and in a skirmish room.{/BODY}'),
+        checkbox('Right-click a tank', _menu_key('vehicles'),
+                 tooltip='{HEADER}Right-click a tank{/HEADER}{BODY}The same on the menu the game opens on a '
+                         'vehicle: the carousel, the tech tree, the shop and the comparison.{/BODY}'),
         checkbox(CARD_LABEL, CARD_VAR,
                  tooltip='{HEADER}' + CARD_LABEL + '{/HEADER}{BODY}The card under the mission cards that '
                          'links this game to your unicum.gg account, or says which one it is linked to. Its '
@@ -338,6 +349,8 @@ def native_page(values, channel=u'', linked=False, card_shown=True):
     dropdown(u'Flags per player or clan', 'maxFlags', [str(n) for n in range(1, MAX_FLAGS + 1)], offset=1)
     group(0, u'Garage')
     checkbox(u'Tank menu button', 'tankButton')
+    checkbox(u'Right-click a player', _menu_key('players'))
+    checkbox(u'Right-click a tank', _menu_key('vehicles'))
     checkbox(CARD_LABEL, CARD_VAR)
     group(1, u'Screens')
     for surface in _GARAGE_SURFACES:
@@ -425,6 +438,8 @@ def to_window(values, card_shown=True):
               'metric': METRICS.index(values['metric']), 'window': WINDOWS.index(values['window'])}
     for key in _ALT_KEYS:
         window[_alt_key(key)] = 1 if values['altOnly'][key] else 0
+    for key in _MENU_KEYS:
+        window[_menu_key(key)] = values['contextMenu'][key]
     for mode in MODES:
         teams = values['modes'][mode]
         window[_mode_key(mode)] = _choice_of(TEAM_CHOICES, teams['allies'], teams['enemies'])
@@ -442,6 +457,10 @@ def from_window(raw):
     announced = _index(raw.get('autoReload'), RELOAD_CHOICES)
     if announced is not None:
         changes['autoReload'] = RELOAD_CHOICES[announced]
+    context_menu = dict((key, bool(raw[_menu_key(key)])) for key in _MENU_KEYS
+                        if isinstance(raw.get(_menu_key(key)), bool))
+    if context_menu:
+        changes['contextMenu'] = context_menu
     alt_only = dict((key, bool(raw[_alt_key(key)])) for key in _ALT_KEYS
                     if _index(raw.get(_alt_key(key)), WHEN_CHOICES) is not None)
     if alt_only:
@@ -489,6 +508,10 @@ def _mode_key(mode):
 
 def _alt_key(key):
     return 'altOnly' + key.capitalize()
+
+
+def _menu_key(key):
+    return 'contextMenu' + key.capitalize()
 
 
 def _choice_of(choices, first, second):

@@ -69,6 +69,12 @@ DEFAULTS = dict({
     'window': 'recent',
     'maxFlags': MAX_FLAGS,
     'tankButton': True,
+    # The entries added to the game's own right-click menus, one switch for the
+    # menus about a player and one for those about a tank. Separate because
+    # they are wanted separately: a player who reads ratings in battle has no
+    # use for the tank ones, and the tank menus reach into the tech tree and
+    # the shop where a player menu never goes.
+    'contextMenu': {'players': True, 'vehicles': True},
     # Off until the player turns it on: it writes in the team chat for them.
     # Never, after every shot, or only when an autoloader's magazine runs out.
     'autoReload': 'off',
@@ -113,6 +119,9 @@ def validate(raw):
     alt_only = raw.get('altOnly') if isinstance(raw.get('altOnly'), dict) else {}
     values['altOnly'] = dict((key, _bool(alt_only.get(key), default))
                              for key, default in DEFAULTS['altOnly'].items())
+    context_menu = raw.get('contextMenu') if isinstance(raw.get('contextMenu'), dict) else {}
+    values['contextMenu'] = dict((key, _bool(context_menu.get(key), default))
+                                 for key, default in DEFAULTS['contextMenu'].items())
     twitch = raw.get('twitch') if isinstance(raw.get('twitch'), dict) else {}
     values['twitch'] = {'channel': twitch_channel(twitch.get('channel')),
                         'battleChat': _bool(twitch.get('battleChat'), DEFAULTS['twitch']['battleChat']),
@@ -232,6 +241,10 @@ class Settings(object):
 
     def shows_tank_button(self):
         return self._values['enabled'] and self._values['tankButton']
+
+    def shows_context_menu(self, kind):
+        """Whether the right-click entries are drawn on 'players' or on 'vehicles' menus."""
+        return self._values['enabled'] and self._values['contextMenu'].get(kind, True)
 
     def alt_only(self, surface):
         """Whether a surface waits for Alt: 'markers' above tanks, the 'panel' of players,

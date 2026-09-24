@@ -142,6 +142,46 @@ def tank_url(int_cd, tab='specifications', setup=None, content=None, region=conf
     return '%s/%s/tanks/%d%s?%s' % (SITE_BASE, region, int_cd, TABS[tab], query)
 
 
+def tank_ai_url(item, int_cd):
+    """The link an AI entry opens for a tank known only by its id.
+
+    The garage menu has the gui Vehicle and can send the player's own build
+    with it (item_url); a context menu has an id and nothing else, so this is
+    the vehicle as it comes. Better than resolving the id back to an item:
+    that only works for a tank in the player's garage, and these menus open on
+    tanks they do not own, in the tech tree and in the shop.
+    """
+    if item not in AI:
+        return None
+    base, query, _long_url = AI[item]
+    prompt = _PROMPT % markdown_url(int_cd)
+    return '%s?%s' % (base, urllib.urlencode(query(prompt)))
+
+
+def player_url(nickname, content='player', region=config.REGION):
+    """A player's page on unicum.gg, by the nickname the client shows."""
+    return '%s/%s/players/%s?%s%s' % (SITE_BASE, region, urllib.quote(nickname, safe=''),
+                                      _client(), _utm(content))
+
+
+def player_markdown_url(nickname, region=config.REGION):
+    """The Markdown twin of a player's page, for a reader rather than a browser."""
+    return '%s/%s/players/%s.md' % (SITE_BASE, region, urllib.quote(nickname, safe=''))
+
+
+def player_ai_url(item, nickname):
+    """The link an AI entry opens for a player, or None for an unknown entry.
+
+    No build to carry here, unlike a vehicle, so every assistant gets the same
+    address and the long/short distinction does not arise.
+    """
+    if item not in AI:
+        return None
+    base, query, _long_url = AI[item]
+    prompt = _PROMPT % player_markdown_url(nickname)
+    return '%s?%s' % (base, urllib.urlencode(query(prompt)))
+
+
 def support_url(content):
     """The unicum.gg support page, opened from `content` (which window asked)."""
     return '%s/support?%sutm_source=wot-mod&utm_medium=settings&utm_campaign=support&utm_content=%s' % (
