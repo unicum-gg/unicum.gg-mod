@@ -40,7 +40,6 @@ Runs on Python 3; compiling needs the client's Python 2.7 (--python27).
 from __future__ import annotations
 
 import argparse
-import base64
 import re
 import shutil
 import subprocess
@@ -67,20 +66,23 @@ DESCRIPTION = ('Player ratings and language flags across the game, the unicum.gg
 # Never shipped: a developer's own settings, compiled leftovers.
 EXCLUDED = {'local_settings.py'}
 
-# The client indexes its resource folders as it starts: an image written into a
-# folder it knew draws at once, one in a folder created later draws only from
-# the next start on. The mod draws its rating badges and keeps the Twitch chat's
-# badges as it goes, so a first run in a fresh install had neither -- ratings
-# came out as bare numbers (src/unicum/badges.py). The installer creates those
-# folders instead, so they are there before the client ever runs.
-RUNTIME_IMAGE_DIRS = ('gui/maps/icons/unicum/badges',
-                      'gui/maps/icons/unicum/twitch/badges')
-
-# What makes each folder exist: a 1x1 transparent PNG, never drawn. badges.py
-# writes and reads the same name to ask whether the folder was indexed.
-MARKER = 'ready.png'
-MARKER_PNG = base64.b64decode(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=')
+# The two folders the rating and Twitch badges are written into used to be
+# shipped here, each holding a 1x1 marker, because the client indexes its
+# resource folders as it starts: an image written into a folder it knew draws
+# at once, one in a folder created later draws only from the next start on.
+#
+# They are not shipped any more, and nothing was lost. `badges.py` creates
+# them itself on the first run (its `_write` makes the directory), so the only
+# thing the shipped folders ever bought was one client start -- and that start
+# already happens, because openwg_gameface restarts the client once on a fresh
+# install when it puts the hangar button in the resource map. The flags are
+# unaffected either way: all 252 of them ride inside the .wotmod, under
+# res/gui/maps/icons, where ResMgr has them from the first second.
+#
+# What it buys is the instruction a player reads. Unzipping used to lay down
+# `mods/`, `mods/net.openwg/` AND two folders under `res_mods/`, which had to
+# be spelled out and made this mod look harder to install than every other one
+# on the hub. Now the archive is two .wotmod files and nothing else.
 
 VERSION = re.compile(r'^\d+\.\d+\.\d+$')
 
@@ -201,8 +203,6 @@ def bundle(package: Path, version: str) -> None:
     with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as archive:
         archive.write(package, f'{folder}/{package.name}')
         archive.write(gameface[0], f'{folder}/net.openwg/{gameface[0].name}')
-        for directory in RUNTIME_IMAGE_DIRS:
-            archive.writestr(f'res_mods/{GAME_VERSION}/{directory}/{MARKER}', MARKER_PNG)
     print(f'wrote {target} ({target.stat().st_size / 1024:.0f} KB, with {gameface[0].name})')
 
 
