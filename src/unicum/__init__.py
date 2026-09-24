@@ -10,8 +10,9 @@ is nothing more than stop() followed by a fresh start().
 """
 import logging
 
-from unicum import (auto_reload, battle, battle_results, browser, config, lobby, mods_list, reporting, room_sort,
-                    settings_tab, settings_window, tank_button, twitch, twitch_panel, twitch_send, twitch_window, views)
+from unicum import (auto_reload, battle, battle_results, browser, config, first_run, lobby, mods_list, reporting,
+                    room_sort, settings_tab, settings_window, tank_button, twitch, twitch_panel, twitch_send,
+                    twitch_window, views)
 from unicum.badges import Badges
 from unicum.game_link import GameLink
 from unicum.api.resolve import Lookup
@@ -37,6 +38,10 @@ def start(generation=0):
     # Before anything else installs: a feature that fails on the way up is
     # exactly what an author never hears about otherwise.
     reporting.install(_session, VERSION)
+    # Before any feature that draws: a folder made now is not in the client's
+    # index, so nothing written into it can be drawn until the client starts
+    # again. Asking for that restart is the whole point.
+    _restart_after_first_run(first_run.prepare())
     try:
         # One of each, shared by every surface. Each feature used to build
         # its own lookup, and every one of them loaded languages.json and
@@ -81,6 +86,21 @@ def start(generation=0):
         _logger.exception('start failed, rolling back')
         stop()
         raise
+
+
+def _restart_after_first_run(made):
+    """Restart straight away when a folder was just created.
+
+    Here rather than at the garage, which is where this waited first: the mod
+    loads while the client is still starting, so restarting now throws away a
+    few seconds, where waiting for `onAccountShowGUI` throws away a sign-in
+    and a full garage load as well. `restart_if_idle` is what keeps that safe,
+    by refusing whenever the client already has a player.
+    """
+    if not made:
+        return
+    _logger.info('image folders created; restarting so the client indexes them')
+    first_run.restart_if_idle()
 
 
 def stop():

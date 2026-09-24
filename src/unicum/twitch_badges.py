@@ -97,6 +97,10 @@ class ChatBadges(object):
         self._pending = []         # (url, disk path)
         self._queued = set()
         self._in_flight = 0
+        # The folder itself is not made here: `first_run.prepare()` makes both
+        # image folders as the mod loads, before anything draws, and asks for
+        # the one restart they need. Made at the first badge instead, it would
+        # have cost a streamer a further client start that nothing explained.
 
     def follow(self, login):
         """The channel whose badges are drawn; asks unicum.gg for them once."""

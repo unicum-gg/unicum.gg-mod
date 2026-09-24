@@ -105,6 +105,10 @@ class Badges(object):
         marker = os.path.join(self._dir, _MARKER)
         if not os.path.isfile(marker) and not self._write(marker, badge_png.png(0, '#000000')):
             return False
+        # `ResMgr.purge` was tried here and does not help: it drops a cached
+        # section so the next read hits the disk again, but the index itself
+        # is built once at startup, and a folder that was not in it then stays
+        # out of it. Measured in the client, drawable=False after purging.
         return self._drawable('%s/%s' % (self._res_path, _MARKER))
 
     @staticmethod

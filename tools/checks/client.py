@@ -15,6 +15,7 @@ from checks.fakes import (
     FakeStrongholdBattleRoom,
     FakeStatisticsController,
     FakeVehicleInfoComponent)
+from checks.engine import FakeEvent
 from checks.surfaces import check_profile_title
 
 
@@ -69,6 +70,17 @@ def install_fake_client(bigworld):
     # views.py. The SWFs start out missing, so install() stands down and
     # profile titles keep their language code; check_profile_title adds it.
     sys.modules['ResMgr'] = FakeResMgr
+
+    # The client's player-state events. `__init__.py` reaches for these while
+    # it starts, to hold the first-run restart until the garage is up, and
+    # twitch_window subscribes to the queue ones.
+    player_events = types.ModuleType('PlayerEvents')
+    player_events.g_playerEvents = type('PlayerEvents', (object,), {})()
+    for name in ('onAccountShowGUI', 'onAccountBecomePlayer', 'onAvatarBecomePlayer',
+                 'onAvatarBecomeNonPlayer', 'onArenaCreated', 'onEnqueued', 'onDequeued',
+                 'onEnqueueFailure', 'onKickedFromQueue'):
+        setattr(player_events.g_playerEvents, name, FakeEvent())
+    sys.modules['PlayerEvents'] = player_events
     _package('frameworks')
     wulf = types.ModuleType('frameworks.wulf')
     wulf.WindowLayer = type('WindowLayer', (object,), {'SERVICE_LAYOUT': 'service'})
