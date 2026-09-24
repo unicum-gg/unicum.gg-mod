@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0
+
+### Added
+
+- Right-click a player, anywhere in the game, and open their unicum.gg page or hand it to ChatGPT, Claude or Scira. In battle, in the battle results, in your contacts and in a skirmish room.
+- The same on any tank: the carousel, the tech tree, the shop and the comparison.
+- Two switches in the settings turn each of them off.
+
+### Changed
+
+- Installing is only the two files in the archive now. The mod makes what it needs on its first run and restarts the game once, so ratings are coloured badges from your very first battle instead of bare numbers.
+
 ## 0.2.0
 
 ### Added
