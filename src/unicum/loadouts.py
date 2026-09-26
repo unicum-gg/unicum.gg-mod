@@ -206,6 +206,29 @@ def save_sent(sent):
         _logger.warning('could not write %s; the next sweep sends again', STORE, exc_info=True)
 
 
+def _keep_rejected(code, batch):
+    """Leave a refused batch on disk, beside the fingerprints.
+
+    Kept rather than removed once it had done its job. The shape of a loadout
+    is a contract between this mod, a game client nobody here controls and a
+    server in another repository, and the two bugs it has already found were
+    both a vehicle the schema had not imagined: one with nothing to say about
+    its post progression, and one whose main armament is a machine gun
+    carrying 2700 rounds. Neither was visible from the log, and neither could
+    be reproduced without the batch that carried it.
+
+    Only what the server refused outright, never a network failure, and always
+    the same file: this is a diagnosis, not a history.
+    """
+    if not (400 <= (code or 0) < 500):
+        return
+    try:
+        with open(os.path.join('mods', 'configs', 'unicum', 'loadouts-rejected.json'), 'wb') as handle:
+            json.dump(batch, handle)
+    except (IOError, OSError):
+        _logger.debug('could not write the refused batch down', exc_info=True)
+
+
 def changed(records, sent, held):
     """The records worth sending: new, altered, or absent from the server.
 
@@ -346,6 +369,7 @@ class Uploader(object):
                 self._busy = False
                 save_sent(self._sent)
                 _logger.warning('loadout upload stopped on HTTP %s after %d vehicle(s)', code, at)
+                _keep_rejected(code, batch)
                 return
             for record in batch:
                 self._sent[record['tankId']] = fingerprint(record)
