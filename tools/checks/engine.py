@@ -86,3 +86,23 @@ class FakeEvent(object):
         if handler in self.handlers:
             self.handlers.remove(handler)
         return self
+
+
+class FakeEventBus(object):
+    """Stands in for g_eventBus: listeners per (event, scope), and a way to fire one."""
+
+    def __init__(self):
+        self.listeners = {}
+
+    def addListener(self, event, handler, scope=None):
+        self.listeners.setdefault((event, scope), []).append(handler)
+
+    def removeListener(self, event, handler, scope=None):
+        handlers = self.listeners.get((event, scope), [])
+        if handler in handlers:
+            handlers.remove(handler)
+
+    def handleEvent(self, event, ctx=None, scope=None):
+        fired = type('FiredEvent', (object,), {'ctx': ctx or {}})()
+        for handler in list(self.listeners.get((event, scope), [])):
+            handler(fired)

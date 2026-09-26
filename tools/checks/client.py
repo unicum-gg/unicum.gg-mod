@@ -15,7 +15,7 @@ from checks.fakes import (
     FakeStrongholdBattleRoom,
     FakeStatisticsController,
     FakeVehicleInfoComponent)
-from checks.engine import FakeEvent
+from checks.engine import FakeEvent, FakeEventBus
 from checks.surfaces import check_profile_title
 
 
@@ -112,9 +112,10 @@ def install_fake_client(bigworld):
     _attach('gui.Scaleform.framework.managers',
             'gui.Scaleform.framework.managers.loaders', loaders)
     shared = sys.modules['gui.shared']
-    shared.EVENT_BUS_SCOPE = type('EVENT_BUS_SCOPE', (object,), {'GLOBAL': 'global'})
+    shared.EVENT_BUS_SCOPE = type('EVENT_BUS_SCOPE', (object,), {'GLOBAL': 'global', 'BATTLE': 'battle'})
     shared.events = types.ModuleType('gui.shared.events')
-    shared.g_eventBus = None
+    shared.events.GameEvent = type('GameEvent', (object,), {'BATTLE_LOADING': 'battleLoading'})
+    shared.g_eventBus = FakeEventBus()
 
     room = types.ModuleType(
         'gui.Scaleform.daapi.view.lobby.fortifications.stronghold_battle_room')

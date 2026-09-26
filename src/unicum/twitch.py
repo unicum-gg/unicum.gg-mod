@@ -12,6 +12,10 @@ MessengerEntry.gui.addClientMessage, the way the client shows its own notices
 there: only on this screen, never sent to anyone. Outside a battle messages
 are kept, a few at a time, for a garage view to come.
 
+A battle opens with the last of them rather than with an empty chat, so what
+was said while the player sat in the garage or waited out the loading screen
+is still there to read (`ChatQueue.open_battle`).
+
 settings.json: {"twitch": {"channel": "", "battleChat": true}}. With no
 channel typed there, the one the player linked to their account on unicum.gg
 (`twitchLogin` of GET /api/{region}/players/{nickname}) is followed. No
@@ -23,6 +27,7 @@ import logging
 import os
 import random
 import re
+import time
 import urllib
 
 from unicum.twitch_badges import ChatBadges, drawable, parse_badges
@@ -49,6 +54,23 @@ _QUEUE = 40
 
 # Kept for the garage, newest last.
 _HISTORY = 50
+
+# What a battle opens with, from that history: chat said while the player sat
+# in the garage or waited out the loading screen, which used to be dropped.
+# Ten lines because the battle chat shows few at a time and the game's own
+# notices have to stay readable; ten minutes because after a long garage stop
+# the last battle's chat is not context any more, it is noise.
+_REPLAY = 10
+_REPLAY_SECONDS = 600.0
+
+# The battle's loading screen has a chat of its own, and `_battle_chat_shown`
+# is already true while it is up: a message written there is thrown away with
+# the screen, seconds before the player can read anything. So nothing is
+# written until the screen is over (GameEvent.BATTLE_LOADING), and never
+# longer than this, in case that event does not come in some mode -- losing
+# the first seconds of a battle's chat is a bad day, losing all of it silently
+# is a bug nobody would report.
+_LOADING_HOLD = 60.0
 
 _MAX_TEXT = 200
 
@@ -183,16 +205,40 @@ class ChatQueue(object):
 
     def __init__(self):
         self.pending = collections.deque(maxlen=_QUEUE)
-        self.history = collections.deque(maxlen=_HISTORY)
+        # (when, message) pairs rather than bare messages, so a battle can
+        # replay only what is still recent. One deque rather than a second one
+        # of timestamps beside it: paired, they cannot drift apart.
+        self.kept = collections.deque(maxlen=_HISTORY)
         # Moves whenever the history does, for the garage to follow.
         self.revision = 0
 
+    @property
+    def history(self):
+        return [message for _, message in self.kept]
+
     def add(self, message, in_battle, keep=True):
         if keep:
-            self.history.append(message)
+            # Wall clock, not BigWorld.time(): the age that matters here spans
+            # the garage and the loading screen, and the game's own clock can
+            # start over when the client changes space.
+            self.kept.append((time.time(), message))
             self.revision += 1
         if in_battle:
             self.pending.append(message)
+
+    def open_battle(self):
+        """Replace what waits with the chat a battle should open on.
+
+        Taken from the history, not added in front of what `pending` already
+        holds: a message that arrived during the loading screen is in both, so
+        adding would show it twice. Replacing cannot, and leaves the order
+        alone, because the history ends with exactly those same messages.
+        """
+        cutoff = time.time() - _REPLAY_SECONDS
+        recent = [message for when, message in self.kept if when >= cutoff][-_REPLAY:]
+        self.pending.clear()
+        self.pending.extend(recent)
+        return len(recent)
 
     def take(self):
         taken = []
@@ -273,10 +319,14 @@ class TwitchChat(object):
         self._badges = ChatBadges(session)
         self._echoes = EchoGuard()
         self._self = _load_self()
+        # Whether this battle has already been given the chat it opened with.
+        self._seeded = False
+        # While the battle's loading screen is up, and no later than this.
+        self._loading_until = 0.0
 
     @property
     def history(self):
-        return list(self._queue.history)
+        return self._queue.history
 
     @property
     def revision(self):
@@ -296,10 +346,38 @@ class TwitchChat(object):
         return self._badges.sources(badges)
 
     def install(self):
+        self._follow_loading()
         self._session.repeat(_CHECK_SECONDS, self._check)
         self._session.repeat(_FLUSH_SECONDS, self._flush)
         self._session.on_close(self._close)
         _logger.info('installed')
+
+    def _follow_loading(self):
+        """Know when the battle's loading screen is up, and when it is over.
+
+        Guarded rather than let to fail: without these events the chat shows
+        as it did before, a little of it into the loading screen, which is far
+        better than a Twitch chat that does not install at all.
+        """
+        try:
+            from PlayerEvents import g_playerEvents
+            from gui.shared import EVENT_BUS_SCOPE, events, g_eventBus
+            self._session.subscribe(g_playerEvents.onAvatarBecomePlayer, self._on_avatar)
+            g_eventBus.addListener(events.GameEvent.BATTLE_LOADING, self._on_loading,
+                                   scope=EVENT_BUS_SCOPE.BATTLE)
+            self._session.on_close(lambda: g_eventBus.removeListener(
+                events.GameEvent.BATTLE_LOADING, self._on_loading, scope=EVENT_BUS_SCOPE.BATTLE))
+        except Exception:
+            _logger.exception('no battle loading events; the chat may open a little early')
+
+    def _on_avatar(self, *args):
+        # The loading screen comes next, so the hold starts here rather than
+        # when it shows: the battle chat already exists in between.
+        self._loading_until = time.time() + _LOADING_HOLD
+
+    def _on_loading(self, event):
+        shown = bool(getattr(event, 'ctx', {}).get('isShown'))
+        self._loading_until = time.time() + _LOADING_HOLD if shown else 0.0
 
     def _check(self):
         """Follow the channel the settings name: join it, change, or leave."""
@@ -406,9 +484,13 @@ class TwitchChat(object):
         self._echoes.expect(text, BigWorld.time())
         message = own_message(self._self, self._channel or '', text)
         in_battle = isPlayerAvatar() and self._settings.shows_twitch_in_battle()
-        # While the battle loads, it waits in the queue like the others.
-        self._queue.add(message, in_battle and not _battle_chat_shown())
-        if in_battle and _battle_chat_shown():
+        # Shown at once only once the battle has had its opening chat. Before
+        # that, and while the battle loads, it waits in the queue like the
+        # others: it is in the history too, so the opening chat carries it, and
+        # showing it now would show it twice.
+        show_now = in_battle and _battle_chat_shown() and self._seeded
+        self._queue.add(message, in_battle and not show_now)
+        if show_now:
             self._show([message])
 
     def _remember_self(self, message):
@@ -423,13 +505,26 @@ class TwitchChat(object):
             _logger.debug('could not save how the player looks in chat', exc_info=True)
 
     def _flush(self):
-        # Out of battle, what waited is stale for the next one (the garage
-        # has it all in the history).
+        # Out of battle, what waited is stale for the next one, which opens
+        # from the history instead. Re-arming here rather than on a battle
+        # event keeps the two halves of this in one place.
         if not self._settings.shows_twitch_in_battle() or not _in_battle():
             self._queue.pending.clear()
+            self._seeded = False
+            self._loading_until = 0.0
             return
-        if not _battle_chat_shown():
+        # The loading screen's chat counts as shown and is thrown away with
+        # the screen: everything waits, and comes out together once the player
+        # is looking at the battle.
+        if not _battle_chat_shown() or time.time() < self._loading_until:
             return
+        if not self._seeded:
+            # Open on the chat the player missed getting in here, rather than
+            # on an empty screen. Logged because a quiet channel and a broken
+            # replay look exactly the same from the battle chat.
+            self._seeded = True
+            _logger.info('battle chat opens on %d of the %d message(s) in hand',
+                         self._queue.open_battle(), len(self._queue.kept))
         taken = self._queue.take()
         if taken:
             self._show(taken)

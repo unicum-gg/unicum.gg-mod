@@ -44,6 +44,8 @@ def check_twitch():
           [m.text for m in taken] == ['5', '6', '7', '8', '9'] and len(queue.pending) == 35)
     check('messages outside a battle are kept but not queued', queue.history[-1].text == 'garage')
 
+    check_battle_opening()
+
     check('a channel is read from a name, "#Name" or its link',
           [validate({'twitch': {'channel': value}})['twitch']['channel'] for value in
            ('Unicum_GG', '#unicum_gg', 'https://www.twitch.tv/unicum_gg/', 'no spaces!', 42)] ==
@@ -70,6 +72,99 @@ def check_twitch():
     settings.update({'enabled': False})
     check('the mod off follows no channel', settings.twitch_channel('linked') == ''
           and not settings.shows_twitch_in_battle())
+
+
+def check_battle_opening():
+    """The chat a battle opens on: what was said before it, not an empty screen."""
+    from unicum import twitch
+    from unicum.twitch import _REPLAY, _REPLAY_SECONDS, ChatQueue, Message
+
+    class Clock(object):
+        """Stands in for the module's `time`, so an age can be arranged."""
+
+        def __init__(self):
+            self.now = 1000.0
+
+        def time(self):
+            return self.now
+
+    clock = Clock()
+    real, twitch.time = twitch.time, clock
+    try:
+        queue = ChatQueue()
+        for index in range(_REPLAY + 5):
+            queue.add(Message('a', None, str(index)), in_battle=False)
+        queue.open_battle()
+        check('a battle opens on the last of the chat, oldest first',
+              [m.text for m in queue.pending] == [str(i) for i in range(5, _REPLAY + 5)])
+
+        queue = ChatQueue()
+        queue.add(Message('a', None, 'stale'), in_battle=False)
+        clock.now += _REPLAY_SECONDS + 1.0
+        queue.add(Message('a', None, 'fresh'), in_battle=False)
+        queue.open_battle()
+        check('chat from long before the battle is left out', [m.text for m in queue.pending] == ['fresh'])
+
+        queue = ChatQueue()
+        queue.add(Message('a', None, 'garage'), in_battle=False)
+        queue.add(Message('a', None, 'loading'), in_battle=True)
+        queue.open_battle()
+        check('what arrived while the battle loaded is shown once, not twice',
+              [m.text for m in queue.pending] == ['garage', 'loading'])
+
+        queue = ChatQueue()
+        queue.add(Message('a', None, 'not kept'), in_battle=True, keep=False)
+        queue.open_battle()
+        check('with nothing said before it, a battle opens on an empty chat', not queue.pending)
+    finally:
+        twitch.time = real
+
+    check_loading_screen_hold()
+
+
+def check_loading_screen_hold():
+    """Nothing is written while the battle loads: that chat goes with the screen."""
+    import os
+    import tempfile
+    from unicum import twitch
+    from unicum.runtime.session import Session
+    from unicum.settings import Settings
+    from unicum.twitch import _LOADING_HOLD, Message, TwitchChat
+
+    def loading(shown):
+        return type('FiredEvent', (object,), {'ctx': {'isShown': shown}})()
+
+    session = Session(generation=0)
+    settings = Settings(session, store=os.path.join(tempfile.mkdtemp(), 'settings.json'))
+    chat = TwitchChat(session, settings, None)
+    shown = []
+    chat._show = shown.extend
+    in_battle, twitch._in_battle = twitch._in_battle, lambda: True
+    chat_shown, twitch._battle_chat_shown = twitch._battle_chat_shown, lambda: True
+    try:
+        chat._queue.add(Message('a', None, 'from the garage'), in_battle=False)
+        chat._on_avatar()
+        chat._flush()
+        check('nothing is written while the battle is still loading', not shown)
+        chat._on_loading(loading(True))
+        chat._flush()
+        check('nor while its loading screen is up', not shown)
+        chat._on_loading(loading(False))
+        chat._flush()
+        check('the chat a battle opens on arrives once the loading screen is gone',
+              [m.text for m in shown] == ['from the garage'])
+
+        del shown[:]
+        chat._on_avatar()
+        chat._loading_until -= _LOADING_HOLD + 1.0
+        chat._queue.add(Message('a', None, 'later'), in_battle=True)
+        chat._flush()
+        check('a loading screen that never reports itself over cannot silence a whole battle',
+              [m.text for m in shown] == ['later'])
+    finally:
+        twitch._in_battle = in_battle
+        twitch._battle_chat_shown = chat_shown
+        session.close()
 
 
 def check_twitch_badges():
