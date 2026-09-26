@@ -250,6 +250,12 @@ class Uploader(object):
         except ImportError:
             _logger.exception('no player events; loadouts are never swept')
             return
+        # The garage may already be up: the event fires when it appears, and
+        # a mod installed after that would otherwise say nothing until the
+        # player next came back from a battle. `sweep` refuses anywhere else,
+        # so this costs nothing while the client is still starting, which is
+        # when it normally runs.
+        self._session.callback(_START_DELAY, self.sweep)
         _logger.info('installed')
 
     def _on_garage(self, *args):
