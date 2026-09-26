@@ -10,9 +10,9 @@ is nothing more than stop() followed by a fresh start().
 """
 import logging
 
-from unicum import (auto_reload, battle, battle_results, browser, config, context_menu, first_run, lobby, mods_list,
-                    reporting, room_sort, settings_tab, settings_window, tank_button, twitch, twitch_panel,
-                    twitch_send, twitch_window, views)
+from unicum import (auto_reload, battle, battle_results, browser, config, context_menu, first_run, loadouts, lobby,
+                    mods_list, reporting, room_sort, settings_tab, settings_window, tank_button, twitch,
+                    twitch_panel, twitch_send, twitch_window, views)
 from unicum.badges import Badges
 from unicum.game_link import GameLink
 from unicum.api.resolve import Lookup
@@ -71,6 +71,7 @@ def start(generation=0):
         room_sort.install(_session, settings)
         tank_button.install(_session, settings)
         context_menu.install(_session, settings)
+        loadouts.install(_session, settings, link)
         auto_reload.install(_session, settings)
         chat = twitch.install(_session, settings, link)
         window.follow_twitch(chat)

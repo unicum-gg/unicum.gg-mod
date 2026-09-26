@@ -75,6 +75,12 @@ DEFAULTS = dict({
     # use for the tank ones, and the tank menus reach into the tech tree and
     # the shop where a player menu never goes.
     'contextMenu': {'players': True, 'vehicles': True},
+    # Whether this client tells unicum.gg how the player has set their
+    # vehicles up, which is what puts a loadout on their own player page. On
+    # by default and stated in the mod's description: Wargaming publishes none
+    # of this, so nothing is here that the player's own client did not send,
+    # and the pages are the poorer for every client that stays quiet.
+    'sendLoadouts': True,
     # Off until the player turns it on: it writes in the team chat for them.
     # Never, after every shot, or only when an autoloader's magazine runs out.
     'autoReload': 'off',
@@ -122,6 +128,7 @@ def validate(raw):
     context_menu = raw.get('contextMenu') if isinstance(raw.get('contextMenu'), dict) else {}
     values['contextMenu'] = dict((key, _bool(context_menu.get(key), default))
                                  for key, default in DEFAULTS['contextMenu'].items())
+    values['sendLoadouts'] = _bool(raw.get('sendLoadouts'), DEFAULTS['sendLoadouts'])
     twitch = raw.get('twitch') if isinstance(raw.get('twitch'), dict) else {}
     values['twitch'] = {'channel': twitch_channel(twitch.get('channel')),
                         'battleChat': _bool(twitch.get('battleChat'), DEFAULTS['twitch']['battleChat']),
@@ -245,6 +252,10 @@ class Settings(object):
     def shows_context_menu(self, kind):
         """Whether the right-click entries are drawn on 'players' or on 'vehicles' menus."""
         return self._values['enabled'] and self._values['contextMenu'].get(kind, True)
+
+    def sends_loadouts(self):
+        """Whether this client sends how the player has set their vehicles up."""
+        return self._values['enabled'] and self._values['sendLoadouts']
 
     def alt_only(self, surface):
         """Whether a surface waits for Alt: 'markers' above tanks, the 'panel' of players,
