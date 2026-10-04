@@ -44,6 +44,8 @@ import re
 import shutil
 import subprocess
 import tempfile
+import urllib.error
+import urllib.request
 import zipfile
 from pathlib import Path
 
@@ -56,8 +58,14 @@ DIST = REPO / 'dist'
 
 MOD_ID = 'gg.unicum'
 
-# The client the package is built for: its mods/ folder in the zip.
-GAME_VERSION = '2.4.0.1'
+# Where the client's own paths.xml is published, to read the folder it looks in.
+#
+# unicum-gg/wot.src mirrors the client's game root off the update CDN, so this
+# names the folder the live client will actually read, rather than a constant
+# somebody has to remember to bump. It is the package's whole dependence on a
+# client version: nothing inside the .wotmod names one (see `bundle`).
+PATHS_XML = 'https://raw.githubusercontent.com/unicum-gg/wot.src/EU/sources/paths.xml'
+PATHS_MODS = re.compile(r'\./mods/([0-9][0-9.]*)')
 GAMEFACE = REPO / 'vendor' / 'openwg'
 NAME = 'unicum.gg'
 DESCRIPTION = ('Player ratings and language flags across the game, the unicum.gg tank menu in the '
@@ -85,6 +93,21 @@ EXCLUDED = {'local_settings.py'}
 # on the hub. Now the archive is two .wotmod files and nothing else.
 
 VERSION = re.compile(r'^\d+\.\d+\.\d+$')
+
+
+def game_version(given: str | None) -> str:
+    """The client version the zip puts the mod under, given or read off the mirror."""
+    if given:
+        return given
+    try:
+        with urllib.request.urlopen(PATHS_XML, timeout=30) as response:
+            text = response.read().decode('utf-8', 'replace')
+    except urllib.error.URLError as error:
+        raise SystemExit(f'{PATHS_XML}: {error.reason}; pass --game-version')
+    found = PATHS_MODS.search(text)
+    if not found:
+        raise SystemExit(f'no mods folder in {PATHS_XML}; pass --game-version')
+    return found.group(1)
 
 
 def python27(given: str | None) -> list[str]:
@@ -172,11 +195,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description='Build the released unicum.gg .wotmod.')
     parser.add_argument('--version', required=True, help='x.y.z')
     parser.add_argument('--python27', help='path to Python 2.7 (the client\'s version)')
+    parser.add_argument('--game-version',
+                        help='the client the zip targets, e.g. 2.4.0.2; read off the mirror when absent')
     args = parser.parse_args()
     if not VERSION.match(args.version):
         raise SystemExit('--version must be x.y.z')
 
     py27 = python27(args.python27)
+    folder_version = game_version(args.game_version)
+    print(f'client   {folder_version}')
     DIST.mkdir(exist_ok=True)
     target = DIST / f'{MOD_ID}_{args.version}.wotmod'
     with tempfile.TemporaryDirectory() as scratch:
@@ -190,16 +217,16 @@ def main() -> None:
                 archive.write(path, inside)
     size = target.stat().st_size
     print(f'wrote {target} ({len(files)} files, {size / 1024:.0f} KB)')
-    bundle(target, args.version)
+    bundle(target, args.version, folder_version)
 
 
-def bundle(package: Path, version: str) -> None:
+def bundle(package: Path, version: str, client: str) -> None:
     """The zip a player unzips into the game folder: the mod and openwg_gameface."""
     gameface = sorted(GAMEFACE.glob('net.openwg.gameface_*.wotmod'))
     if len(gameface) != 1:
         raise SystemExit(f'expected one net.openwg.gameface_*.wotmod in {GAMEFACE}, found {len(gameface)}')
     target = DIST / f'{NAME}_{version}.zip'
-    folder = f'mods/{GAME_VERSION}'
+    folder = f'mods/{client}'
     with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as archive:
         archive.write(package, f'{folder}/{package.name}')
         archive.write(gameface[0], f'{folder}/net.openwg/{gameface[0].name}')

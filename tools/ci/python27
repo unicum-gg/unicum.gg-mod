@@ -1,0 +1,25 @@
+#!/bin/sh
+# Stands in for the client's Python 2.7 where there is none.
+#
+# The .pyc the mod ships have to carry Python 2.7's magic number, because the
+# client's interpreter is the one that reads them, so build_release.py shells
+# out to a real 2.7 (--python27). GitHub's runners have not carried one since
+# Ubuntu dropped it, and no PPA offers it for 24.04, so this hands the work to
+# the official image instead.
+#
+# The repository and the temporary directory are mounted at the paths they
+# already have, because build_release.py passes absolute paths through: its
+# staging tree lives under TMPDIR and the container has to see it by the same
+# name. Nothing is written outside those two.
+#
+#     python tools/build_release.py --version X --python27 tools/ci/python27
+set -eu
+TMP="${TMPDIR:-/tmp}"
+TMP="${TMP%/}"
+exec docker run --rm \
+  --volume "$PWD:$PWD" \
+  --volume "$TMP:$TMP" \
+  --workdir "$PWD" \
+  --user "$(id -u):$(id -g)" \
+  --env PYTHONDONTWRITEBYTECODE= \
+  python:2.7-slim python "$@"

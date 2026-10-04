@@ -1,0 +1,141 @@
+name: release
+
+# Builds the published package and attaches it to a GitHub release.
+#
+# Nothing here needs World of Tanks installed. The two things the build takes
+# out of the client, its .swc libraries and the markers app it patches, come
+# from unicum-gg/wot.assets, and the folder the zip targets is read from the
+# client's own paths.xml in unicum-gg/wot.src (tools/build_as3.py,
+# tools/build_release.py). So the version this publishes for is whatever the
+# live client is on the day it runs, not a constant in the repository.
+#
+# What it does not do is put the file on the mod hub: that is a separate
+# upload, and it goes through a human review at Wargaming either way.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: >-
+          Version to build, x.y.z, without the leading v. Used to rebuild a
+          release for a newer client without a code change.
+        required: true
+      draft:
+        description: Leave the release unpublished.
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            version="${{ inputs.version }}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          case "$version" in
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "not an x.y.z version: $version" >&2; exit 1 ;;
+          esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "building $version"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Royale's mxmlc is a jar; build_as3.py downloads Royale itself.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Cache Apache Royale
+        uses: actions/cache@v4
+        with:
+          path: build/as3/royale
+          key: royale-0.9.12
+
+      - name: Build the flag images
+        working-directory: tools/flags
+        run: npm ci --no-audit --no-fund && npm run build
+
+      - name: Build the icons
+        working-directory: tools/badges
+        run: npm ci --no-audit --no-fund && npm run icon
+
+      # No --game: the client's .swc and its markers app come from the mirror.
+      - name: Compile the AS3
+        run: python tools/build_as3.py
+
+      - name: Build the package
+        run: |
+          chmod +x tools/ci/python27
+          python tools/build_release.py \
+            --version "${{ steps.version.outputs.version }}" \
+            --python27 tools/ci/python27
+
+      - name: Check the package
+        run: |
+          tools/ci/python27 tools/release_check.py \
+            "dist/gg.unicum_${{ steps.version.outputs.version }}.wotmod"
+
+      - name: Release notes
+        id: notes
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          # The CHANGELOG's own section for this version, when it has one.
+          if awk -v v="$version" '
+                $0 ~ "^## \\[?" v "\\]?" {found = 1; next}
+                found && /^## / {exit}
+                found {print}
+              ' CHANGELOG.md > notes.md && [ -s notes.md ]; then
+            echo "took the changelog section for $version"
+          else
+            echo "No changelog entry for $version." > notes.md
+          fi
+          cat notes.md
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          draft=""
+          if [ "${{ inputs.draft }}" = "true" ]; then draft="--draft"; fi
+          if gh release view "v$version" >/dev/null 2>&1; then
+            gh release upload "v$version" \
+              "dist/gg.unicum_$version.wotmod" "dist/unicum.gg_$version.zip" --clobber
+            echo "added the files to the existing v$version"
+          else
+            gh release create "v$version" $draft \
+              --title "$version" --notes-file notes.md \
+              "dist/gg.unicum_$version.wotmod" "dist/unicum.gg_$version.zip"
+          fi
+
+      - name: Keep the package as an artifact too
+        uses: actions/upload-artifact@v4
+        with:
+          name: unicum.gg-${{ steps.version.outputs.version }}
+          path: dist/
+          if-no-files-found: error
