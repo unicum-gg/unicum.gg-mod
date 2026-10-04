@@ -49,8 +49,13 @@ OWNER = f'{BASE}/api/mods/{MOD_ID}/owner/'
 MOD = f'{BASE}/api/mods/{MOD_ID}/'
 UPLOAD = f'{BASE}/api/mods/mod_file_upload'
 # The edit page carries the game versions it offers, with the ids the API wants.
+# They sit in a JS string literal, so every quote arrives as a `"` escape:
+#
+#     "gameVersions": [{"version": "2.4.0.2", ...
+#
+# Both spellings are accepted here, in case the page is ever served plainly.
 EDIT = f'{BASE}/{MOD_ID}/edit/'
-GAME_VERSIONS = re.compile(r'"gameVersions"\s*:\s*(\[.*?\])', re.S)
+GAME_VERSIONS = re.compile(r'(?:\\u0022|")gameVersions(?:\\u0022|")\s*:\s*(\[.*?\])', re.S)
 
 VERSION = re.compile(r'^\d+\.\d+\.\d+$')
 
@@ -104,7 +109,7 @@ def game_version_id(session: str, csrf: str, wanted: str) -> int:
     found = GAME_VERSIONS.search(body.decode('utf-8', 'replace'))
     if not found:
         raise SystemExit(f'no gameVersions on {EDIT}')
-    versions = json.loads(found.group(1))
+    versions = json.loads(found.group(1).replace(r'"', '"'))
     for entry in versions:
         if entry.get('version') == wanted:
             return int(entry['id'])
@@ -181,9 +186,18 @@ def main() -> None:
     uploaded = json.loads(raw)
     print(f'uploaded id={uploaded["id"]} as {uploaded.get("source_original_name")}')
 
-    # The PUT replaces the mod, so it carries back what the hub already holds
-    # with one version added. Existing versions go back by id: the serializer
-    # matches them to the rows it has, and a version left out would be dropped.
+    # PATCH, not PUT, and carrying nothing but the versions.
+    #
+    # PUT replaces the mod, so it would have to send the descriptions back, and
+    # those are longer than the limit the form states: the hub holds 3438 and
+    # 3488 characters where the editor says 3000, because it counts the text
+    # and stores the markup. Round-tripping them risks a rejection, or worse a
+    # silent truncation of the public page, for a change that has nothing to do
+    # with them. A partial update cannot touch what it does not mention.
+    #
+    # The versions list still goes whole: a writable nested list is replaced by
+    # what it is given, so the ones already there go back by id or they would
+    # be dropped.
     versions = [{'id': v['id']} for v in mod.get('versions') or []]
     versions.insert(0, {
         'version': args.version,
@@ -193,14 +207,8 @@ def main() -> None:
         'temporary_version_file': uploaded['id'],
         'temporary_version_file_access_token': uploaded['access_token'],
     })
-    payload = {
-        'status': mod.get('status'),
-        'localizations': mod.get('localizations'),
-        'tags': mod.get('tags'),
-        'change_log': mod.get('change_log'),
-        'versions': versions,
-    }
-    status, raw = call(MOD, session, csrf, 'PUT',
+    payload = {'versions': versions}
+    status, raw = call(MOD, session, csrf, 'PATCH',
                        json.dumps(payload).encode('utf-8'), 'application/json')
     if status not in (200, 202):
         raise SystemExit(f'{MOD}: HTTP {status}\n{raw[:600].decode("utf-8", "replace")}')
