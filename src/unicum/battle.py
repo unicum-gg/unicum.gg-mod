@@ -65,6 +65,11 @@ _PUBLISH_SECONDS = 0.5
 # panelHidden, tabHidden and loadingHidden properties.
 _ALT_SURFACES = ('panel', 'tab', 'loading')
 
+# Of those, the ones that show a team's average: the players panel does not.
+# Read by _mark_teams, which puts nothing in a team name while all of them are
+# waiting for Alt.
+_AVERAGE_SURFACES = ('tab', 'loading')
+
 _IMG_WIDTH = re.compile(r'<IMG[^>]*\bwidth="(\d+)"', re.IGNORECASE)
 _IMG = re.compile(r'<IMG[^>]*>', re.IGNORECASE)
 
@@ -212,6 +217,8 @@ class BattleFlags(object):
         if self._published is not None and self._published[0] is view and self._published[1] == state:
             return
         first = self._published is None
+        # What Alt was showing a moment ago, to notice it changed.
+        before = self._published[1][3:] if not first else None
         self._published = (view, state)
         try:
             view.markersText, view.leftIds, view.rightIds = state[:3]
@@ -223,12 +230,27 @@ class BattleFlags(object):
         except Exception:
             # A view whose class predates the properties, until the next battle.
             _logger.debug('the battle view has no hidden surfaces yet', exc_info=True)
-        if first:
-            # Names drawn before the view loaded carry the markers after them.
+        if first or hidden != before:
+            # Names drawn before the view loaded carry the markers after them,
+            # and a team average only exists in the name, so Alt changing what
+            # a screen shows is what asks for one to be put there or dropped
+            # (see _mark_teams).
             self._redraw()
 
     def _mark_teams(self, controller, data):
         if not self._settings.shows_average('battle'):
+            return
+        # Not injected at all while every screen that would show it is waiting
+        # for Alt.
+        #
+        # An average rides in the client's own team name field, which draws
+        # plain text until TeamNamesHtml re-sets it as HTML. So putting one
+        # there for a screen that is hidden shows a raw `<IMG ...>` tag for a
+        # frame or two and then drops it, which is all the player ever sees of
+        # it. `_publish` asks for a redraw whenever Alt changes what a screen
+        # shows, and that is what puts the average back.
+        held = self.alt is not None and self.alt.down
+        if not held and all(self._settings.alt_only(surface) for surface in _AVERAGE_SURFACES):
             return
         arena = controller._battleCtx.getArenaDP()
         teams = {'allyTeamName': [], 'enemyTeamName': []}
