@@ -57,6 +57,10 @@ UPLOAD = f'{BASE}/api/mods/mod_file_upload'
 EDIT = f'{BASE}/{MOD_ID}/edit/'
 GAME_VERSIONS = re.compile(r'(?:\\u0022|")gameVersions(?:\\u0022|")\s*:\s*(\[.*?\])', re.S)
 
+# How the edit page spells a quote inside its JS string literal. Built from
+# its code point so no amount of escaping on the way in can resolve it.
+ESCAPED_QUOTE = chr(92) + 'u0022'
+
 VERSION = re.compile(r'^\d+\.\d+\.\d+$')
 
 
@@ -109,7 +113,7 @@ def game_version_id(session: str, csrf: str, wanted: str) -> int:
     found = GAME_VERSIONS.search(body.decode('utf-8', 'replace'))
     if not found:
         raise SystemExit(f'no gameVersions on {EDIT}')
-    versions = json.loads(found.group(1).replace(r'"', '"'))
+    versions = json.loads(found.group(1).replace(ESCAPED_QUOTE, '"'))
     for entry in versions:
         if entry.get('version') == wanted:
             return int(entry['id'])
