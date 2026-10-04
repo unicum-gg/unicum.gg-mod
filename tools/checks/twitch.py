@@ -207,6 +207,74 @@ def check_twitch_badges():
           markup.count('<IMG') == 1 and 'global.moderator.1.png' in markup)
 
 
+def check_linked_channel():
+    """The lookup that tells the hangar card whether a Twitch is linked.
+
+    Reported from Discord on 2026-09-24: a player linked Twitch with the game
+    running and the card kept offering Connect. The site had answered "no
+    channel" at startup, which is a perfectly good answer, and the lookup had
+    treated it as final.
+    """
+    import sys
+    from unicum.twitch import LinkedChannel
+
+    class Player(object):
+        name = 'okuni'
+
+    class Clock(object):
+        """Just enough BigWorld: who the player is, and what time it is."""
+
+        now = 1000.0
+
+        def player(self):
+            return Player()
+
+        def time(self):
+            return self.now
+
+    class Response(object):
+        def __init__(self, body):
+            self.responseCode, self.body = 200, body
+
+    class Session(object):
+        def __init__(self):
+            self.waiting = []
+
+        def fetch(self, url, callback, timeout=None):
+            self.waiting.append(callback)
+
+        def answer(self, body):
+            self.waiting.pop()(Response(body))
+
+    clock, session = Clock(), Session()
+    held = sys.modules.get('BigWorld')
+    sys.modules['BigWorld'] = clock
+    try:
+        channel = LinkedChannel(session)
+        channel.get()
+        check('the linked channel is asked for', len(session.waiting) == 1)
+
+        session.answer('{"twitchLogin": null}')
+        check('a player with no channel is not called linked', channel.get() == '')
+        check('and nothing is asked again within the minute', len(session.waiting) == 0)
+
+        clock.now += 61.0
+        check('but the question comes back, so linking mid-session is noticed',
+              channel.get() == '' and len(session.waiting) == 1)
+
+        session.answer('{"twitchLogin": "Okuni"}')
+        check('a channel, once found, is lower-cased and kept', channel.get() == 'okuni')
+
+        clock.now += 600.0
+        channel.get()
+        check('and is not asked for again', len(session.waiting) == 0)
+    finally:
+        if held is None:
+            sys.modules.pop('BigWorld', None)
+        else:
+            sys.modules['BigWorld'] = held
+
+
 def check_twitch_send():
     import hashlib
     from unicum.game_link import connect_url, new_secret, read_me, secret_hash

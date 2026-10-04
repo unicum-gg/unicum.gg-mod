@@ -259,7 +259,14 @@ def linked_channel(payload):
 
 
 class LinkedChannel(object):
-    """The Twitch channel the player linked on unicum.gg, asked for once."""
+    """The Twitch channel the player linked on unicum.gg.
+
+    Asked for until there is one. A player who has not linked Twitch gets a
+    perfectly good answer saying so, and stopping there meant the question
+    was never asked again: linking during the session changed nothing until
+    the next start, and the hangar card kept offering Connect for a channel
+    the site already knew about. Reported from Discord on 2026-09-24.
+    """
 
     def __init__(self, session):
         self._session = session
@@ -294,8 +301,10 @@ class LinkedChannel(object):
             if payload is None:
                 self._retry_at = BigWorld.time() + _LINKED_RETRY_SECONDS
                 return
-            self._retry_at = None
             self._channel = linked_channel(payload)
+            # Settled once there is a channel; until then the player may be
+            # linking theirs right now, in a browser, with the game running.
+            self._retry_at = None if self._channel else BigWorld.time() + _LINKED_RETRY_SECONDS
             _logger.info('linked Twitch channel: %s', self._channel or 'none')
 
         self._session.fetch(linked_url(config.API_BASE, config.REGION, nickname), done,
