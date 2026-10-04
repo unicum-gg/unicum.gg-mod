@@ -10,15 +10,18 @@ is nothing more than stop() followed by a fresh start().
 """
 import logging
 
-from unicum import (auto_reload, battle, battle_results, browser, config, context_menu, first_run, loadouts, lobby,
-                    measuring, mods_list, reporting, room_sort, settings_tab, settings_window, tank_button,
-                    twitch, twitch_panel, twitch_send, twitch_window, views)
+from unicum import (auto_reload, battle, battle_reports, battle_results, browser, config, context_menu,
+                    destinations, first_run, loadouts, lobby, measuring, mods_list, report_sender, reporting,
+                    results_request, room_sort, settings_tab, settings_window, site_link,
+                    tank_button, twitch,
+                    twitch_panel, twitch_send, twitch_window, views)
 from unicum.badges import Badges
 from unicum.game_link import GameLink
 from unicum.api.resolve import Lookup
 from unicum.api.scales import RatingScales
+from unicum.report_queue import Queue
 from unicum.runtime.session import Session
-from unicum.settings import Settings
+from unicum.settings import MODES, Settings
 from unicum.textures import FlagCache
 
 VERSION = '0.1.0-dev'
@@ -55,8 +58,12 @@ def start(generation=0):
         measuring.install(_session, settings)
         link = GameLink(_session)
         link.install()
-        window = settings_window.install(_session, settings, link)
-        tab = settings_tab.install(_session, settings, link)
+        # Before the two windows, which draw the partner link's state and its
+        # button. Nothing else here needs the destinations this early.
+        places = destinations.install(_session, MODES)
+        sites = site_link.install(_session, places, link)
+        window = settings_window.install(_session, settings, link, sites)
+        tab = settings_tab.install(_session, settings, link, sites)
         mods_list.install(_session)
         lookup = Lookup(_session, config.REGION)
         scales = RatingScales(_session)
@@ -76,6 +83,16 @@ def start(generation=0):
         tank_button.install(_session, settings)
         context_menu.install(_session, settings)
         loadouts.install(_session, settings, link)
+        # One queue for both halves: the capture writes to it and the sender
+        # reads from it, and two objects over one file would each hold their
+        # own copy of it.
+        queue = Queue()
+        reports = battle_reports.install(_session, settings, places, link, queue)
+        # After the capture, whose door it delivers through: this asks the
+        # server for the battles the player never opened, which is the only way
+        # they are captured at all.
+        results_request.install(_session, reports.arrived, reports.anything_wanted)
+        report_sender.install(_session, settings, link, places, VERSION, queue)
         auto_reload.install(_session, settings)
         chat = twitch.install(_session, settings, link)
         window.follow_twitch(chat)

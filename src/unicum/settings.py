@@ -98,6 +98,12 @@ DEFAULTS = dict({
     # of this, so nothing is here that the player's own client did not send,
     # and the pages are the poorer for every client that stays quiet.
     'sendLoadouts': True,
+    # Whether this client reports the battles the player finishes. On, and for
+    # the same reason as the loadouts above: Wargaming has stopped refreshing
+    # some modes in its API, ranked among them, so a rating for those exists
+    # only because the players' own clients said what happened. Post-battle
+    # numbers only, which is what keeps it clear of the fair play rules.
+    'sendBattleResults': True,
     # Off, and meant to be turned on only to answer a question. It times what
     # the mod does on the thread that draws the game and writes a table to the
     # log every few seconds, so "the mod costs me frames" can be measured
@@ -154,6 +160,7 @@ def validate(raw):
     values['contextMenu'] = dict((key, _bool(context_menu.get(key), default))
                                  for key, default in DEFAULTS['contextMenu'].items())
     values['sendLoadouts'] = _bool(raw.get('sendLoadouts'), DEFAULTS['sendLoadouts'])
+    values['sendBattleResults'] = _bool(raw.get('sendBattleResults'), DEFAULTS['sendBattleResults'])
     values['measurePerformance'] = _bool(raw.get('measurePerformance'),
                                          DEFAULTS['measurePerformance'])
     twitch = raw.get('twitch') if isinstance(raw.get('twitch'), dict) else {}
@@ -283,6 +290,10 @@ class Settings(object):
     def sends_loadouts(self):
         """Whether this client sends how the player has set their vehicles up."""
         return self._values['enabled'] and self._values['sendLoadouts']
+
+    def sends_battle_reports(self):
+        """Whether this client reports the battles the player finishes."""
+        return self._values['enabled'] and self._values['sendBattleResults']
 
     def measures_performance(self):
         """Whether the mod is timing itself. Not gated on `enabled`: a mod

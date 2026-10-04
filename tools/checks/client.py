@@ -64,8 +64,19 @@ def install_fake_client(bigworld):
                  'gui.Scaleform.daapi.view.lobby.fortifications',
                  'gui.Scaleform.daapi.view.lobby.rally', 'messenger',
                  'messenger.gui', 'messenger.gui.Scaleform',
-                 'messenger.gui.Scaleform.data'):
+                 'messenger.gui.Scaleform.data', 'messenger.proto'):
         _package(name)
+
+    # Every server message reaches this event, and results_request subscribes
+    # to it to hear that a battle finished. Stubbed here rather than only in
+    # its own checks so that starting the mod for real goes down that path:
+    # a subscription that only ever happens under a fake service channel is a
+    # subscription nothing proves the mod makes.
+    messenger_events = types.ModuleType('messenger.proto.events')
+    messenger_events.g_messengerEvents = type('MessengerEvents', (object,), {})()
+    messenger_events.g_messengerEvents.serviceChannel = type('ServiceChannel', (object,), {})()
+    messenger_events.g_messengerEvents.serviceChannel.onChatMessageReceived = FakeEvent()
+    _attach('messenger.proto', 'messenger.proto.events', messenger_events)
 
     # views.py. The SWFs start out missing, so install() stands down and
     # profile titles keep their language code; check_profile_title adds it.

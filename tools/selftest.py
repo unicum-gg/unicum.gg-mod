@@ -43,6 +43,38 @@ from checks.surfaces import (
     check_room_sort,
     check_skirmish_room)
 from checks.settings import check_live_settings, check_res_mods_version, check_settings, check_settings_window
+from checks.battle_report_hooks import (check_battle_report_arrival,
+                                        check_battle_report_arrival_as_method,
+                                        check_battle_report_hooks,
+                                        check_battle_report_no_arrival)
+from checks.battle_reports import (check_battle_report_arena_id, check_battle_report_capture,
+                                   check_battle_report_queue, check_battle_report_reading,
+                                   check_battle_report_setting)
+from checks.results_dict import (check_results_dict_cycle, check_results_dict_miss,
+                                 check_results_dict_paths, check_results_dict_said_once,
+                                 check_results_dict_search)
+from checks.results_request import (check_results_request_delivers,
+                                    check_results_request_anything_wanted,
+                                    check_results_request_only_when_taking,
+                                    check_results_request_filter,
+                                    check_results_request_gives_up,
+                                    check_results_request_install,
+                                    check_results_request_mode_message_types,
+                                    check_results_request_names_the_type,
+                                    check_results_request_no_channel,
+                                    check_results_request_one_at_a_time,
+                                    check_results_request_queue,
+                                    check_results_request_refusals,
+                                    check_results_request_stale,
+                                    check_results_request_waits_for_the_garage)
+from checks.site_link import (check_site_link_gives_up, check_site_link_needs_an_account,
+                              check_site_link_url, check_site_link_waiting,
+                              check_site_link_writes_the_destination)
+from checks.service_hooks import (check_service_hooks, check_service_hooks_filter,
+                                  check_service_signatures)
+from checks.destinations import (check_destination_capture, check_destination_modes,
+                                 check_destination_reading, check_destination_secrets,
+                                 check_destination_silence, check_destination_urls)
 from checks.loadouts import (check_crew_away, check_crew_from_last_battle, check_demounting,
                              check_loadout_setting, check_loadout_store, check_loadouts,
                              check_withdrawal)
@@ -51,6 +83,10 @@ from checks.extras import (check_badge_glyphs, check_battle_count, check_entry_s
                            check_winrate_label)
 from checks.perf import (check_perf_meter, check_perf_naming, check_perf_setting,
                          check_sampler_lifecycle, check_sampler_owner)
+from checks.report_sender import (check_report_sender_account, check_report_sender_batching,
+                                  check_report_sender_delivery, check_report_sender_payload,
+                                  check_report_sender_refusals, check_report_sender_startup,
+                                  check_report_sender_targets)
 from checks.tank_menu import check_tank_menu
 from checks.twitch import check_error_reporting, check_links_per_account, check_channel_label, check_echo_guard, check_panel_position, check_own_message, check_panel_size, check_twitch_window, check_twitch_panel, check_regions, check_twitch, check_twitch_badges, check_twitch_receiver, check_twitch_send
 
@@ -151,6 +187,55 @@ def main():
         check_sampler_owner()
         check_sampler_lifecycle()
         check_withdrawal()
+        check_battle_report_reading()
+        check_battle_report_arena_id()
+        check_battle_report_queue()
+        check_battle_report_capture()
+        check_battle_report_setting()
+        check_battle_report_arrival()
+        check_battle_report_arrival_as_method()
+        check_battle_report_no_arrival()
+        check_battle_report_hooks()
+        check_service_hooks()
+        check_service_hooks_filter()
+        check_service_signatures()
+        check_site_link_url()
+        check_site_link_waiting()
+        check_site_link_writes_the_destination()
+        check_site_link_needs_an_account()
+        check_site_link_gives_up()
+        check_results_dict_paths()
+        check_results_dict_search()
+        check_results_dict_cycle()
+        check_results_dict_said_once()
+        check_results_dict_miss()
+        check_results_request_filter()
+        check_results_request_mode_message_types()
+        check_results_request_names_the_type()
+        check_results_request_only_when_taking()
+        check_results_request_anything_wanted()
+        check_results_request_queue()
+        check_results_request_one_at_a_time()
+        check_results_request_waits_for_the_garage()
+        check_results_request_delivers()
+        check_results_request_refusals()
+        check_results_request_gives_up()
+        check_results_request_stale()
+        check_results_request_install()
+        check_results_request_no_channel()
+        check_destination_urls()
+        check_destination_modes()
+        check_destination_reading()
+        check_destination_secrets()
+        check_destination_silence()
+        check_destination_capture()
+        check_report_sender_targets()
+        check_report_sender_payload()
+        check_report_sender_delivery()
+        check_report_sender_account()
+        check_report_sender_refusals()
+        check_report_sender_batching()
+        check_report_sender_startup()
 
         first_hook = target.__dict__['addVehicleInfo']
         generation_before = stub._generation

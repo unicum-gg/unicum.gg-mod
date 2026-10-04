@@ -25,10 +25,11 @@ _TICK_SECONDS = 0.5
 
 class SettingsTab(object):
 
-    def __init__(self, session, settings, link=None):
+    def __init__(self, session, settings, link=None, site=None):
         self._session = session
         self._settings = settings
         self._link = link
+        self._site = site
         self._chat = None
         self._published = {}  # view name -> page it was last handed
         self._failed = set()  # views whose properties could not be reached, logged once
@@ -46,10 +47,11 @@ class SettingsTab(object):
         linked = bool(link is not None and link.secret)
         channel = self._chat.channel if self._chat is not None else u''
         card_shown = not (link is not None and link.card_hidden)
+        site = ((self._site.linked, self._site.running) if self._site is not None else (False, False))
         return settings_window.native_page(
             self._settings.values(), channel, linked and link.twitch == 'ready', card_shown,
             supporter=bool(link is not None and link.supporter),
-            loadouts_hidden=bool(link is not None and link.loadouts_hidden))
+            loadouts_hidden=bool(link is not None and link.loadouts_hidden), site=site)
 
     def _tick(self):
         try:
@@ -97,7 +99,7 @@ class SettingsTab(object):
             self._link.connect(settings_window._linked_notice)
 
 
-def install(session, settings, link=None):
-    tab = SettingsTab(session, settings, link)
+def install(session, settings, link=None, site=None):
+    tab = SettingsTab(session, settings, link, site)
     tab.install()
     return tab

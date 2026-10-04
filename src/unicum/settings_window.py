@@ -130,6 +130,29 @@ def _button_line(templates, text, var, button, tooltip=None):
                 button=templates.createButton(width=90, height=24, text=button))
 
 
+# The partner site battles are reported to. Not a setting either: the click
+# draws a secret, opens the player's browser, and writes the destination down
+# once the site accepts it (site_link.py). Nothing is typed and nothing is
+# copied, which is the whole point -- the alternative was a 64-character secret
+# transcribed into a hand-written JSON file.
+SITE_LINK_VAR = 'siteLink'
+
+_SITE_LINK_TOOLTIP = ('{HEADER}Battle-Conquest{/HEADER}{BODY}Battle-Conquest scores ranked seasons from the '
+                      'battles this mod reports, because Wargaming\'s own API stopped refreshing that mode. '
+                      'Link opens your browser on their site, where you confirm: nothing to type, no file to '
+                      'create. Your battles are then sent there as well as to unicum.gg. Open your battle '
+                      'results screen after a battle, or it is not reported.{/BODY}')
+
+
+def site_link_label(linked, running):
+    """The partner line: what it is, or where the linking is up to."""
+    if linked:
+        return u'Battle-Conquest: linked'
+    if running:
+        return u'Battle-Conquest: confirm in your browser'
+    return u'Battle-Conquest: not linked'
+
+
 # The button opening the site's support page in the player's browser. Not a
 # setting: nothing is stored, the click only opens the page.
 SUPPORT_VAR = 'support'
@@ -234,8 +257,8 @@ HIDE_LABEL = 'Hide my loadouts from my page'
 MEASURE_LABEL = 'Measure what this mod costs'
 
 
-def template(values, channel=u'', linked=False, card_shown=True,
-             supporter=False, loadouts_hidden=False):
+def template(values, channel=u'', linked=False, card_shown=True, supporter=False, loadouts_hidden=False,
+             site=(False, False)):
     """The API's page for these settings, showing `values` and the Twitch channel followed.
 
     `linked` is whether the Twitch chat can be written to, `card_shown` whether
@@ -309,6 +332,8 @@ def template(values, channel=u'', linked=False, card_shown=True,
                     'stop sending them altogether, and delete the ones already sent, untick Share my loadouts '
                     'instead.{/BODY}'))
     garage.extend([
+        checkbox('Share my battle results', 'sendBattleResults',
+                 tooltip='{HEADER}Share my battle results{/HEADER}{BODY}Sends the results of battles you finish: experience, damage, frags and whether you came out alive. It is how modes Wargaming has stopped refreshing, ranked among them, can be counted at all. Post-battle numbers only, never anything while a battle is on. Sites you have added yourself keep receiving the modes they asked for whatever this says.{/BODY}'),
         checkbox(CARD_LABEL, CARD_VAR,
                  tooltip='{HEADER}' + CARD_LABEL + '{/HEADER}{BODY}The card under the mission cards that '
                          'links this game to your unicum.gg account, or says which one it is linked to. Its '
@@ -326,6 +351,14 @@ def template(values, channel=u'', linked=False, card_shown=True,
          _button_line(templates, channel_label(channel, linked), CONNECT_VAR, 'Connect', _CONNECT_TOOLTIP)),
         templates.createEmpty(_SPACER),
     ])
+    # The partner line. A label once linked, because there is nothing left to
+    # click: re-linking would draw a second secret and leave the first one
+    # registered on the site with nothing presenting it.
+    garage.append(
+        templates.createLabel(site_link_label(site[0], site[1]), tooltip=_SITE_LINK_TOOLTIP) if site[0] else
+        _button_line(templates, site_link_label(site[0], site[1]), SITE_LINK_VAR, 'Link', _SITE_LINK_TOOLTIP)
+    )
+    garage.append(templates.createEmpty(_SPACER))
     garage.extend(_button_line(templates, text, var, word, _LINK_TOOLTIPS[var]) for var, text, word in LINKS)
     garage.append(_button_line(templates, RESET_LABEL, RESET_VAR, RESET_BUTTON, _RESET_TOOLTIP))
 
@@ -352,8 +385,8 @@ def template(values, channel=u'', linked=False, card_shown=True,
             'column1': garage, 'column2': battle}
 
 
-def native_page(values, channel=u'', linked=False, card_shown=True,
-                supporter=False, loadouts_hidden=False):
+def native_page(values, channel=u'', linked=False, card_shown=True, supporter=False, loadouts_hidden=False,
+                site=(False, False)):
     """The same settings for the unicum.gg tab of the game's settings window (settings_tab.py).
 
     The same variables and the same choices as template(), laid out for a
@@ -404,6 +437,7 @@ def native_page(values, channel=u'', linked=False, card_shown=True,
     checkbox(u'Share my loadouts', 'sendLoadouts')
     if supporter:
         checkbox(HIDE_LABEL, HIDE_VAR)
+    checkbox(u'Share my battle results', 'sendBattleResults')
     checkbox(CARD_LABEL, CARD_VAR)
     checkbox(MEASURE_LABEL, 'measurePerformance')
     group(1, u'Screens')
@@ -412,6 +446,14 @@ def native_page(values, channel=u'', linked=False, card_shown=True,
     dropdown(u'Skirmish room: when', _alt_key('skirmishRoom'), WHEN_CHOICES)
     dropdown(u'Stronghold: when', _alt_key('stronghold'), WHEN_CHOICES)
     dropdown(u'Battle results: when', _alt_key('results'), WHEN_CHOICES)
+    # The partner line, in the garage group rather than a sub-tab of its own:
+    # a whole tab for one line would be a tab the player opens once.
+    group(1, u'Battle-Conquest')
+    if site[0]:
+        lines.append(u'text\t' + site_link_label(site[0], site[1]))
+    else:
+        lines.append(u'button\t%s\t%s\tLink' % (SITE_LINK_VAR, site_link_label(site[0], site[1])))
+
     group(1, u'unicum.gg')
     for var, text, word in LINKS:
         lines.append(u'button	%s	%s	%s' % (var, text, word))
@@ -498,6 +540,7 @@ def to_window(values, card_shown=True, loadouts_hidden=False):
     window = {CARD_VAR: card_shown, HIDE_VAR: loadouts_hidden,
               'enabled': values['enabled'], 'maxFlags': values['maxFlags'], 'tankButton': values['tankButton'],
               'sendLoadouts': values['sendLoadouts'],
+              'sendBattleResults': values['sendBattleResults'],
               'measurePerformance': values['measurePerformance'],
               'autoReload': RELOAD_CHOICES.index(values['autoReload']),
               'twitchChannel': values['twitch']['channel'], 'twitchBattleChat': values['twitch']['battleChat'],
@@ -520,7 +563,8 @@ def to_window(values, card_shown=True, loadouts_hidden=False):
 def from_window(raw):
     """settings.json changes from what the window sends back."""
     changes = {}
-    for key in ('enabled', 'tankButton', 'sendLoadouts', 'measurePerformance', 'winrateDecimal'):
+    for key in ('enabled', 'tankButton', 'sendLoadouts', 'sendBattleResults', 'measurePerformance',
+                'winrateDecimal'):
         if isinstance(raw.get(key), bool):
             changes[key] = raw[key]
     announced = _index(raw.get('autoReload'), RELOAD_CHOICES)
@@ -602,17 +646,20 @@ def _index(value, options):
 
 class SettingsWindow(object):
 
-    def __init__(self, session, settings, link=None):
+    def __init__(self, session, settings, link=None, site=None):
         self._session = session
         self._settings = settings
         self._link = link
+        # The partner link (site_link.py). Optional: the window has to draw on
+        # a client where nothing linkable was installed.
+        self._site = site
         self._chat = None
         # (channel followed, Twitch chat writable, game linked, account name,
-        # card shown, supports the site, loadouts hidden) as the page shows
-        # them. It has to match what `_register` unpacks and what
+        # card shown, the partner site, supports the site, loadouts hidden) as
+        # the page shows them. It has to match what `_register` unpacks and what
         # `_check_state` builds: `install` registers off this one, before the
         # link has answered anything.
-        self._state = (u'', False, False, None, True, False, False)
+        self._state = (u'', False, False, None, True, (False, False), False, False)
         self._alive = True
         self._api = None
 
@@ -637,9 +684,12 @@ class SettingsWindow(object):
     def _check_state(self):
         link = self._link
         linked = bool(link is not None and link.secret)
+        # The partner link rides in this tuple rather than on a listener of its
+        # own: this already redraws on change every two seconds, and a second
+        # path to the same redraw is a second path to get wrong.
         state = (self._chat.channel if self._chat is not None else u'',
                  linked and link.twitch == 'ready', linked, link.name if linked else None,
-                 self._card_shown(), self._supporter(), self._hidden())
+                 self._card_shown(), self._site_state(), self._supporter(), self._hidden())
         if state == self._state:
             return
         self._state = state
@@ -651,6 +701,12 @@ class SettingsWindow(object):
     def _card_shown(self):
         return not (self._link is not None and self._link.card_hidden)
 
+    def _site_state(self):
+        """(linked, a linking under way) for the partner line."""
+        if self._site is None:
+            return (False, False)
+        return (self._site.linked, self._site.running)
+
     def _supporter(self):
         return bool(self._link is not None and self._link.supporter)
 
@@ -658,9 +714,10 @@ class SettingsWindow(object):
         return bool(self._link is not None and self._link.loadouts_hidden)
 
     def _register(self):
-        channel, writable, linked, name, card_shown, supporter, hidden = self._state
-        self._api.setModTemplate(LINKAGE, template(self._settings.values(), channel, writable, card_shown,
-                                                   supporter, hidden),
+        channel, writable, linked, name, card_shown, site, supporter, hidden = self._state
+        self._api.setModTemplate(LINKAGE,
+                                 template(self._settings.values(), channel, writable, card_shown,
+                                          supporter, hidden, site),
                                  self._on_window, self._on_button)
         # The API keeps its own copy of every value and sends it back as the
         # player's choice. For the card that copy can be stale (the card's
@@ -681,6 +738,9 @@ class SettingsWindow(object):
             return
         if self._link is not None and var_name == CONNECT_VAR:
             self._link.connect(_linked_notice)
+            return
+        if self._site is not None and var_name == SITE_LINK_VAR:
+            self._site.start()
 
     def _on_settings(self):
         """Keep the window in step with a hand edit of settings.json."""
@@ -713,7 +773,7 @@ def _linked_notice(name, twitch):
                                    'in your Twitch chat.' % name, type=SystemMessages.SM_TYPE.Information)
 
 
-def install(session, settings, link=None):
-    window = SettingsWindow(session, settings, link)
+def install(session, settings, link=None, site=None):
+    window = SettingsWindow(session, settings, link, site)
     window.install()
     return window
