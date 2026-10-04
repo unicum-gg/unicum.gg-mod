@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.1
+
+### Fixed
+
+- In the battle players list, the language flags no longer sit a couple of pixels above the badges beside them.
+- On the loading screen, an image tag no longer shows for a moment next to the team names while the ratings are waiting for Alt.
+
 ## 0.4.0
 
 ### Added

@@ -48,10 +48,15 @@ BASE = 'https://wgmods.net'
 OWNER = f'{BASE}/api/mods/{MOD_ID}/owner/'
 MOD = f'{BASE}/api/mods/{MOD_ID}/'
 UPLOAD = f'{BASE}/api/mods/mod_file_upload'
+# Where a version is created. Not a nested route under the mod and not a
+# write on the mod itself: a PATCH carrying `versions` answers 200 and adds
+# nothing, which is how this was got wrong the first time.
+VERSIONS = f'{BASE}/api/mods/versions/'
 # The edit page carries the game versions it offers, with the ids the API wants.
-# They sit in a JS string literal, so every quote arrives as a `"` escape:
+# They sit in a JS string literal, so every quote arrives as the six
+# characters \u0022:
 #
-#     "gameVersions": [{"version": "2.4.0.2", ...
+#     \u0022gameVersions\u0022: [{\u0022version\u0022: \u00222.4.0.2\u0022, ...
 #
 # Both spellings are accepted here, in case the page is ever served plainly.
 EDIT = f'{BASE}/{MOD_ID}/edit/'
@@ -190,32 +195,37 @@ def main() -> None:
     uploaded = json.loads(raw)
     print(f'uploaded id={uploaded["id"]} as {uploaded.get("source_original_name")}')
 
-    # PATCH, not PUT, and carrying nothing but the versions.
-    #
-    # PUT replaces the mod, so it would have to send the descriptions back, and
-    # those are longer than the limit the form states: the hub holds 3438 and
-    # 3488 characters where the editor says 3000, because it counts the text
-    # and stores the markup. Round-tripping them risks a rejection, or worse a
-    # silent truncation of the public page, for a change that has nothing to do
-    # with them. A partial update cannot touch what it does not mention.
-    #
-    # The versions list still goes whole: a writable nested list is replaced by
-    # what it is given, so the ones already there go back by id or they would
-    # be dropped.
-    versions = [{'id': v['id']} for v in mod.get('versions') or []]
-    versions.insert(0, {
-        'version': args.version,
+    # One POST creates the version. The fields are the ones the edit page
+    # sends, and `mod` is in the body rather than the path.
+    created = {
+        'mod': MOD_ID,
         'game_version': client_id,
-        'change_log': notes,
+        'version': args.version,
         'is_visible': True,
+        'change_log': notes,
         'temporary_version_file': uploaded['id'],
         'temporary_version_file_access_token': uploaded['access_token'],
-    })
-    payload = {'versions': versions}
-    status, raw = call(MOD, session, csrf, 'PATCH',
-                       json.dumps(payload).encode('utf-8'), 'application/json')
-    if status not in (200, 202):
-        raise SystemExit(f'{MOD}: HTTP {status}\n{raw[:600].decode("utf-8", "replace")}')
+    }
+    status, raw = call(VERSIONS, session, csrf, 'POST',
+                       json.dumps(created).encode('utf-8'), 'application/json')
+    if status not in (200, 201):
+        raise SystemExit(f'{VERSIONS}: HTTP {status}' + chr(10) + raw[:600].decode("utf-8", "replace"))
+    version = json.loads(raw)
+    print(f'created  version id={version["id"]}, status={version.get("status")}')
+
+    # The hub's own form posts the notes nowhere: it creates the version and
+    # leaves `change_log` empty, so 0.4.1 went to review without any. The
+    # create here does send them, and this checks rather than trusts: if they
+    # did not stick, the instance takes them.
+    if notes and not (version.get('change_log') or '').strip():
+        instance = f'{VERSIONS}{version["id"]}/'
+        status, raw = call(instance, session, csrf, 'PATCH',
+                           json.dumps({'change_log': notes}).encode('utf-8'),
+                           'application/json')
+        if status not in (200, 202):
+            raise SystemExit(f'{instance}: HTTP {status}' + chr(10) + raw[:400].decode("utf-8", "replace"))
+        print('notes    attached separately')
+
     print(f'sent     {args.version} for client {client}; Wargaming reviews it before it appears')
 
 
