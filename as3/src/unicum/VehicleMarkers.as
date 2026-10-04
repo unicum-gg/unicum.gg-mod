@@ -658,7 +658,41 @@ package unicum
          var badgeX:Number = ally ? local + GAP : local - GAP - badgeWidth;
          var flagsX:Number = ally ? local + GAP + badges + SPACE : local - GAP - badges - SPACE - flagsWidth;
          this.setField(fields[0], marker[0], badgeWidth, badgeX, y);
-         this.setField(fields[1], marker[2], flagsWidth, flagsX, y);
+         this.setField(fields[1], marker[2], flagsWidth, flagsX, y + imageDrop(fields[0], fields[1]));
+      }
+
+      /**
+       * How much lower the flags field has to sit for its images to share the
+       * badges' line, measured rather than assumed.
+       *
+       * The two are read as one row but they are two TextFields: they swap
+       * sides between allies and enemies, so they cannot share one. Given the
+       * same y they do not agree, and nothing in the markup says why -- both
+       * hold 12px images written with the same vspace, both fields are the
+       * same height. What is left is where Flash puts an image inside a field,
+       * which depends on what else the field holds, and the badges field holds
+       * a different number of images and sometimes a text fallback.
+       *
+       * So the offset is read off the result: the first image's own rectangle
+       * in each field, and the difference between their tops. An image loads a
+       * frame or two after its tag is set (see ContactColumns) and until then
+       * there is no rectangle to read, which is why this returns 0 rather than
+       * guessing -- `placeTeam` comes back every RESTING_MS and the answer
+       * lands once the images have.
+       */
+      private static function imageDrop(badge:TextField, flags:TextField) : Number
+      {
+         if(!badge.visible || !flags.visible || badge.length == 0 || flags.length == 0)
+         {
+            return 0;
+         }
+         var first:Rectangle = badge.getCharBoundaries(0);
+         var second:Rectangle = flags.getCharBoundaries(0);
+         if(first == null || second == null)
+         {
+            return 0;
+         }
+         return Math.round(first.y - second.y);
       }
 
       private function setField(tf:TextField, html:String, width:Number, x:Number, y:Number) : void
