@@ -1,0 +1,91 @@
+name: client
+
+# Watches the live client and rebuilds the release when it moves on.
+#
+# The package names one client version, in the folder its zip unpacks into, and
+# nothing else: the .wotmod inside carries none. So a patch does not need new
+# code, it needs the same code packaged for the new folder, which is what this
+# asks the release workflow for.
+#
+# Where the two versions come from:
+#
+#   live     the client's own paths.xml, mirrored off the update CDN by
+#            unicum-gg/wot.src, which names the folder the client reads
+#   shipped  the folder inside the newest release's zip, read back from the
+#            release itself rather than written down somewhere that can drift
+on:
+  schedule:
+    - cron: "0 7 * * *" # daily, after the mirrors rebuild at 05:30
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: client
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare the live client with the one we shipped for
+        id: compare
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          paths=https://raw.githubusercontent.com/unicum-gg/wot.src/EU/sources/paths.xml
+          live=$(curl -fsSL "$paths" | grep -oE '\./mods/[0-9][0-9.]*' | head -1 | sed 's|\./mods/||')
+          if [ -z "$live" ]; then
+            echo "no mods folder in $paths" >&2
+            exit 1
+          fi
+
+          tag=$(gh release list --limit 1 --json tagName --jq '.[0].tagName // ""')
+          if [ -z "$tag" ]; then
+            echo "no release to compare against; nothing to do"
+            echo "move=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          rm -rf shipped && mkdir shipped
+          gh release download "$tag" --pattern '*.zip' --dir shipped
+          shipped=$(unzip -Z1 shipped/*.zip | grep -oE '^mods/[0-9][0-9.]*' | head -1 | sed 's|mods/||')
+
+          echo "live client   $live"
+          echo "shipped for   $shipped (in $tag)"
+          if [ "$live" = "$shipped" ]; then
+            echo "move=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # The same code for a new client is a patch release: x.y.z -> x.y.(z+1).
+          mod="${tag#v}"
+          next=$(echo "$mod" | awk -F. '{printf "%d.%d.%d", $1, $2, $3 + 1}')
+          echo "move=yes" >> "$GITHUB_OUTPUT"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          echo "live=$live" >> "$GITHUB_OUTPUT"
+          echo "the client moved to $live; asking for $next"
+
+      - name: Build and publish for the new client
+        if: steps.compare.outputs.move == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run release.yml \
+            -f version="${{ steps.compare.outputs.next }}" \
+            -f draft=false
+          echo "asked release.yml for ${{ steps.compare.outputs.next }}"
+
+      - name: Say so in the summary
+        if: always()
+        run: |
+          if [ "${{ steps.compare.outputs.move }}" = "yes" ]; then
+            echo "Client moved to ${{ steps.compare.outputs.live }}; building ${{ steps.compare.outputs.next }}." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The shipped package already targets the live client." >> "$GITHUB_STEP_SUMMARY"
+          fi
