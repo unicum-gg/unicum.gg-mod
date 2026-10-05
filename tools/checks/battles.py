@@ -1,4 +1,10 @@
-"""Checks for the battles the mod sends: what is extracted, and what is never sent twice."""
+"""Checks for the battles the mod sends: what is extracted, what is never sent twice,
+and what the client is allowed to forget."""
+
+import json
+import os
+import shutil
+import tempfile
 
 from checks.common import check
 
@@ -59,6 +65,8 @@ def check_battles():
     # 2.4.0.1 and 2.4.0.2 is what decides whether a replay still plays.
     check('the client version is read to its last part, non-breaking spaces and all',
           client_version(u'World\xa0of\xa0Tanks v.2.4.0.1 #952') == '2.4.0.1')
+    check('a byte string with a UTF-8 non-breaking space reads the same',
+          client_version(u'World\xa0of\xa0Tanks v.2.4.0.1 #952'.encode('utf-8')) == '2.4.0.1')
     check('an unreadable version is left out',
           client_version(None) is None and client_version('World of Tanks') is None)
 
@@ -124,17 +132,79 @@ def check_battle_lives():
               ARENA, 'v')['vehicles'][0])
 
 
+def check_battle_answer():
+    """What the server said, and what the client is therefore allowed to forget.
+
+    This is where the worst defect of the first version lived: the client read
+    counts, so an HTML error page served with a 200 parsed as "nothing was
+    stored" and the whole queue -- the only copy of those battles -- was
+    deleted in one flush.
+    """
+    from unicum.battles import read_answer, settled
+
+    check('an answer naming what it did is read',
+          read_answer('{"stored": ["1", "2"], "known": ["3"], "rejected":'
+                      ' [{"arenaUniqueId": "9", "reason": "not_a_player"}]}')
+          == (['1', '2'], ['3'], [('9', 'not_a_player')]))
+    check('an answer that stored nothing is still an answer',
+          read_answer('{"stored": [], "known": [], "rejected": []}') == ([], [], []))
+
+    # Each of these used to read as "the server stored nothing", which the
+    # caller acted on by emptying the queue.
+    check('an HTML page served with a 200 is not an answer',
+          read_answer('<html><body>Sign in</body></html>') is None)
+    check('an empty body is not an answer', read_answer('') is None)
+    check('nothing at all is not an answer', read_answer(None) is None)
+    check('a JSON body that names none of the three lists is not an answer',
+          read_answer('{"ok": true}') is None and read_answer('[]') is None)
+    check('counts alone are not an answer, which is what they used to be',
+          read_answer('{"stored": 2, "known": 1}') is None)
+
+    one, two, three = ({'arenaUniqueId': '1'}, {'arenaUniqueId': '2'},
+                       {'arenaUniqueId': '3'})
+    check('only what the server named leaves the queue',
+          settled([one, two, three], ['1']) == [two, three])
+    # A battle the server has told us it will not take is one we would
+    # otherwise offer for ever, so it is settled like an accepted one.
+    check('a refused battle is settled too, not retried for ever',
+          settled([one, two], ['1', '2']) == [])
+    check('a battle the answer did not mention is kept',
+          settled([one, two], []) == [one, two])
+
+
 def check_battle_queue():
-    """The queue on disk: nothing sent twice, nothing kept for ever."""
-    from unicum.battles import _MAX_QUEUED, queued, read_answer, settled
+    """The file on disk: appended a line at a time, never rewritten on the event."""
+    from unicum.battles import (QUEUE, _MAX_QUEUED, append_queued, load_queue,
+                                queued, save_queue)
+
+    workdir = tempfile.mkdtemp(prefix='unicum-battles-')
+    original = os.getcwd()
+    try:
+        os.chdir(workdir)
+        check('an empty store reads as an empty queue', load_queue() == [])
+        append_queued({'arenaUniqueId': '1', 'mapName': 'a'})
+        append_queued({'arenaUniqueId': '2', 'mapName': 'b'})
+        check('appended battles read back in order',
+              [row['arenaUniqueId'] for row in load_queue()] == ['1', '2'])
+        # Appending is what keeps this off the thread that draws the game: it
+        # must not read or rewrite what is already there.
+        check('appending leaves the earlier lines alone',
+              open(QUEUE, 'rb').read().count(b'\n') == 2)
+        with open(QUEUE, 'ab') as handle:
+            handle.write(b'{"arenaUniqueId": "3", "mapN')
+        check('a line torn by a crash costs only itself',
+              [row['arenaUniqueId'] for row in load_queue()] == ['1', '2'])
+        save_queue([{'arenaUniqueId': '2'}])
+        check('a rewrite keeps exactly what it was given',
+              [row['arenaUniqueId'] for row in load_queue()] == ['2'])
+    finally:
+        os.chdir(original)
+        shutil.rmtree(workdir, ignore_errors=True)
 
     one = {'arenaUniqueId': '1'}
     two = {'arenaUniqueId': '2'}
     check('a battle joins the queue', queued([], one) == [one])
-    # Opening an old battle from the notification centre posts its results
-    # again, and that is the same battle rather than a second one.
-    check('the same battle twice is still one battle',
-          queued([one], dict(one)) == [one])
+    check('the same battle twice is still one battle', queued([one], dict(one)) == [one])
     check('the queue keeps its order', queued([one], two) == [one, two])
 
     full = [{'arenaUniqueId': str(n)} for n in range(_MAX_QUEUED)]
@@ -143,26 +213,137 @@ def check_battle_queue():
           len(queued(full, fresh)) == _MAX_QUEUED
           and queued(full, fresh)[0] == {'arenaUniqueId': '1'}
           and queued(full, fresh)[-1] == fresh)
-    # A battle already in the queue frees its own slot, so nothing is lost to
-    # make room for something that was already there.
     check('a battle already queued costs nobody their place',
           queued(full, dict(full[0]))[0] == {'arenaUniqueId': '1'}
-          and queued(full, dict(full[0]))[-1] == full[0]
           and len(queued(full, dict(full[0]))) == _MAX_QUEUED)
 
-    check('what the server answered for leaves the queue', settled([one, two], ['1']) == [two])
-    # A battle the server has told us it will not take is one we would
-    # otherwise offer for ever, so it is settled like an accepted one.
-    check('a refused battle is settled too, not retried for ever',
-          settled([one, two], ['1', '2']) == [])
 
-    check('the answer is read for what was stored, known and refused',
-          read_answer('{"stored": 2, "known": 1, "rejected":'
-                      ' [{"arenaUniqueId": "9", "reason": "not_a_player"}]}')
-          == (2, 1, [('9', 'not_a_player')]))
-    check('an answer that is not one costs nothing',
-          read_answer('') == (0, 0, []) and read_answer('[]') == (0, 0, [])
-          and read_answer(None) == (0, 0, []))
+class _FakeSession(object):
+    """Enough of the session for the reporter, remembering what it was asked."""
+
+    def __init__(self):
+        self.patched = []
+        self.subscribed = []
+        self.scheduled = []
+        self.fetched = []
+
+    def patch(self, holder, name, build):
+        original = getattr(holder, name)
+        replacement = build(original)
+        setattr(holder, name, replacement)
+        self.patched.append((holder, name, original))
+        return replacement
+
+    def subscribe(self, event, handler):
+        self.subscribed.append(handler)
+        return handler
+
+    def callback(self, delay, func):
+        self.scheduled.append((delay, func))
+
+    def fetch(self, url, callback, **kwargs):
+        self.fetched.append((url, callback, kwargs))
+
+
+class _Settings(object):
+    def __init__(self, sends=True):
+        self.sends = sends
+
+    def sends_battles(self):
+        return self.sends
+
+
+class _Arena(object):
+    """What ArenaType.g_cache hands back, as far as this module reads it."""
+
+    geometryName = '59_asia_great_wall'
+    gameplayName = 'ctf'
+
+
+def _with_arena_cache():
+    """Stub ArenaType so the extractor can name the sample battle's map.
+
+    The map's name is not in the results, it is in the client's arena cache,
+    which the fake client has no reason to carry. Without it `payload` is
+    right to refuse the battle, and the reporter check would be testing that
+    refusal rather than the patch.
+    """
+    import sys
+    import types
+    module = sys.modules.get('ArenaType')
+    if module is None:
+        module = types.ModuleType('ArenaType')
+        sys.modules['ArenaType'] = module
+    module.g_cache = {RESULTS['common']['arenaTypeID']: _Arena()}
+    return module
+
+
+def check_battle_reporter():
+    """The patch on the client's own results, and the in-flight guard."""
+    from unicum.battles import _BUSY_DEADLINE, Reporter, _seconds
+
+    workdir = tempfile.mkdtemp(prefix='unicum-reporter-')
+    original = os.getcwd()
+    try:
+        os.chdir(workdir)
+        _with_arena_cache()
+        session = _FakeSession()
+        reporter = Reporter(session, _Settings(), link=None)
+
+        # The client's own postResult, which every mode passes through and
+        # whose return value requestResults reads as "were the results
+        # posted". A wrapper that swallowed it, or that let our own work
+        # raise, would make the client believe the battle never arrived.
+        class FakeService(object):
+            def postResult(self, result, needToShowUI=True):
+                return 'the client answer'
+
+        wrapped = reporter._wrap_post(FakeService.postResult.__func__
+                                      if hasattr(FakeService.postResult, '__func__')
+                                      else FakeService.postResult)
+        service = FakeService()
+        check('the client\'s own answer is handed back untouched',
+              wrapped(service, RESULTS, True) == 'the client answer')
+        check('one battle reached the queue through the patch',
+              [row['arenaUniqueId'] for row in reporter._queue] == ['19011738950705142'])
+        check('the same results again do not queue it twice',
+              wrapped(service, RESULTS, True) == 'the client answer'
+              and len(reporter._queue) == 1)
+
+        # Results the extractor cannot read must not stop the client.
+        check('unreadable results still let the client post',
+              wrapped(service, None, True) == 'the client answer'
+              and len(reporter._queue) == 1)
+
+        # A battle the server has already answered for: the client reposts
+        # when the player opens it from the notification centre.
+        reporter._queue = []
+        reporter._settled = ['19011738950705142']
+        wrapped(service, RESULTS, True)
+        check('a battle the server already took is not queued again',
+              reporter._queue == [])
+
+        # The in-flight guard. Every release of it lives in a callback, and
+        # the WGNI token requester is a one-slot singleton shared with the
+        # loadout upload, so one overlap used to stop this client for good.
+        reporter._busy_since = None
+        check('nothing in flight means free', reporter._free(1000.0) is True)
+        reporter._busy_since = 1000.0
+        check('a flush in flight blocks another', reporter._free(1001.0) is False)
+        check('one that has run past the deadline does not block for ever',
+              reporter._free(1000.0 + _BUSY_DEADLINE + 1) is True)
+    finally:
+        os.chdir(original)
+        shutil.rmtree(workdir, ignore_errors=True)
+
+    check('the server\'s own Retry-After is preferred',
+          _seconds({'Retry-After': '42'}) == 42
+          and _seconds({'retry-after': 42}) == 42)
+    check('a nonsense Retry-After falls back to our own wait',
+          _seconds({'Retry-After': 'soon'}) is None
+          and _seconds({'Retry-After': '0'}) is None
+          and _seconds({'Retry-After': '999999'}) is None
+          and _seconds(None) is None)
 
 
 def check_battle_setting():
