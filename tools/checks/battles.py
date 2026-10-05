@@ -351,15 +351,19 @@ def check_battle_setting():
     from unicum.settings import DEFAULTS, validate
     from unicum.settings_window import from_window, to_window
 
-    # Off until the player turns it on, unlike the loadouts: a loadout
-    # describes their own garage, a battle describes twenty-nine other people
-    # as well.
-    check('sharing battles is off until it is asked for', DEFAULTS['sendBattles'] is False)
-    check('the setting survives a settings.json that has never heard of it',
-          validate({})['sendBattles'] is False)
+    # On by default, like the loadouts: a box nobody ticks collects nothing,
+    # and a battle names all thirty players, so each client that speaks covers
+    # thirty.
+    check('sharing battles is on by default', DEFAULTS['sendBattles'] is True)
+    check('a settings.json that has never heard of it gets the default',
+          validate({})['sendBattles'] is True)
+    # The half that matters most now that it is on by default: a player who
+    # turns it off must stay off, including across the update that flipped it.
+    check('a player who turned it off stays off',
+          validate({'sendBattles': False})['sendBattles'] is False)
     check('what the player chose is kept', validate({'sendBattles': True})['sendBattles'] is True)
     check('nonsense in the file falls back to the default',
-          validate({'sendBattles': 'yes'})['sendBattles'] is False)
+          validate({'sendBattles': 'yes'})['sendBattles'] is True)
 
     values = validate({'sendBattles': True})
     check('the window is told the state of the box', to_window(values)['sendBattles'] is True)

@@ -99,11 +99,21 @@ DEFAULTS = dict({
     # and the pages are the poorer for every client that stays quiet.
     'sendLoadouts': True,
     # Whether this client tells unicum.gg about the battles it played: the
-    # map, the mode, and what each of the thirty vehicles did. Off until the
-    # player turns it on, unlike the loadouts above, and the reason is the
-    # difference between the two: a loadout describes the player's own garage,
-    # a battle describes twenty-nine other people as well.
-    'sendBattles': False,
+    # map, the mode, and what each of the thirty vehicles did. On by default
+    # and stated in the mod's description, for the reason the loadouts above
+    # are: Wargaming publishes none of this, so a battle on the site exists
+    # only because somebody who was in it shared it.
+    #
+    # This was off at first, on the grounds that a loadout describes the
+    # player's own garage while a battle describes twenty-nine other people
+    # too. That argument is real but it loses to two others. A box nobody
+    # ticks collects nothing, so off is not a cautious version of this
+    # feature, it is the absence of it. And a battle names all thirty players,
+    # so each client that speaks covers thirty: off never lets that
+    # multiplier start. What is sent is also the thinner half of the two --
+    # numbers every one of those thirty already read on their own results
+    # screen, no chat, no replay, nothing about what anyone owns.
+    'sendBattles': True,
     # Off, and meant to be turned on only to answer a question. It times what
     # the mod does on the thread that draws the game and writes a table to the
     # log every few seconds, so "the mod costs me frames" can be measured

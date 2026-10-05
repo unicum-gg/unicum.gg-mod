@@ -231,16 +231,23 @@ GARAGE_CHAT_LABEL = 'Chat panel in the garage'
 HIDE_VAR = 'hideLoadouts'
 HIDE_LABEL = 'Hide my loadouts from my page'
 
-# DRAFT WORDING, pending approval: this is public text a player reads
-# before deciding, and the decision it asks for is about other people's
-# battles as much as their own.
+# DRAFT WORDING, pending approval: this is public text a player reads before
+# deciding, the box is ticked when they first see it, and the decision it asks
+# for is about other people's battles as much as their own.
+#
+# The last sentence is the one that has to be there. The loadout box above
+# promises that unticking deletes what was already sent, and this one cannot
+# promise the same: a battle is thirty players' data and one of them cannot
+# withdraw it for the others. A ticked-by-default box whose words let a player
+# assume otherwise would be the dishonest version of this feature.
 BATTLES_LABEL = 'Share the battles I play'
 BATTLES_TOOLTIP = (
     '{HEADER}' + BATTLES_LABEL + '{/HEADER}{BODY}Sends the result of each battle you finish: the map, '
     'the mode, and what every vehicle in it did. Wargaming publishes none of this, so a battle exists '
     'on unicum.gg only because somebody who was in it shared it. A battle names all thirty players, so '
     'sharing yours shares theirs too, and theirs shares yours. No chat, no replay, nothing about what '
-    'you own.{/BODY}')
+    'you own. Untick it to stop sending; battles already shared stay, because they are thirty '
+    "players' results and not one account's to take back.{/BODY}")
 
 MEASURE_LABEL = 'Measure what this mod costs'
 
