@@ -46,6 +46,8 @@ from checks.settings import check_live_settings, check_res_mods_version, check_s
 from checks.loadouts import (check_crew_away, check_crew_from_last_battle, check_demounting,
                              check_loadout_setting, check_loadout_store, check_loadouts,
                              check_withdrawal)
+from checks.battles import (check_battle_lives, check_battle_queue, check_battle_setting,
+                            check_battles)
 from checks.extras import (check_badge_glyphs, check_battle_count, check_entry_stat,
                            check_extras_badges, check_extras_fallbacks, check_extras_setting,
                            check_winrate_label)
@@ -139,6 +141,10 @@ def main():
         check_crew_from_last_battle()
         check_loadout_store()
         check_loadout_setting()
+        check_battles()
+        check_battle_lives()
+        check_battle_queue()
+        check_battle_setting()
         check_perf_meter()
         check_perf_naming()
         check_perf_setting()

@@ -231,6 +231,17 @@ GARAGE_CHAT_LABEL = 'Chat panel in the garage'
 HIDE_VAR = 'hideLoadouts'
 HIDE_LABEL = 'Hide my loadouts from my page'
 
+# DRAFT WORDING, pending approval: this is public text a player reads
+# before deciding, and the decision it asks for is about other people's
+# battles as much as their own.
+BATTLES_LABEL = 'Share the battles I play'
+BATTLES_TOOLTIP = (
+    '{HEADER}' + BATTLES_LABEL + '{/HEADER}{BODY}Sends the result of each battle you finish: the map, '
+    'the mode, and what every vehicle in it did. Wargaming publishes none of this, so a battle exists '
+    'on unicum.gg only because somebody who was in it shared it. A battle names all thirty players, so '
+    'sharing yours shares theirs too, and theirs shares yours. No chat, no replay, nothing about what '
+    'you own.{/BODY}')
+
 MEASURE_LABEL = 'Measure what this mod costs'
 
 
@@ -309,6 +320,7 @@ def template(values, channel=u'', linked=False, card_shown=True,
                     'stop sending them altogether, and delete the ones already sent, untick Share my loadouts '
                     'instead.{/BODY}'))
     garage.extend([
+        checkbox(BATTLES_LABEL, 'sendBattles', tooltip=BATTLES_TOOLTIP),
         checkbox(CARD_LABEL, CARD_VAR,
                  tooltip='{HEADER}' + CARD_LABEL + '{/HEADER}{BODY}The card under the mission cards that '
                          'links this game to your unicum.gg account, or says which one it is linked to. Its '
@@ -404,6 +416,7 @@ def native_page(values, channel=u'', linked=False, card_shown=True,
     checkbox(u'Share my loadouts', 'sendLoadouts')
     if supporter:
         checkbox(HIDE_LABEL, HIDE_VAR)
+    checkbox(BATTLES_LABEL, 'sendBattles')
     checkbox(CARD_LABEL, CARD_VAR)
     checkbox(MEASURE_LABEL, 'measurePerformance')
     group(1, u'Screens')
@@ -498,6 +511,7 @@ def to_window(values, card_shown=True, loadouts_hidden=False):
     window = {CARD_VAR: card_shown, HIDE_VAR: loadouts_hidden,
               'enabled': values['enabled'], 'maxFlags': values['maxFlags'], 'tankButton': values['tankButton'],
               'sendLoadouts': values['sendLoadouts'],
+              'sendBattles': values['sendBattles'],
               'measurePerformance': values['measurePerformance'],
               'autoReload': RELOAD_CHOICES.index(values['autoReload']),
               'twitchChannel': values['twitch']['channel'], 'twitchBattleChat': values['twitch']['battleChat'],
@@ -520,7 +534,8 @@ def to_window(values, card_shown=True, loadouts_hidden=False):
 def from_window(raw):
     """settings.json changes from what the window sends back."""
     changes = {}
-    for key in ('enabled', 'tankButton', 'sendLoadouts', 'measurePerformance', 'winrateDecimal'):
+    for key in ('enabled', 'tankButton', 'sendLoadouts', 'sendBattles',
+                'measurePerformance', 'winrateDecimal'):
         if isinstance(raw.get(key), bool):
             changes[key] = raw[key]
     announced = _index(raw.get('autoReload'), RELOAD_CHOICES)
