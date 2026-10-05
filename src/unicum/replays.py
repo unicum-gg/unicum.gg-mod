@@ -302,9 +302,9 @@ class Uploader(object):
 
     def _sends(self):
         try:
-            return self._settings.sends_battles()
+            return self._settings.sends_replays()
         except Exception:
-            _logger.exception('could not read the battle setting')
+            _logger.exception('could not read the replay setting')
             return False
 
     def _on_garage(self, *args):

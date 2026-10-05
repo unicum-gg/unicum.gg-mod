@@ -112,8 +112,22 @@ DEFAULTS = dict({
     # so each client that speaks covers thirty: off never lets that
     # multiplier start. What is sent is also the thinner half of the two --
     # numbers every one of those thirty already read on their own results
-    # screen, no chat, no replay, nothing about what anyone owns.
+    # screen, no chat, no replay, nothing about what anyone owns. The replay
+    # file is `sendReplays`, below, and not this.
     'sendBattles': True,
+    # The `.wotreplay` the client already writes, on top of the result.
+    #
+    # Kept apart from `sendBattles` because it is not the same promise: a
+    # result is numbers those thirty players each read on their own results
+    # screen, while the file is everything this client saw, the battle chat
+    # included. Folding it into the existing box would have contradicted that
+    # box's own tooltip, which says "no chat, no replay" in as many words.
+    #
+    # On, for the reason `sendBattles` is on: a box nobody ticks collects
+    # nothing, and one client sending is enough for all thirty. What that
+    # costs in candour is paid in the tooltip, which says plainly that the
+    # chat goes too.
+    'sendReplays': True,
     # Off, and meant to be turned on only to answer a question. It times what
     # the mod does on the thread that draws the game and writes a table to the
     # log every few seconds, so "the mod costs me frames" can be measured
@@ -171,6 +185,7 @@ def validate(raw):
                                  for key, default in DEFAULTS['contextMenu'].items())
     values['sendLoadouts'] = _bool(raw.get('sendLoadouts'), DEFAULTS['sendLoadouts'])
     values['sendBattles'] = _bool(raw.get('sendBattles'), DEFAULTS['sendBattles'])
+    values['sendReplays'] = _bool(raw.get('sendReplays'), DEFAULTS['sendReplays'])
     values['measurePerformance'] = _bool(raw.get('measurePerformance'),
                                          DEFAULTS['measurePerformance'])
     twitch = raw.get('twitch') if isinstance(raw.get('twitch'), dict) else {}
@@ -304,6 +319,16 @@ class Settings(object):
     def sends_battles(self):
         """Whether this client sends the battles it played."""
         return self._values['enabled'] and self._values['sendBattles']
+
+    def sends_replays(self):
+        """Whether this client also sends the replay file of those battles.
+
+        Gated on `sendBattles` as well as on its own box: the file is attached
+        to a battle the server already has, so sending one without the other
+        would be offering a file for a battle nobody reported.
+        """
+        return (self._values['enabled'] and self._values['sendBattles']
+                and self._values['sendReplays'])
 
     def measures_performance(self):
         """Whether the mod is timing itself. Not gated on `enabled`: a mod

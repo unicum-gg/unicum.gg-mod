@@ -245,9 +245,20 @@ BATTLES_TOOLTIP = (
     '{HEADER}' + BATTLES_LABEL + '{/HEADER}{BODY}Sends the result of each battle you finish: the map, '
     'the mode, and what every vehicle in it did. Wargaming publishes none of this, so a battle exists '
     'on unicum.gg only because somebody who was in it shared it. A battle names all thirty players, so '
-    'sharing yours shares theirs too, and theirs shares yours. No chat, no replay, nothing about what '
-    'you own. Untick it to stop sending; battles already shared stay, because they are thirty '
+    'sharing yours shares theirs too, and theirs shares yours. The result alone: no chat, no replay, '
+    'nothing about what you own; the replay file is the separate setting below. Untick it to stop '
+    'sending; battles already shared stay, because they are thirty '
     "players' results and not one account's to take back.{/BODY}")
+
+REPLAYS_LABEL = 'Share the replay file too'
+REPLAYS_TOOLTIP = (
+    '{HEADER}' + REPLAYS_LABEL + '{/HEADER}{BODY}Sends the .wotreplay your client already writes '
+    'for each battle, on top of the result. It carries everything your client saw, the battle chat '
+    'included, which the result does not: so it shares what the other twenty-nine typed as well as '
+    'what you typed. It is kept for a 3D view of a battle, which needs shell paths and hit geometry '
+    'that cannot be collected after the fact. Your client keeps only the last battle unless you '
+    'changed that, so this takes a copy before the next one overwrites it. Untick it to stop '
+    'sending; files already sent stay.{/BODY}')
 
 MEASURE_LABEL = 'Measure what this mod costs'
 
@@ -328,6 +339,7 @@ def template(values, channel=u'', linked=False, card_shown=True,
                     'instead.{/BODY}'))
     garage.extend([
         checkbox(BATTLES_LABEL, 'sendBattles', tooltip=BATTLES_TOOLTIP),
+        checkbox(REPLAYS_LABEL, 'sendReplays', tooltip=REPLAYS_TOOLTIP),
         checkbox(CARD_LABEL, CARD_VAR,
                  tooltip='{HEADER}' + CARD_LABEL + '{/HEADER}{BODY}The card under the mission cards that '
                          'links this game to your unicum.gg account, or says which one it is linked to. Its '
@@ -424,6 +436,7 @@ def native_page(values, channel=u'', linked=False, card_shown=True,
     if supporter:
         checkbox(HIDE_LABEL, HIDE_VAR)
     checkbox(BATTLES_LABEL, 'sendBattles')
+    checkbox(REPLAYS_LABEL, 'sendReplays')
     checkbox(CARD_LABEL, CARD_VAR)
     checkbox(MEASURE_LABEL, 'measurePerformance')
     group(1, u'Screens')
