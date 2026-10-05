@@ -675,12 +675,28 @@ class Reporter(object):
                for row in self._queue):
             return
         if self._motion is not None:
+            # Taken and dropped, deliberately, until the server has somewhere to
+            # put them.
+            #
+            # They were attached here and it broke every upload. Measured on one
+            # real battle: the samples are 285 KB of raw JSON against 6 KB for
+            # the whole result, and up to 3.6 MB on a long one with thirty
+            # vehicles. Five of those is twenty megabytes against a 1.5 MB limit,
+            # so nothing went up at all. The figure this was sized on, 64 KB, was
+            # the GZIPPED size; the wire carries raw JSON, which is fifteen times
+            # bigger.
+            #
+            # And the server would have thrown them away regardless: its body
+            # schema has no `motion` field, so zod stripped them on arrival.
+            #
+            # Still taken rather than left in memory, so a battle's samples never
+            # outlive it and get attached to the next one. To turn this back on:
+            # a column or a bucket key to hold them, a field in the schema, and
+            # zlib on this side, which is what makes 285 KB into 19 KB.
             try:
-                samples = self._motion.take(battle['arenaUniqueId'])
-                if samples:
-                    battle['motion'] = samples
+                self._motion.take(battle['arenaUniqueId'])
             except Exception:
-                _logger.exception("could not attach the samples for this battle")
+                _logger.exception("could not clear the samples for this battle")
         if len(self._queue) >= _MAX_QUEUED:
             dropped = self._queue[0]
             _logger.warning('the queue is full at %d; dropping battle %s unsent',

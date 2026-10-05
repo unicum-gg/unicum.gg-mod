@@ -57,6 +57,15 @@ STASH = os.path.join('mods', 'configs', 'unicum', 'replays')
 #: What we still owe the server, as [{arenaUniqueId, startedAt, file}].
 QUEUE = os.path.join('mods', 'configs', 'unicum', 'replays.json')
 
+#: Battles reported but whose file has not been looked for yet, {id: startedAt}.
+#:
+#: On disk rather than in memory alone, because the two moments are minutes
+#: apart: the results arrive when the battle ends, the file is collected at the
+#: garage. A client closed in between, or a dev reload, would otherwise drop the
+#: only record that a file was ever wanted, and the battle's replay is gone for
+#: good once the next one overwrites it.
+WANTED = os.path.join('mods', 'configs', 'unicum', 'replays-wanted.json')
+
 #: How many copies may wait on disk at once.
 #:
 #: Twenty is 26 MB at the measured average of 1.3 MB, which is a rounding error
@@ -237,6 +246,34 @@ def save_queue(entries):
         _logger.exception('could not write %s', QUEUE)
 
 
+def load_wanted():
+    try:
+        with open(WANTED, 'rb') as handle:
+            parsed = json.loads(handle.read().decode('utf-8'))
+    except (IOError, OSError, ValueError, UnicodeDecodeError):
+        return {}
+    if not isinstance(parsed, dict):
+        return {}
+    out = {}
+    for key, value in parsed.items():
+        try:
+            out[str(key)] = int(value)
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def save_wanted(wanted):
+    try:
+        folder = os.path.dirname(WANTED)
+        if folder and not os.path.isdir(folder):
+            os.makedirs(folder)
+        with open(WANTED, 'wb') as handle:
+            handle.write(json.dumps(wanted).encode('utf-8'))
+    except (IOError, OSError):
+        _logger.exception('could not write %s', WANTED)
+
+
 def read_answer(body):
     """('stored'|'refused', detail) from the endpoint, or None if it was not it.
 
@@ -273,8 +310,9 @@ class Uploader(object):
         self._link = link
         self._queue = load_queue()
         # Battles whose results have been reported but whose file has not been
-        # looked for yet: {arenaUniqueId: startedAt}.
-        self._wanted = {}
+        # looked for yet: {arenaUniqueId: startedAt}. Read back from disk, so a
+        # client closed between the battle and the garage still collects it.
+        self._wanted = load_wanted()
         self._busy_since = None
         self._quiet_until = 0.0
         self._last_flush = 0.0
@@ -286,7 +324,12 @@ class Uploader(object):
         except ImportError:
             _logger.exception('no player events; replays are not collected')
             return
-        _logger.info('installed, %d replay(s) waiting', len(self._queue))
+        # The garage may already be up: `onAccountShowGUI` fires when it
+        # appears, so a module installed after that (every dev reload) would
+        # hold what it is owed until the player next came back from a battle.
+        self._session.callback(_START_DELAY, self._collect)
+        _logger.info('installed, %d replay(s) waiting, %d wanted',
+                     len(self._queue), len(self._wanted))
 
     def offer(self, arena_id, started_at):
         """Told by the battle reporter that this battle has been written down.
@@ -299,6 +342,7 @@ class Uploader(object):
         if not arena_id or not started_at:
             return
         self._wanted[str(arena_id)] = int(started_at)
+        save_wanted(self._wanted)
 
     def _sends(self):
         try:
@@ -317,9 +361,11 @@ class Uploader(object):
         """Find and copy the files of the battles we were told about."""
         if not self._sends():
             self._wanted = {}
+            save_wanted(self._wanted)
             return
         if time.time() < self._quiet_until:
             self._wanted = {}
+            save_wanted(self._wanted)
             return
         for arena_id, started_at in list(self._wanted.items()):
             del self._wanted[arena_id]
@@ -344,6 +390,7 @@ class Uploader(object):
                                 'file': target})
             _logger.info('replay kept for battle %s, %d waiting',
                          arena_id, len(self._queue))
+        save_wanted(self._wanted)
         save_queue(self._queue)
         self.flush()
 
@@ -384,6 +431,7 @@ class Uploader(object):
             forget(entry)
         self._queue = []
         self._wanted = {}
+        save_wanted(self._wanted)
         self._quiet_until = time.time() + _CLOSED_BACKOFF
         save_queue(self._queue)
         self._done()
