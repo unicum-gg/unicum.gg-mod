@@ -11,7 +11,8 @@ is nothing more than stop() followed by a fresh start().
 import logging
 
 from unicum import (auto_reload, battle, battle_results, battles, browser, config, context_menu, first_run,
-                    loadouts, lobby, measuring, mods_list, reporting, room_sort, settings_tab, settings_window,
+                    loadouts, lobby, measuring, mods_list, motion, replays, reporting, room_sort, settings_tab,
+                    settings_window,
                     tank_button, twitch, twitch_panel, twitch_send, twitch_window, views)
 from unicum.badges import Badges
 from unicum.game_link import GameLink
@@ -76,7 +77,13 @@ def start(generation=0):
         tank_button.install(_session, settings)
         context_menu.install(_session, settings)
         loadouts.install(_session, settings, link)
-        battles.install(_session, settings, link)
+        # Before the reporter: it hands the samples over when a battle ends.
+        tracks = motion.install(_session)
+        # Also before it, and for the same reason: the reporter tells it which
+        # battles were written down, and it looks for their files at the
+        # garage. It must exist by then.
+        files = replays.install(_session, settings, link)
+        battles.install(_session, settings, link, tracks, files)
         auto_reload.install(_session, settings)
         chat = twitch.install(_session, settings, link)
         window.follow_twitch(chat)

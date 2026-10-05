@@ -586,10 +586,18 @@ def settled(battles, done):
 
 class Reporter(object):
 
-    def __init__(self, session, settings, link):
+    def __init__(self, session, settings, link, motion=None, replays=None):
         self._session = session
         self._settings = settings
         self._link = link
+        # Where everybody was, sampled by `motion` while the battle ran. Absent
+        # when that module could not install, which costs the replay view and
+        # nothing else.
+        self._motion = motion
+        # Told about each battle written down, so it can look for the client's
+        # own `.wotreplay` at the next garage. Absent is the ordinary case for
+        # anyone whose client keeps no replays, and costs nothing else.
+        self._replays = replays
         self._queue = load_queue()
         self._settled = load_settled()
         self._busy_since = None
@@ -666,6 +674,13 @@ class Reporter(object):
         if any(row.get('arenaUniqueId') == battle['arenaUniqueId']
                for row in self._queue):
             return
+        if self._motion is not None:
+            try:
+                samples = self._motion.take(battle['arenaUniqueId'])
+                if samples:
+                    battle['motion'] = samples
+            except Exception:
+                _logger.exception("could not attach the samples for this battle")
         if len(self._queue) >= _MAX_QUEUED:
             dropped = self._queue[0]
             _logger.warning('the queue is full at %d; dropping battle %s unsent',
@@ -674,6 +689,16 @@ class Reporter(object):
         if append_queued(battle):
             _logger.info('battle %s written down, %d waiting',
                          battle['arenaUniqueId'], len(self._queue))
+        if self._replays is not None:
+            # Only told, not acted on: the file is looked for at the garage,
+            # because this runs on the thread that draws the results screen and
+            # the file is 1.3 MB. Guarded on its own so a fault in the archive
+            # can never cost the battle itself, which is the part that matters.
+            try:
+                self._replays.offer(battle['arenaUniqueId'], battle.get('startedAt'))
+            except Exception:
+                _logger.exception('could not offer the replay of battle %s',
+                                  battle['arenaUniqueId'])
         self._session.callback(_SEND_DELAY, self.flush)
 
     def _on_garage(self, *args):
@@ -845,7 +870,7 @@ def _seconds(headers):
     return None
 
 
-def install(session, settings, link):
-    reporter = Reporter(session, settings, link)
+def install(session, settings, link, motion=None, replays=None):
+    reporter = Reporter(session, settings, link, motion, replays)
     reporter.install()
     return reporter
