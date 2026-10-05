@@ -532,6 +532,7 @@ def to_window(values, card_shown=True, loadouts_hidden=False):
               'enabled': values['enabled'], 'maxFlags': values['maxFlags'], 'tankButton': values['tankButton'],
               'sendLoadouts': values['sendLoadouts'],
               'sendBattles': values['sendBattles'],
+              'sendReplays': values['sendReplays'],
               'measurePerformance': values['measurePerformance'],
               'autoReload': RELOAD_CHOICES.index(values['autoReload']),
               'twitchChannel': values['twitch']['channel'], 'twitchBattleChat': values['twitch']['battleChat'],
@@ -555,7 +556,7 @@ def from_window(raw):
     """settings.json changes from what the window sends back."""
     changes = {}
     for key in ('enabled', 'tankButton', 'sendLoadouts', 'sendBattles',
-                'measurePerformance', 'winrateDecimal'):
+                'sendReplays', 'measurePerformance', 'winrateDecimal'):
         if isinstance(raw.get(key), bool):
             changes[key] = raw[key]
     announced = _index(raw.get('autoReload'), RELOAD_CHOICES)
