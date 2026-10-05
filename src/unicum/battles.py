@@ -183,6 +183,37 @@ _FROM = {
     'maxHealth': 'maxHealth',
 }
 
+# The rest of what the game's own post-battle panel shows about one player,
+# which the results carry and the roster has no column for.
+#
+# Sent only when non-zero, which is most of the saving: `sniper` is 0 on every
+# vehicle that never shot past 300 metres, `repaired` on everyone without a
+# repair kit used on an ally, and so on. Thirty vehicles carrying ten zeroes
+# each would be a third of a battle's payload spent saying nothing.
+_EXTRA = {
+    # Damage dealt from more than 300 metres, which is the game's own wording.
+    'sniper': 'sniperDamageDealt',
+    'splash': 'explosionHits',
+    'hitsReceived': 'directHitsReceived',
+    'piercingsReceived': 'piercingsReceived',
+    # Shots that landed and did nothing: the armour did its job.
+    'bounced': 'noDamageDirectHitsReceived',
+    # What would have landed had the armour not been there.
+    'potential': 'potentialDamageReceived',
+    'repaired': 'healthRepair',
+    # Metres driven.
+    'mileage': 'mileage',
+    'defended': 'droppedCapturePoints',
+    'teamDamage': 'tdamageDealt',
+    # Enemy vehicles damaged, which the game shows beside the ones destroyed.
+    'damaged': 'damaged',
+}
+
+# The battle-scoped vehicle id of whoever killed them, so the panel can name
+# them the way the game does ("Destroyed by a shot (isakh)"). Not in `_EXTRA`
+# because 0 is meaningful here: it is what the results say when nobody did.
+_KILLER = 'killerID'
+
 # Which of those are summed when a vehicle has more than one life, the rest
 # describing the vehicle rather than its deeds. Measured: every battle in a
 # 1424-replay sample had exactly one record per vehicle, Onslaught included,
@@ -194,6 +225,44 @@ _SUMMED = ('damage', 'radio', 'track', 'stun', 'blocked', 'received', 'shots',
 # What `deathReason` says when nobody killed them. Not 0: that is a real
 # reason, and the commonest one.
 SURVIVED = -1
+
+# What the game's own Detailed Report shows about credits, experience and
+# bonds, mapped from the results' own names.
+#
+# **This exists for the reporting client alone.** The results carry it under
+# `personal.<vehicle>`, and the other twenty-nine players have no economy in
+# the payload at any price: it is what this account earned, not a fact about
+# the battle. So it is sent once per battle rather than per vehicle, and the
+# site shows it only on the page of the player it belongs to.
+_PERSONAL = {
+    'creditsBase': 'originalCredits',
+    'creditsBooster': 'boosterCredits',
+    'creditsEvent': 'eventCredits',
+    'creditsOrder': 'orderCredits',
+    'creditsPenalty': 'creditsPenalty',
+    'creditsCompensation': 'creditsContributionIn',
+    'creditsSubtotal': 'subtotalCredits',
+    'repairCost': 'autoRepairCost',
+    'credits': 'credits',
+    'xpBase': 'originalXP',
+    'xpBooster': 'boosterXP',
+    'xpEvent': 'eventXP',
+    'xpPremiumVehicle': 'premiumVehicleXP',
+    'xpPenalty': 'xpPenalty',
+    'xp': 'xp',
+    'freeXp': 'freeXP',
+    'crewXp': 'tmenXP',
+    'bonds': 'crystal',
+    'bondsBase': 'originalCrystal',
+}
+
+# The two costs the results report as a list, `[credits, gold]`: only the
+# credits half is spent by default, and a player who paid gold for shells did
+# so deliberately and knows.
+_PERSONAL_LISTS = {
+    'ammoCost': 'autoLoadCost',
+    'suppliesCost': 'autoEquipCost',
+}
 
 
 def cluster(replay_url):
@@ -255,6 +324,24 @@ def _vehicle(key, records):
     out['health'] = _int(last.get('health'))
     out['deathReason'] = _int(last.get('deathReason'), SURVIVED)
     out['maxHealth'] = max(_int(record.get('maxHealth')) for record in records)
+    # The medals the battle awarded them, by the game's own ids. Kept only when
+    # there are any: they are empty on about 99 of every 100 vehicles, and an
+    # empty list on every one of thirty would be a third of the payload saying
+    # nothing. `inBattleAchievements` is always empty in the results, so it is
+    # not read.
+    medals = []
+    for record in records:
+        medals.extend(_int(one) for one in (record.get('achievements') or [])
+                      if _int(one))
+    if medals:
+        out['medals'] = medals
+    for ours, theirs in _EXTRA.items():
+        total = sum(_int(record.get(theirs)) for record in records)
+        if total:
+            out[ours] = total
+    killer = _int(last.get(_KILLER))
+    if killer:
+        out['killer'] = killer
     return out
 
 
@@ -283,7 +370,7 @@ def payload(results, arena, version):
     if not rows:
         return None
     avatar = (results.get('personal') or {}).get('avatar') or {}
-    return {
+    out = {
         # Text, not a number: the game's id runs to 19 digits and no JSON
         # number survives that. The server's column is text for the same
         # reason, so the value that crosses is the value the game produced.
@@ -299,6 +386,42 @@ def payload(results, arena, version):
         'server': cluster(avatar.get('replayURL')),
         'vehicles': sorted(rows, key=lambda row: row['id']),
     }
+    own = personal(results)
+    if own:
+        out['personal'] = own
+    return out
+
+
+def personal(results):
+    """What this battle earned the reporting player, or None.
+
+    Read from `personal.<vehicle>`, which is the one block the results carry
+    about the client's own account rather than about the battle. Sent field by
+    field and only when non-zero, so a battle that earned no bonds and fired no
+    reserve carries neither.
+    """
+    if not isinstance(results, dict):
+        return None
+    own = None
+    for key, value in (results.get('personal') or {}).items():
+        if key != 'avatar' and isinstance(value, dict):
+            own = value
+            break
+    if own is None:
+        return None
+    out = {}
+    for ours, theirs in _PERSONAL.items():
+        value = _int(own.get(theirs))
+        if value:
+            out[ours] = value
+    for ours, theirs in _PERSONAL_LISTS.items():
+        value = own.get(theirs)
+        cost = _int(value[0]) if isinstance(value, list) and value else _int(value)
+        if cost:
+            out[ours] = cost
+    if own.get('isPremium'):
+        out['premium'] = True
+    return out or None
 
 
 def arena_names(arena_type_id):

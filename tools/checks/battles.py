@@ -96,6 +96,32 @@ def check_battles():
           survivor['deathReason'] == SURVIVED and survivor['health'] == 2200)
     check('a casualty\'s reason can be 0, and their health can be negative',
           casualty['deathReason'] == 0 and casualty['health'] == -3)
+    # Empty on about 99 of every 100 vehicles, so the key is absent rather
+    # than an empty list repeated thirty times.
+    check('a vehicle that won no medal carries no medals key',
+          'medals' not in survivor and 'medals' not in casualty)
+
+    with_medals = dict(RESULTS['vehicles']['13089208'][0])
+    with_medals['achievements'] = [1614, 521, 1616]
+    decorated = payload(
+        dict(RESULTS, vehicles={'13089208': [with_medals]}), ARENA, 'v')
+    check("the medals a battle awarded ride along, by the game's own ids",
+          decorated['vehicles'][0]['medals'] == [1614, 521, 1616])
+
+    rich = dict(RESULTS['vehicles']['13089212'][0])
+    rich.update({'sniperDamageDealt': 640, 'noDamageDirectHitsReceived': 7,
+                 'mileage': 1830, 'killerID': 13089208, 'healthRepair': 0})
+    line = payload(dict(RESULTS, vehicles={'13089212': [rich]}),
+                   ARENA, 'v')['vehicles'][0]
+    check('the rest of what the game shows about a player rides along',
+          (line['sniper'], line['bounced'], line['mileage']) == (640, 7, 1830))
+    check('who destroyed them is named, by their battle vehicle id',
+          line['killer'] == 13089208)
+    # Thirty vehicles carrying ten zeroes each would be a third of the
+    # payload spent saying nothing.
+    check('a figure that is zero is not sent at all',
+          'repaired' not in line and 'splash' not in line
+          and 'teamDamage' not in line)
 
     check('results that describe no battle are not sent',
           payload(None, ARENA, 'v') is None
@@ -125,6 +151,32 @@ def check_battle_lives():
           vehicle['deathReason'] == 2 and vehicle['health'] == 0)
     check('the biggest tank they fielded is the one reported',
           vehicle['maxHealth'] == 2500)
+    # The economy exists for the reporting client alone: the results carry
+    # it under `personal.<vehicle>` and the other twenty-nine players have
+    # none of it at any price.
+    earned = dict(RESULTS, personal={
+        'avatar': {'replayURL': ''},
+        '16897': {'originalCredits': 37524, 'subtotalCredits': 56286,
+                  'autoRepairCost': 2120, 'autoLoadCost': [32875, 0],
+                  'autoEquipCost': [6000, 0, 0], 'credits': 64729,
+                  'originalXP': 1077, 'premiumVehicleXP': 485, 'xp': 3959,
+                  'freeXP': 174, 'tmenXP': 2455, 'crystal': 0,
+                  'isPremium': True},
+    })
+    own = payload(earned, ARENA, 'v')['personal']
+    check('what the battle earned the reporting player rides along',
+          (own['creditsBase'], own['credits'], own['xp'], own['crewXp'])
+          == (37524, 64729, 3959, 2455))
+    check('a cost reported as [credits, gold] is read as its credits half',
+          (own['ammoCost'], own['suppliesCost']) == (32875, 6000))
+    check('a figure that is zero is left out of the economy too',
+          'bonds' not in own and 'creditsBooster' not in own)
+    check('the premium account is said once, not as a factor',
+          own['premium'] is True)
+    # Every other player in the battle has no economy at all.
+    check('a battle with no personal block carries no economy',
+          'personal' not in payload(RESULTS, ARENA, 'v'))
+
     check('a bot has no account to name',
           'account' not in payload(
               {'arenaUniqueID': 1, 'common': {'arenaCreateTime': 1, 'bonusType': 1},
