@@ -13,14 +13,19 @@
 // Wargaming account logged in only. Linked, the card itself sends
 // accountProfile, which opens the player's own page on the site: the hangar's
 // cards are clickable and this one sat beside them doing nothing.
+//
+// The card is not painted by this mod: it wears the hangar's own decor classes,
+// read off a real mission card below. account_card.css says why.
 
 const { model, report } = api;
 // Replaced by Python with data URIs of web/hangar/panel_icons/*.png.
 const PANEL_ICONS = __PANEL_ICONS__;
 
 // `linked` decides whether the card is a link at all: unlinked there is no
-// page to open, and the Connect button is the only thing to press.
-const state = { alive: true, json: null, linked: false };
+// page to open, and the Connect button is the only thing to press. `data` is
+// the last state rendered, so the card can be drawn again once the hangar has
+// lent its decor; `decor` is what it lent.
+const state = { alive: true, json: null, data: null, linked: false, decor: null };
 
 // Pixels to the rem the hangar lays out in; 1 when the view does not say.
 const toRem = (px) => (typeof viewEnv !== "undefined" && viewEnv.pxToRem ? viewEnv.pxToRem(px) : px);
@@ -28,6 +33,16 @@ const toRem = (px) => (typeof viewEnv !== "undefined" && viewEnv.pxToRem ? viewE
 const MISSION_CARDS = '[class*="QuestCard_base"], [class*="PersonalMissionCard_base"]';
 // The gap the hangar leaves between two mission cards.
 const CARD_GAP = 8;
+
+// The three layers the hangar paints a card with, each a class on a child of
+// the card: the white veil, the border that colours in under the pointer, and
+// the noise fill. The hash in every one of those names changes with each
+// client build, so they are found by their stable half and then kept whole.
+const DECOR = [
+    { key: "veil", needle: "hoverBg", exact: /^[A-Za-z]+_hoverBg_[0-9a-f]+$/ },
+    { key: "border", needle: "Card_border_", exact: /^Card_border_[0-9a-f]+$/ },
+    { key: "fill", needle: "Card_borderHelper_", exact: /^Card_borderHelper_[0-9a-f]+$/ },
+];
 
 const root = document.createElement("div");
 root.className = "UnicumAccountCard";
@@ -123,24 +138,137 @@ function shown(element) {
     return true;
 }
 
-function place() {
-    let bottom = 0;
+// The mission cards on show, which are the ones this card follows and borrows
+// from. The hangar keeps cards laid out but transparent below the ones on show
+// (missions done, cards on their way in or out): not a place to follow, and
+// not a card to read a style off either.
+function missionCards() {
+    const cards = [];
     for (const card of document.querySelectorAll(MISSION_CARDS)) {
         const rect = card.getBoundingClientRect();
-        // The hangar keeps cards laid out but transparent below the ones on
-        // show (missions done, cards on their way in or out): not a place to follow.
         if (rect.height > 0 && rect.left > window.innerWidth / 2 && shown(card)) {
-            bottom = Math.max(bottom, rect.bottom);
+            cards.push(card);
         }
+    }
+    return cards;
+}
+
+function place() {
+    let bottom = 0;
+    for (const card of missionCards()) {
+        bottom = Math.max(bottom, card.getBoundingClientRect().bottom);
     }
     root.style.top = bottom > 0 ? `${Math.round(toRem(bottom)) + CARD_GAP}rem` : "";
 }
 
+function classesOf(node) {
+    return String(node.className || "").split(/\s+/).filter(Boolean);
+}
+
+function classMatching(node, exact) {
+    for (const name of classesOf(node)) {
+        if (exact.test(name)) {
+            return name;
+        }
+    }
+    return null;
+}
+
+// What a mission card is drawn with: its own class, which styles the layers and
+// which the hangar hangs its :hover rules off, and the class of each layer.
+// Null for a card this cannot read, which leaves the fallback in place.
+function readDecor(card) {
+    const base = classMatching(card, /^Card_[0-9a-f]+$/);
+    if (!base) {
+        return null;
+    }
+    const layers = [];
+    for (const spec of DECOR) {
+        const node = card.querySelector(`[class*="${spec.needle}"]`);
+        const name = node ? classMatching(node, spec.exact) : null;
+        if (name) {
+            layers.push({ key: spec.key, name: name });
+        }
+    }
+    if (!layers.length) {
+        return null;
+    }
+    // Two classes drive the hover, and neither is one of the layers': the
+    // card's `enabled` class fades the fill in and colours the border, and its
+    // component class fades the veil. That component class carries a hash of
+    // its own, so it is found through the veil's name rather than guessed.
+    const veil = layers.filter((layer) => layer.key === "veil")[0];
+    const prefix = veil ? veil.name.split("_")[0] : null;
+    return {
+        base: base,
+        enabled: classMatching(card, /^Card_card__enabled_[0-9a-f]+$/),
+        component: prefix ? classMatching(card, new RegExp(`^${prefix}_[0-9a-f]+$`)) : null,
+        layers: layers,
+    };
+}
+
+// The layers go in ahead of the content, in the hangar's own order: the veil
+// under the border, the noise fill over both, this card's own content above
+// all three (account_card.css).
+function addLayers(decor) {
+    for (const layer of decor.layers) {
+        const node = document.createElement("div");
+        node.className = layer.name;
+        if (layer.key === "veil") {
+            // The client parks the veil at z-index -1, which puts it behind
+            // the nearest stacking context rather than behind its own card.
+            // For the hangar's cards that context is the card; for this one it
+            // would be the page, and the veil would go under the hangar. It is
+            // pinned here instead, and draws the same, in the same place in
+            // the pile.
+            node.style.zIndex = "0";
+        }
+        root.insertBefore(node, row);
+    }
+}
+
+// Reads the hangar's decor once and keeps it: the hashes in those class names
+// hold for the life of a client build, and the loader runs this script again
+// on every new hangar. Says whether this call is the one that found it.
+function syncDecor() {
+    if (state.decor) {
+        return false;
+    }
+    const cards = missionCards();
+    const decor = cards.length ? readDecor(cards[0]) : null;
+    if (!decor) {
+        return false;
+    }
+    state.decor = decor;
+    addLayers(decor);
+    report(`account card: drawn by the hangar (${decor.layers.length} layers, ${decor.base})`);
+    return true;
+}
+
 function render(data) {
     const account = data.account || {};
+    state.data = data;
     state.linked = Boolean(account.linked);
     root.style.display = account.hidden ? "none" : "";
-    root.className = "UnicumAccountCard" + (account.linked ? " UnicumAccountCard__linked" : "");
+    const names = ["UnicumAccountCard"];
+    if (account.linked) {
+        names.push("UnicumAccountCard__linked");
+    }
+    if (state.decor) {
+        names.push(state.decor.base);
+        // The hover classes only while the card is a link: a card that lights
+        // up under the pointer and then opens nothing is worse than a quiet one.
+        if (account.linked) {
+            for (const name of [state.decor.enabled, state.decor.component]) {
+                if (name) {
+                    names.push(name);
+                }
+            }
+        }
+    } else {
+        names.push("UnicumAccountCard__plain");
+    }
+    root.className = names.join(" ");
     if (account.linked) {
         title.textContent = "unicum.gg";
         subtitle.textContent = account.name ? `Connected as ${account.name}` : "Connected";
@@ -160,6 +288,11 @@ function poll() {
     const json = current && current.twitch;
     if (root.style.display !== "none") {
         place();
+    }
+    // The hangar's cards can arrive after this script does: until they do the
+    // card is drawn plainly, and drawn again here as soon as they are there.
+    if (syncDecor() && state.data) {
+        render(state.data);
     }
     if (!json || json === state.json) {
         return;

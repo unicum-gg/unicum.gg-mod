@@ -1,20 +1,35 @@
 /* The garage's unicum.gg account card (account_card.js), under the mission
    widgets and above the Twitch panel, drawn like them.
 
-   "Drawn like them" was a claim for a long time and is now a measurement. Read
-   off a mission card in the running client, at rest:
+   "Drawn like them" used to be a claim this file made and then broke. It is now
+   literal: the card wears the hangar's own decor classes, so the fill, the
+   border, the hover and its three separate timings are the client's and not
+   ours. Here is what they are, from the client's own stylesheet
+   (gui/gameface/_dist/production/mono/hangar/main/main.css, in gui-part3.pkg):
 
-     the card and its parents   background-color: rgba(0, 0, 0, 0)
-     Card_border                border: 1rem solid rgba(255, 255, 255, 0)
-     QuestCard_hoverBg          white, opacity 0, transition opacity .1s
-     QuestCard_completeBg       a background IMAGE, opacity 0 until completed
+     .Card_<h> .Card_borderHelper_<h>  border: 1rem solid transparent;
+                                       border-image: ui_kit.card.noise_center
+                                           1/1rem repeat;
+                                       opacity: .25, .45 hovered;
+                                       transition: opacity .24s ease-out
+     .Card_border_<h>                  border: 1rem solid rgba(255,255,255,0),
+                                           rgba(255,255,255,.18) hovered;
+                                       transition: border .24s ease-out
+     .QuestCard_hoverBg_<h>            background: #fff; inset: 3rem;
+                                       opacity: 0, .05 hovered;
+                                       transition: opacity .1s ease-in-out
+     .Card_card__enabled_<h>           the hover that drives the first two
+     .QuestCard_<h>                    the hover that drives the veil
 
-   So a card carries no fill at all, and its border is there but invisible
-   until the pointer arrives. What makes it readable is the hangar's own dark
-   vignette behind it, not anything the card paints. This file used to assert
-   that in a comment and then paint a veil and a border anyway, which is what
-   made this card read as a panel laid over the hangar rather than as one of
-   its cards. */
+   Three things change under the pointer, not one. And a card's fill is a
+   border-image of the ui_kit's noise, not a background colour, which is why
+   reading `background-color` off a real card three times found nothing and
+   this card ended up invisible. The hashes change with every client build, so
+   account_card.js reads those class names off a mission card at runtime rather
+   than this file writing them down.
+
+   What is left here is this card's own: where it sits, how its text is set,
+   and one plain fallback for a hangar with no card to borrow from. */
 
 .UnicumAccountCard {
     position: absolute;
@@ -26,17 +41,25 @@
     min-height: 52rem;
     display: flex;
     flex-direction: column;
+    /* Both of these state what the borrowed classes would otherwise decide:
+       they come with `display: flex; align-items: center`, which would stop
+       this column's rows filling its width. The loader appends this sheet last
+       (TankButton.js), so at equal specificity it wins. */
+    align-items: stretch;
     justify-content: center;
     padding: 9rem 10rem;
-    /* No fill and an invisible border, as the mission cards have: both are
-       measured above. The border stays declared at full width so the layout
-       does not shift when the pointer brings its colour in. */
-    border: 1rem solid rgba(255, 255, 255, 0);
-    /* The hangar's own hover timing, measured on a mission card. */
-    transition: border-color 0.1s ease-in-out;
     font-family: PFDINMax, sans-serif;
     color: #e6e2d8;
     pointer-events: auto;
+}
+
+/* Above the borrowed layers. The noise fill sits at z-index 1 in the client's
+   stylesheet, so the content has to say it belongs over it; the hangar's own
+   cards have the same line for the same reason. */
+.UnicumAccountCard_row,
+.UnicumAccountCard_connect {
+    position: relative;
+    z-index: 2;
 }
 
 .UnicumAccountCard_row {
@@ -48,63 +71,26 @@
 /* Linked, the whole card opens the player's page, so it says so: the hangar's
    own cards are clickable and this one sat among them looking inert. Only
    linked, because unlinked there is no page to open and a card that looks
-   clickable without being it is worse than one that plainly is not. */
+   clickable without being it is worse than one that plainly is not. The
+   borrowed `enabled` class carries the same cursor; this holds in the fallback. */
 .UnicumAccountCard__linked {
     min-height: 40rem;
     cursor: pointer;
 }
 
-/* The hangar does not recolour a card on hover: it fades a layer in over it.
-   Every number here was read off a mission card in the running client, during
-   a real hover (`QuestCard_hoverBg`): a plain white layer, `opacity: 0` at
-   rest, `0.05` hovered, `transition: opacity 0.1s ease-in-out`.
-
-   `0.05`, and it is worth saying why the number is written down rather than
-   chosen. This hover was wrong twice before being measured: first a brighter
-   border, on the untested reasoning that a fill would make the card the one
-   lit panel in a dark hangar; then this same layer at `0.15`, which is what
-   five other views of the client use for the identically named class and is
-   three times what the mission cards actually do. A tenth of an alpha channel
-   is the difference between belonging and standing out. */
-.UnicumAccountCard__linked::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    background-color: #ffffff;
-    opacity: 0;
-    transition: opacity 0.1s ease-in-out;
-    /* The click belongs to the card, and a layer over it would swallow it. */
-    pointer-events: none;
-    z-index: 0;
+/* The fallback, and the only numbers left in this file. A hangar with no
+   mission card on screen has nothing to lend, and a card that paints nothing
+   at all is a card nobody can see; these stand in until a card appears, which
+   account_card.js watches for. The border's hovered alpha is the client's
+   own .18, the rest is this file's. */
+.UnicumAccountCard__plain {
+    background-color: rgba(23, 23, 23, 0.2);
+    border: 1rem solid rgba(255, 255, 255, 0.12);
+    transition: border-color 0.24s ease-out;
 }
 
-.UnicumAccountCard__linked:hover::after {
-    opacity: 0.05;
-}
-
-/* The border comes in with the layer. A mission card does the same: its
-   `Card_border` is a real 1rem border held at `rgba(255, 255, 255, 0)` until
-   hovered.
-
-   THE ONE NUMBER HERE THAT IS NOT MEASURED. The client applies that border's
-   hovered colour outside every stylesheet this page can read (0 matching
-   rules across its 8 sheets), so it can only be caught mid-hover, which has
-   not happened yet. `0.15` is what the client's other cards declare for a
-   visible border (`ShopCard`, `ScenarioCard`), so it is the house value
-   rather than a guess, but it is the first thing to correct if this reads
-   too strong or too faint. */
-.UnicumAccountCard__linked:hover {
-    border-color: rgba(255, 255, 255, 0.15);
-}
-
-/* Over the layer, where the client's own cards keep their content: theirs sits
-   after the layer in the DOM, ours needs saying because `::after` is last. */
-.UnicumAccountCard__linked > * {
-    position: relative;
-    z-index: 1;
+.UnicumAccountCard__plain.UnicumAccountCard__linked:hover {
+    border-color: rgba(255, 255, 255, 0.18);
 }
 
 .UnicumAccountCard_logo {

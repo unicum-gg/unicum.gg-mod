@@ -637,3 +637,46 @@ def check_account_card_link():
         check('with no name yet, nothing is opened', len(opened) == 2)
     finally:
         tank_button.open_url = original
+
+
+def check_account_card_decor():
+    """The card is drawn by the hangar, not painted here to look like it.
+
+    Painted here it was wrong three times: a fill and a border read off
+    `background-color`, which is not where a hangar card keeps either. A card's
+    fill is a border-image of the ui_kit's noise, and its hover moves three
+    layers at once. So the card wears the hangar's own classes and the values
+    stay the client's. Those class names carry a per-build hash, which is why
+    none of them may be written down in our own files.
+    """
+    import os
+    import re
+    from checks.common import REPO
+
+    hangar = os.path.join(REPO, 'src', 'unicum', 'web', 'hangar')
+    with open(os.path.join(hangar, 'account_card.js')) as handle:
+        script = handle.read()
+    with open(os.path.join(hangar, 'account_card.css')) as handle:
+        style = handle.read()
+
+    # A hashed class name in a rule or a string, as opposed to the documenting
+    # comments, which spell the hash `<h>`.
+    hashed = re.compile(r'(?:Card|QuestCard)_[A-Za-z_]*[0-9a-f]{6,}\b')
+    in_rules = hashed.findall(re.sub(r'/\*.*?\*/', '', style, flags=re.S))
+    check("the stylesheet names no class of the client's, which would last one build",
+          not in_rules)
+    check('nor does the script', not hashed.findall(re.sub(r'//[^\n]*', '', script)))
+
+    # What it looks for instead: each the half of a class name that survives a
+    # build, for the three layers and for the two classes the hover hangs off.
+    for needle in ('hoverBg', 'Card_border_', 'Card_borderHelper_',
+                   'Card_card__enabled_', 'classMatching'):
+        check('the script finds the decor by "%s"' % needle, needle in script)
+
+    # A hangar with no mission card lends nothing, and a card that paints
+    # nothing at all is a card nobody can see.
+    check('with nothing to borrow, the card falls back to its own plain look',
+          'UnicumAccountCard__plain' in script and '.UnicumAccountCard__plain' in style)
+    # The borrowed layers cover the card, so the content has to claim its place
+    # over them: the hangar's own cards carry the same line.
+    check('the content sits above the borrowed layers', 'z-index: 2' in style)
