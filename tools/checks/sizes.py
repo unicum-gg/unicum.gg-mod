@@ -36,7 +36,8 @@ ALLOWED = {
     # twitch.py came off on 2026-10-28: 595 lines became the four
     # modules of twitch/, the largest 305.
     'battle.py': 551,
-    'settings.py': 526,
+    # settings.py came off on 2026-10-28: 526 lines became the four
+    # modules of settings/, the largest 242.
     'lobby.py': 492,
     'game_link.py': 469,
     'tank_button.py': 458,
