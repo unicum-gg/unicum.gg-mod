@@ -1,7 +1,20 @@
 /* The garage's unicum.gg account card (account_card.js), under the mission
-   widgets and above the Twitch panel, drawn like them. The hangar's mission
-   cards have no fill of their own (the dark is the hangar's vignette) and only a
-   faint 1rem border, so these cards keep to a light veil and a faint border. */
+   widgets and above the Twitch panel, drawn like them.
+
+   "Drawn like them" was a claim for a long time and is now a measurement. Read
+   off a mission card in the running client, at rest:
+
+     the card and its parents   background-color: rgba(0, 0, 0, 0)
+     Card_border                border: 1rem solid rgba(255, 255, 255, 0)
+     QuestCard_hoverBg          white, opacity 0, transition opacity .1s
+     QuestCard_completeBg       a background IMAGE, opacity 0 until completed
+
+   So a card carries no fill at all, and its border is there but invisible
+   until the pointer arrives. What makes it readable is the hangar's own dark
+   vignette behind it, not anything the card paints. This file used to assert
+   that in a comment and then paint a veil and a border anyway, which is what
+   made this card read as a panel laid over the hangar rather than as one of
+   its cards. */
 
 .UnicumAccountCard {
     position: absolute;
@@ -15,8 +28,10 @@
     flex-direction: column;
     justify-content: center;
     padding: 9rem 10rem;
-    background-color: rgba(23, 23, 23, 0.2);
-    border: 1rem solid rgba(255, 255, 255, 0.12);
+    /* No fill and an invisible border, as the mission cards have: both are
+       measured above. The border stays declared at full width so the layout
+       does not shift when the pointer brings its colour in. */
+    border: 1rem solid rgba(255, 255, 255, 0);
     /* The hangar's own hover timing, measured on a mission card. */
     transition: border-color 0.1s ease-in-out;
     font-family: PFDINMax, sans-serif;
@@ -70,12 +85,19 @@
     opacity: 0.05;
 }
 
-/* The border lifts with it, which the mission cards cannot show us because
-   they have none: measured, theirs is `initial / medium / none` and nothing
-   on them moves but the layer. This card does have a border, so it answers
-   the pointer the way the rest of its own frame would, on the same 0.1s. */
+/* The border comes in with the layer. A mission card does the same: its
+   `Card_border` is a real 1rem border held at `rgba(255, 255, 255, 0)` until
+   hovered.
+
+   THE ONE NUMBER HERE THAT IS NOT MEASURED. The client applies that border's
+   hovered colour outside every stylesheet this page can read (0 matching
+   rules across its 8 sheets), so it can only be caught mid-hover, which has
+   not happened yet. `0.15` is what the client's other cards declare for a
+   visible border (`ShopCard`, `ScenarioCard`), so it is the house value
+   rather than a guess, but it is the first thing to correct if this reads
+   too strong or too faint. */
 .UnicumAccountCard__linked:hover {
-    border-color: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.15);
 }
 
 /* Over the layer, where the client's own cards keep their content: theirs sits
