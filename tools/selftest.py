@@ -42,6 +42,7 @@ from checks.surfaces import (
     check_profile_title,
     check_room_sort,
     check_skirmish_room)
+from checks.sizes import check_file_sizes
 from checks.settings import check_live_settings, check_res_mods_version, check_settings, check_settings_window
 from checks.loadouts import (check_crew_away, check_crew_from_last_battle, check_demounting,
                              check_loadout_setting, check_loadout_store, check_loadouts,
@@ -152,6 +153,7 @@ def main():
         check_battle_setting()
         check_battle_claims()
         check_announced_battles()
+        check_file_sizes()
         check_replay_answers()
         check_replay_confirmation()
         check_replay_deadlines()
