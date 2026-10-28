@@ -128,7 +128,7 @@ def check_battle_panels():
 
 def check_team_order():
     """The order the client sends each team's screens in is kept, and wins."""
-    from unicum.battle import BattleFlags
+    from unicum.battle.flags import BattleFlags
     flags = BattleFlags(None, None, None, None, None)
     flags._keep_order({'leftItemsIDs': [3, 1, 2], 'rightItemsIDs': 'not a list'})
     check('a team order the client sends is kept', flags._order['leftItemsIDs'] == [3, 1, 2])
@@ -138,14 +138,14 @@ def check_team_order():
     check('an empty team from the client is an order too', flags._order['leftItemsIDs'] == []
           and 'leftItemsIDs' in flags._received)
 
-    from unicum.battle import _ORDERED
+    from unicum.battle.drawing import _ORDERED
     check('every exchange the client sorts is read, frags included',
           set(['as_setFragsS', 'as_updateVehiclesStatsS', 'as_updateVehicleStatusS']) <= set(_ORDERED))
 
 
 def check_icon_markers():
     """The markers drawn beside a vehicle icon, and the width they take."""
-    from unicum.battle import icon_markers, markup_width
+    from unicum.battle.drawing import icon_markers, markup_width
     flag = '<IMG SRC="img://f/fr.png" width="16" height="12" vspace="-3"/>'
     badge = '<IMG SRC="img://b/wnx/1234.png" width="38" height="12" vspace="-3"/>'
     check('the badge and the flags come apart, each with its width',

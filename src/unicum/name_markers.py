@@ -147,7 +147,7 @@ class NameMarkers(object):
         if not ours or plugin is None:
             return
         self._reload_view_if_changed(manager, ours)
-        from unicum.battle import _arena
+        from unicum.battle.drawing import _arena
         arena = _arena()
         sent = _sent(manager)
         from unicum import modes

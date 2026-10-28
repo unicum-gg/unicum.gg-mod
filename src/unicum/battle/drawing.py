@@ -1,65 +1,22 @@
-"""Marks battle player names with where each player comes from.
+"""Putting a rating and a flag on each name, on every battle surface.
 
-The rating badge and the flags are drawn by each vehicle icon, lined up in a
-column per team. The battle view (as3/src/unicum/VehicleMarkers.as) draws
-them from the markup per vehicle and the order of each team published here:
-in the players panel beside the icon, towards the middle of the screen; in a
-Flash Tab screen outside each team's rows; on the loading screen beside the
-icon. No row names its vehicle, so the order is taken from what the
-statistics controller sends those screens (leftItemsIDs and rightItemsIDs).
+The measuring is here as much as the drawing. Scaleform gives no way to ask
+what a string will be once its inline images have loaded, so the width is
+computed from the markup, and `markup_width` is the one place that knows how.
+A width guessed wrong is a column that overlaps the next one.
 
-Without the battle view they go after the player's name instead. The panels
-are fed by the stats exchange: VehicleInfoComponent.addVehicleInfo builds one
-dict per vehicle, and its `region` goes to AS3, where StatsUserProps and
-formatPlayerName assign it as `htmlText`. So the flags go into that dict, and
-nowhere else.
-
-They used to go in one level lower, into player_format.getRegionCode. That
-reached the same panels, but getRegionCode also feeds every other consumer
-of a formatted name: the damage panel shows the player's own name as plain
-text, so its <IMG> markup was drawn as characters, and playerFullName carried
-it into markers and messages too. The stats exchange is where the name is
-known to end up in an HTML field.
-
-`region` is empty for anyone on their home realm, so on EU the field is
-essentially always empty. A genuinely roaming player does have a code, and
-it is not ours to drop: ours is appended to it.
-
-Onslaught (comp7) gets flags too, at a cost in the log. Its VO leaves
-`region` at null, typed Object, and DAAPIDataClass.fromHash reports a string
-assigned there as "incorrect cast value ... to field with type Object" --
-then assigns it anyway, so the flags draw. A player without flags is left
-untouched, so only flagged players produce that line.
-
-addVehicleInfo is synchronous and the answer comes over the network. So it
-never waits: it uses whatever is cached, and the account ids it sees are
-resolved in one batch just after. A vehicle drawn before the answer lands
-picks its flags up the next time the arena updates it.
-
-Each team's average rating goes after its name, in the Tab screen and on the
-loading screen. Those names are set as plain text (team1TF.text), so the
-badge only draws when the battle view (as3/src/unicum/TeamNamesHtml.as) is
-loaded to re-set them as HTML; without it the average is a bare number. In a
-Flash Tab table the view then moves it into the team's badge column.
+A mixin, for the reason the battles package gives: the entries, the session
+and the settings are read by both halves.
 """
+from __future__ import absolute_import
+
 import logging
 import re
-import weakref
 
-from gui.Scaleform.daapi.view.battle.shared.stats_exchange.stats_ctrl import BattleStatisticsDataController
-from gui.Scaleform.daapi.view.battle.shared.stats_exchange.vehicle import VehicleInfoComponent
-
-from unicum import config, modes, views
+from unicum import modes, views
 from unicum.api.entry import PLAYERS
 
-_logger = logging.getLogger('unicum.battle')
-
-# Long enough to gather a whole team's worth of ids from the render pass,
-# short enough to be back before anyone finishes reading the loading screen.
-_BATCH_DELAY = 0.25
-
-# How often the battle view is given the markers: a reloaded view starts empty.
-_PUBLISH_SECONDS = 0.5
+_logger = logging.getLogger('unicum.battle.drawing')
 
 # The battle view's surfaces that can wait for Alt, in the order of its
 # panelHidden, tabHidden and loadingHidden properties.
@@ -88,101 +45,42 @@ _DIGIT_WIDTH = 7
 _ORDERED = ('as_setVehiclesDataS', 'as_addVehiclesInfoS', 'as_updateVehiclesInfoS',
             'as_updateVehicleStatusS', 'as_setFragsS', 'as_updateVehiclesStatsS')
 
-
 def markup_width(markup):
     """Pixels the markup takes: its images' widths, and text by the character."""
     images = sum(int(width) for width in _IMG_WIDTH.findall(markup))
     text = _IMG.sub('', markup)
     return images + text.count(' ') * _SPACE_WIDTH + sum(c.isdigit() for c in text) * _DIGIT_WIDTH
 
-
 def icon_markers(flags, badge):
     """[badge html, its width, flags html, their width], drawn as two columns."""
     badge, flags = badge.strip(), flags.strip()
     return [badge, markup_width(badge), flags, markup_width(flags)]
 
+def _arena():
+    """The battle's arena data provider, or None outside a battle."""
+    from helpers import dependency
+    from skeletons.gui.battle_session import IBattleSessionProvider
+    return dependency.instance(IBattleSessionProvider).getArenaDP()
 
-class BattleFlags(object):
+def _default_order(arena):
+    """Each team's vehicle ids as the client sorts them for its screens.
 
-    def __init__(self, session, lookup, flags, badges, settings):
-        self._session = session
-        self._lookup = lookup
-        self._textures = flags
-        self._badges = badges
-        self._settings = settings
-        self._pending = set()
-        self._scheduled = False
-        # Statistics controllers of the battle in progress, redrawn once the
-        # ratings their averages need have landed.
-        self._controllers = weakref.WeakSet()
-        # Vehicles whose panel row carries an inline marker of ours, and
-        # whether a pass to take those markers back is already due.
-        self._inline = set()
-        self._taking_back = False
-        # vehicle id -> icon_markers(), and each team's vehicle ids in order.
-        self._markers = {}
-        self._order = {'leftItemsIDs': [], 'rightItemsIDs': []}
-        # The keys of _order the client has sent this battle.
-        self._received = set()
-        # (the battle view published to, what it was given)
-        self._published = None
-        # The extended info key (Alt), set by install().
-        self.alt = None
+    What TeamsSortedIDsComposer sends: sorted by VehicleInfoSortKey, without
+    observers. Stands in until the client sends its own, which a mode may
+    sort its own way.
+    """
+    from gui.battle_control.arena_info import vos_collections
 
-    def install(self):
-        self._session.patch(VehicleInfoComponent, 'addVehicleInfo', self._wrap)
-        self._session.patch(BattleStatisticsDataController, 'as_setArenaInfoS',
-                            self._wrap_arena)
-        for name in _ORDERED:
-            self._session.patch(BattleStatisticsDataController, name, self._wrap_order)
-        self._session.repeat(_PUBLISH_SECONDS, self._publish)
-        self._settings.on_change(self._redraw)
-        _logger.info('installed on VehicleInfoComponent.addVehicleInfo, api=%s',
-                     config.API_BASE)
+    def ids(collection):
+        return [vehicle_id for vehicle_id in collection(sortKey=vos_collections.VehicleInfoSortKey).ids(arena)
+                if not arena.getVehicleInfo(vehicle_id).vehicleType.isObserver]
 
-    def _wrap(self, original):
+    return {'leftItemsIDs': ids(vos_collections.AllyItemsCollection),
+            'rightItemsIDs': ids(vos_collections.EnemyItemsCollection)}
 
-        def addVehicleInfo(component, vInfoVO, overrides):
-            result = original(component, vInfoVO, overrides)
-            try:
-                self._mark(component, vInfoVO)
-            except Exception:
-                # A panel without flags beats a panel that fails to build.
-                _logger.exception('could not mark a battle player')
-            return result
 
-        return addVehicleInfo
-
-    def _wrap_arena(self, original):
-
-        def as_setArenaInfoS(controller, data):
-            self._controllers.add(controller)
-            try:
-                self._mark_teams(controller, data)
-            except Exception:
-                _logger.exception('could not add the team averages')
-            return original(controller, data)
-
-        return as_setArenaInfoS
-
-    def _wrap_order(self, original):
-
-        def ordered(controller, data, *args, **kwargs):
-            try:
-                self._keep_order(data)
-            except Exception:
-                _logger.exception('could not read the order of the teams')
-            return original(controller, data, *args, **kwargs)
-
-        return ordered
-
-    def _keep_order(self, data):
-        if not isinstance(data, dict):
-            return
-        for key in self._order:
-            if isinstance(data.get(key), list):
-                self._order[key] = list(data[key])
-                self._received.add(key)
+class Drawing(object):
+    """Putting ratings and flags on the battle surfaces."""
 
     def _publish(self):
         # The view may have started drawing with no vehicle announced since,
@@ -367,60 +265,6 @@ class BattleFlags(object):
             if vehicle_id:
                 self._inline.add(vehicle_id)
 
-    def _take_back(self):
-        """Resend the rows that were given an inline marker too early.
-
-        The panel is told about a vehicle once. This module writes a badge
-        into that row only while the battle view is not drawing the badges
-        itself, and the view needs a few frames to find its surfaces. The
-        player's own vehicle is announced before that happens, so that one
-        row keeps an inline badge while all the others get the drawn one:
-        the same rating twice on one line, and the staler of the two, since
-        nothing rewrites that row afterwards. Measured, not reasoned: one
-        row showing 3 995 beside 4 063 for the same player.
-
-        One pass per burst, and the rows are resent through
-        `updateVehiclesInfo`, which pushes `as_updateVehiclesInfoS`. That is
-        NOT `invalidateVehiclesInfo`: that one puts a new data provider into
-        the panel's lists and rebinds every renderer, which costs other mods
-        the Flash fields they grafted onto them.
-        """
-        if not self._inline or self._taking_back:
-            return
-        self._taking_back = True
-        self._session.callback(_BATCH_DELAY, self._resend)
-
-    def _resend(self):
-        self._taking_back = False
-        wanted, self._inline = sorted(self._inline), set()
-        if not wanted:
-            return
-        try:
-            from helpers import dependency
-            from skeletons.gui.battle_session import IBattleSessionProvider
-            from gui.battle_control.arena_info.settings import INVALIDATE_OP
-            arena_dp = dependency.instance(IBattleSessionProvider).getArenaDP()
-            if arena_dp is None:
-                return
-            # Only the vehicles the arena still knows. `getVehicleInfo`
-            # answers an EMPTY vehicle for an id it has never heard of
-            # rather than None, and resending one of those would blank a
-            # row instead of mending it.
-            known = {}
-            for info in arena_dp.getVehiclesInfoIterator():
-                known[info.vehicleID] = info
-            # No flags: nothing is re-sorted and no prebattle state is
-            # recomputed, the rows are simply described again.
-            updated = [(INVALIDATE_OP.NONE, known[vehicle_id])
-                       for vehicle_id in wanted if vehicle_id in known]
-            if not updated:
-                return
-            for controller in list(self._controllers):
-                controller.updateVehiclesInfo(updated, arena_dp)
-            _logger.info('took the inline marker back off %d row(s)', len(updated))
-        except Exception:
-            _logger.exception('could not take the inline markers back')
-
     def _marker(self, account_id):
         """(flags markup, rating badge markup), each '' when not shown."""
         if not account_id or not self._settings.shows('battle'):
@@ -436,36 +280,6 @@ class BattleFlags(object):
         # narrowest place any of these numbers has to fit.
         return flags, (self._badges.rating(entry, self._settings, 'battle')
                        + self._badges.extras(entry, self._settings, 'battle', compact=True))
-
-    def _request(self, account_id):
-        """Queue an id, and resolve the whole batch shortly after.
-
-        Every vehicle in a team is added in the same pass, so waiting a
-        moment turns what would be fifteen requests into one.
-        """
-        self._pending.add(account_id)
-        if self._scheduled:
-            return
-        self._scheduled = True
-        self._session.callback(_BATCH_DELAY, self._flush)
-
-    def _flush(self):
-        self._scheduled = False
-        if not self._pending:
-            return
-        batch, self._pending = sorted(self._pending), set()
-        _logger.info('resolving %s players', len(batch))
-        self._lookup.prefetch(players=batch,
-                              on_ready=lambda: self._report(batch))
-
-    def _report(self, batch):
-        resolved = []
-        for account_id in batch:
-            entry = self._lookup.get(PLAYERS, account_id)
-            if entry is not None and entry.countries:
-                resolved.append((account_id, entry.countries[0]))
-        _logger.info('resolved %s/%s: %s', len(resolved), len(batch), resolved)
-        self._redraw()
 
     def _redraw(self):
         """Resend the arena description, which is what carries a team average.
@@ -503,49 +317,3 @@ class BattleFlags(object):
                     controller.invalidateArenaInfo()
             except Exception:
                 _logger.exception('could not redraw the battle statistics')
-
-
-def _arena():
-    """The battle's arena data provider, or None outside a battle."""
-    from helpers import dependency
-    from skeletons.gui.battle_session import IBattleSessionProvider
-    return dependency.instance(IBattleSessionProvider).getArenaDP()
-
-
-def _default_order(arena):
-    """Each team's vehicle ids as the client sorts them for its screens.
-
-    What TeamsSortedIDsComposer sends: sorted by VehicleInfoSortKey, without
-    observers. Stands in until the client sends its own, which a mode may
-    sort its own way.
-    """
-    from gui.battle_control.arena_info import vos_collections
-
-    def ids(collection):
-        return [vehicle_id for vehicle_id in collection(sortKey=vos_collections.VehicleInfoSortKey).ids(arena)
-                if not arena.getVehicleInfo(vehicle_id).vehicleType.isObserver]
-
-    return {'leftItemsIDs': ids(vos_collections.AllyItemsCollection),
-            'rightItemsIDs': ids(vos_collections.EnemyItemsCollection)}
-
-
-def install(session, lookup, flags, badges, settings, alt=None):
-    if alt is None:
-        from unicum.extended_info import ExtendedInfo
-        alt = ExtendedInfo(session)
-        alt.install()
-    battle_flags = BattleFlags(session, lookup, flags, badges, settings)
-    battle_flags.alt = alt
-    battle_flags.install()
-    alt.on_change(battle_flags._publish)
-    try:
-        from gui.Scaleform.daapi.view.battle.shared.markers2d import manager  # the client has them
-    except ImportError:
-        _logger.info('no vehicle markers in this client, no badge by the names above vehicles')
-        return
-    try:
-        from unicum import name_markers
-        name_markers.install(session, battle_flags)
-    except Exception:
-        # The rest of the battle surfaces stay.
-        _logger.exception('could not install the badges by the names above vehicles')

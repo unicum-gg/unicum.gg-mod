@@ -175,8 +175,10 @@ def main():
         first_hook = target.__dict__['addVehicleInfo']
         generation_before = stub._generation
 
-        # Touch a source file the way an editor would.
-        edited = os.path.join(src_root, 'unicum', 'battle.py')
+        # Touch a source file the way an editor would. This one because it
+        # holds the hook the checks below look at; any source file triggers
+        # the same reload.
+        edited = os.path.join(src_root, 'unicum', 'battle', 'drawing.py')
         os.utime(edited, (os.path.getatime(edited), os.path.getmtime(edited) + 10))
 
         bigworld.run_pending()
