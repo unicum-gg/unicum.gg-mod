@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.1
+
+### Fixed
+
+- Read the client's battle result types, not our own module
+- Stop a recovered battle closing the player's results screen
+
 ## 0.7.0
 
 ### Added
