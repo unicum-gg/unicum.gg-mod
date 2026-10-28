@@ -55,7 +55,7 @@ class _Link(object):
 
 def _uploader(entries, wanted=None):
     """An uploader holding `entries`, with nothing of its own on disk."""
-    from unicum.replays import Uploader
+    from unicum.replays.uploader import Uploader
     up = Uploader(_Session(), _Settings(), _Link())
     up._queue = list(entries)
     up._wanted = dict(wanted or {})
@@ -73,7 +73,7 @@ def _copy(arena_id, started_at, tries=None):
 
 def check_replay_answers():
     """Which answers end a copy's life, and which only mean "not yet"."""
-    from unicum.replays import Uploader
+    from unicum.replays.uploader import Uploader
 
     # The regression this file exists for. `unknown_battle` in FINAL is what
     # deleted three replays: it is the server saying it holds no row for this
@@ -131,7 +131,7 @@ def check_replay_wrong_copy():
 
 def check_replay_confirmation():
     """A copy is offered only once its battle has been named by the server."""
-    from unicum.replays import _AFTER_CONFIRMED
+    from unicum.replays.uploader import _AFTER_CONFIRMED
 
     now = int(time.time())
     up = _uploader([_copy('1', now), _copy('2', now)])
@@ -165,7 +165,7 @@ def check_replay_confirmation():
 
 def check_replay_deadlines():
     """A copy nobody ever names is let go of, and only that one."""
-    from unicum.replays import _CONFIRM_DEADLINE
+    from unicum.replays.deciding import _CONFIRM_DEADLINE
 
     workdir = tempfile.mkdtemp(prefix='unicum-replays-')
     original = os.getcwd()
@@ -191,7 +191,7 @@ def check_replay_deadlines():
 
 def check_replay_retries():
     """A "not yet" keeps the copy, counts the try, and gives up in the end."""
-    from unicum.replays import _MAX_TRIES
+    from unicum.replays.deciding import _MAX_TRIES
 
     workdir = tempfile.mkdtemp(prefix='unicum-replays-')
     original = os.getcwd()

@@ -492,7 +492,7 @@ def declare(store, bodies: dict, secret: str, api: str, quota: Quota) -> dict:
     return out
 
 
-def upload(replays, path: Path, arena: str, started: int, secret: str,
+def upload(answers, path: Path, arena: str, started: int, secret: str,
            api: str, quota: Quota) -> str:
     """The outcome of sending one file, as the server named it.
 
@@ -528,7 +528,7 @@ def upload(replays, path: Path, arena: str, started: int, secret: str,
         except (TypeError, ValueError):
             named = None
         return "%s (http %s)" % (named, status) if named else "http %s" % status
-    answer = replays.read_answer(text)
+    answer = answers.read_answer(text)
     if answer is None:
         return "unreadable answer"
     return "stored" if answer[0] == "stored" else answer[1]
@@ -579,9 +579,9 @@ def selfcheck() -> int:
     try:
         extract = mod_module("battles.extract")
         store = mod_module("battles.store")
-        replays = mod_module("replays")
+        answers = mod_module("replays.store")
         want(callable(extract.payload) and callable(store.read_answer)
-             and callable(replays.read_answer), True,
+             and callable(answers.read_answer), True,
              "the mod's payload builder and answer readers load")
     except Exception as err:
         want("could not load: %s" % err, True, "the mod's own modules load")
@@ -621,7 +621,8 @@ def main() -> int:
 
     extract = mod_module("battles.extract")
     store = mod_module("battles.store")
-    replays = mod_module("replays")
+    answers = mod_module("replays.store")
+    uploads = mod_module("replays.uploader")
     state = State(game / STATE)
     replay_quota = Quota(REPLAYS_PER_HOUR, state.replay_stamps, "upload")
     battle_quota = Quota(BATTLES_PER_HOUR, state.battle_stamps, "declaration")
@@ -719,7 +720,7 @@ def main() -> int:
                 counts[verdict] = counts.get(verdict, 0) + 1
                 print("  %-52s %s" % (name[:52], verdict))
                 continue
-            outcome = upload(replays, folder / name, arena,
+            outcome = upload(answers, folder / name, arena,
                              bodies[arena]["startedAt"], secrets[owners[arena]],
                              args.api, replay_quota)
             if outcome == _UNREACHED:
@@ -741,7 +742,7 @@ def main() -> int:
             # Forced: an upload just spent one of thirty an hour, and that is
             # the one thing in here worth a write of its own.
             state.save(replay_quota, battle_quota, force=True)
-            if outcome in replays.Uploader.CLOSED:
+            if outcome in uploads.Uploader.CLOSED:
                 # The archive is full, or this account's replays are not kept.
                 # Neither is "try the next file", so the run ends here rather
                 # than asking the same question twelve thousand times.
