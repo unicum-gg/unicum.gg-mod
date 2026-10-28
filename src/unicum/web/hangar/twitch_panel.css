@@ -13,8 +13,15 @@ body.UnicumPanelResizing, body.UnicumPanelResizing * {
 
 /* The garage's Twitch chat panel (twitch_panel.js). Sizes in rem, which the
    hangar scales with the interface. On the right, under the hangar's mission
-   widgets and the unicum.gg account card, and drawn like them: a dark
-   translucent card with a faint border.
+   widgets and the unicum.gg account card, and drawn like them.
+
+   "Drawn like them" was a dark fill and a faint border written here, which is
+   not what a hangar card is: a card paints no fill at all, and what draws it is
+   a border-image of the ui_kit's noise at opacity .25. So the panel borrows
+   that layer by class, as the account card does (account_card.css has the
+   client's own rules and where they are read from). No hover class comes with
+   it: the hangar lights a card up because a card opens something, and this
+   panel is not a button.
 
    Gameface lays spans and inline-blocks out one under the other, so a line is
    a row of flex items: badges and name at their own size, then the text,
@@ -22,19 +29,58 @@ body.UnicumPanelResizing, body.UnicumPanelResizing * {
 
 .UnicumTwitchPanel {
     position: absolute;
+    /* Where the panel sits and how wide it is when the player has dragged
+       neither: twitch_panel.js replaces both with the hangar's own mission
+       column once it has measured it, which is the column this panel hangs
+       under. These stay for a hangar that shows no mission at all. */
     right: 46rem;
     top: 890rem;
     width: 322rem;
     height: 220rem;
     display: flex;
     flex-direction: column;
-    /* As the mission cards and the account card: a light veil, a faint border. */
-    background-color: rgba(23, 23, 23, 0.2);
-    border: 1rem solid rgba(255, 255, 255, 0.12);
+    /* No fill, as a card has none. The border stays declared at its full width
+       and transparent: it holds the box, and the list's 144rem below counts on
+       it, so colouring it in the fallback moves nothing. */
+    border: 1rem solid rgba(255, 255, 255, 0);
     font-family: PFDINMax, sans-serif;
     font-size: 14rem;
     color: #e6e2d8;
     pointer-events: auto;
+}
+
+/* The hangar's noise layer, put here by twitch_panel.js. Its own class styles
+   it inset 0, which inside this panel's 1rem border would draw the line a rem
+   in and leave the edge bare; the client's own widgets answer that the same
+   way, pinning their noise at -1rem (IntroOverlay_borderNoise,
+   Banner_borderNoise). It takes no pointer: the panel is dragged, resized and
+   scrolled, and a sheet over all of it would swallow every one of those. */
+.UnicumTwitchPanel > [class*="Card_borderHelper_"] {
+    top: -1rem;
+    right: -1rem;
+    bottom: -1rem;
+    left: -1rem;
+    pointer-events: none;
+}
+
+/* Over the borrowed layer, which the client gives z-index 1. */
+.UnicumTwitchPanel_header,
+.UnicumTwitchPanel_cardConnect,
+.UnicumTwitchPanel_list,
+.UnicumTwitchPanel_footer,
+.UnicumTwitchPanel_grip {
+    position: relative;
+    z-index: 2;
+}
+
+/* The fallback, for a panel with no hangar card to borrow from: the Twitch
+   window of the battle queue, which is a window of the client's own and holds
+   no mission card, and a hangar showing no missions. Both keep the panel as it
+   looked before it borrowed anything, because a chat with neither fill nor
+   edge is a chat nobody can read. */
+.UnicumTwitchPanel__plain {
+    background-color: rgba(23, 23, 23, 0.2);
+    border-color: rgba(255, 255, 255, 0.12);
 }
 
 .UnicumTwitchPanel__collapsed {

@@ -639,44 +639,78 @@ def check_account_card_link():
         tank_button.open_url = original
 
 
-def check_account_card_decor():
-    """The card is drawn by the hangar, not painted here to look like it.
+def check_borrowed_decor():
+    """The account card and the Twitch panel are drawn by the hangar.
 
-    Painted here it was wrong three times: a fill and a border read off
-    `background-color`, which is not where a hangar card keeps either. A card's
-    fill is a border-image of the ui_kit's noise, and its hover moves three
-    layers at once. So the card wears the hangar's own classes and the values
-    stay the client's. Those class names carry a per-build hash, which is why
-    none of them may be written down in our own files.
+    Painted by us they were both wrong, and in the same way: a fill and a
+    border read off `background-color`, which is not where a hangar card keeps
+    either. A card's fill is a border-image of the ui_kit's noise, and its
+    hover moves three layers at once. So both wear the hangar's own classes and
+    the values stay the client's. Those class names carry a per-build hash,
+    which is why none of them may be written down in our own files.
     """
     import os
     import re
     from checks.common import REPO
 
     hangar = os.path.join(REPO, 'src', 'unicum', 'web', 'hangar')
-    with open(os.path.join(hangar, 'account_card.js')) as handle:
-        script = handle.read()
-    with open(os.path.join(hangar, 'account_card.css')) as handle:
-        style = handle.read()
 
-    # A hashed class name in a rule or a string, as opposed to the documenting
-    # comments, which spell the hash `<h>`.
+    def read(name):
+        with open(os.path.join(hangar, name)) as handle:
+            return handle.read()
+
+    card_js, card_css = read('account_card.js'), read('account_card.css')
+    panel_js, panel_css = read('twitch_panel.js'), read('twitch_panel.css')
+
+    # A hashed class name, as opposed to the documenting comments, which spell
+    # the hash `<h>`, and to the stable halves the code looks the classes up by.
     hashed = re.compile(r'(?:Card|QuestCard)_[A-Za-z_]*[0-9a-f]{6,}\b')
-    in_rules = hashed.findall(re.sub(r'/\*.*?\*/', '', style, flags=re.S))
-    check("the stylesheet names no class of the client's, which would last one build",
-          not in_rules)
-    check('nor does the script', not hashed.findall(re.sub(r'//[^\n]*', '', script)))
 
-    # What it looks for instead: each the half of a class name that survives a
-    # build, for the three layers and for the two classes the hover hangs off.
-    for needle in ('hoverBg', 'Card_border_', 'Card_borderHelper_',
-                   'Card_card__enabled_', 'classMatching'):
-        check('the script finds the decor by "%s"' % needle, needle in script)
+    def written_down(text, css):
+        bare = re.sub(r'/\*.*?\*/', '', text, flags=re.S)
+        if not css:
+            bare = re.sub(r'//[^\n]*', '', bare)
+        return hashed.findall(bare)
 
-    # A hangar with no mission card lends nothing, and a card that paints
-    # nothing at all is a card nobody can see.
-    check('with nothing to borrow, the card falls back to its own plain look',
-          'UnicumAccountCard__plain' in script and '.UnicumAccountCard__plain' in style)
-    # The borrowed layers cover the card, so the content has to claim its place
-    # over them: the hangar's own cards carry the same line.
-    check('the content sits above the borrowed layers', 'z-index: 2' in style)
+    for name, text, css in (('account_card.css', card_css, True),
+                            ('account_card.js', card_js, False),
+                            ('twitch_panel.css', panel_css, True),
+                            ('twitch_panel.js', panel_js, False)):
+        check('%s names no class of the client\'s, which would last one build' % name,
+              not written_down(text, css))
+
+    # What they look up instead, each the half of a class name that survives a
+    # build: the card takes all three layers and the two classes the hover
+    # hangs off, the panel takes the one layer that draws a card at rest.
+    for needle in ('hoverBg', 'Card_border_', 'Card_borderHelper_', 'Card_card__enabled_'):
+        check('the card finds the decor by "%s"' % needle, needle in card_js)
+    check('the panel takes the layer that draws a card at rest',
+          'Card_borderHelper_' in panel_js and 'Card_borderHelper_' in panel_css)
+    # A chat panel is not a button, and the hangar lights a card up because a
+    # card opens something.
+    check('and not the hover a card has', 'Card_card__enabled_' not in panel_js)
+
+    # The panel's border holds its box: the list's height is the panel's less
+    # the header, the footer and those two rems, so the border stays declared
+    # and the fallback only colours it in.
+    check('the panel keeps its border declared and transparent',
+          'border: 1rem solid rgba(255, 255, 255, 0)' in panel_css)
+    check('and the fallback colours it rather than adding one',
+          'border-color:' in panel_css.split('__plain')[-1])
+
+    # Nothing to borrow from: a hangar showing no mission, and the Twitch
+    # window of the battle queue, which is a window of the client's own.
+    check('the card falls back to a plain look of its own',
+          'UnicumAccountCard__plain' in card_js and '.UnicumAccountCard__plain' in card_css)
+    check('so does the panel',
+          'UnicumTwitchPanel__plain' in panel_js and '.UnicumTwitchPanel__plain' in panel_css)
+
+    # The borrowed layer covers the whole of either, so the content has to
+    # claim its place over it: the hangar's own cards carry the same line.
+    check('the card\'s content sits above the borrowed layers', 'z-index: 2' in card_css)
+    check('the panel\'s does too', 'z-index: 2' in panel_css)
+
+    # The hangar gives its mission column 241rem or 319rem depending on the
+    # screen, so neither may hold a width of its own as the answer.
+    check('both measure the hangar\'s mission column',
+          'function column(' in card_js and 'function column(' in panel_js)

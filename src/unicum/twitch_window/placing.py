@@ -28,7 +28,9 @@ _MAX_SIZE = (1600, 1200)
 _OWN_SIZE = (322, 220)
 
 # The panel's gap to the screen's right edge (twitch_panel.css, 46rem on a
-# 1920 wide hangar), for when the garage has never said where it is.
+# 1920 wide hangar), for when the garage has never said where it is. In the
+# garage the panel measures the hangar's mission column instead and reports
+# where that puts it, so this is the fallback's fallback.
 _RIGHT_GAP = 46 / 1920.0
 
 def window_state(state, rect, lang='en'):

@@ -33,6 +33,10 @@
 
 .UnicumAccountCard {
     position: absolute;
+    /* Where the card sits and how wide it is before the hangar has been
+       measured: account_card.js replaces all three with the mission column's
+       own, since that column is 241rem or 319rem depending on the screen and
+       the Twitch panel below lines up on the same edges. */
     right: 46rem;
     top: 830rem;
     width: 322rem;

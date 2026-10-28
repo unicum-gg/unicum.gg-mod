@@ -25,7 +25,7 @@ const PANEL_ICONS = __PANEL_ICONS__;
 // page to open, and the Connect button is the only thing to press. `data` is
 // the last state rendered, so the card can be drawn again once the hangar has
 // lent its decor; `decor` is what it lent.
-const state = { alive: true, json: null, data: null, linked: false, decor: null };
+const state = { alive: true, json: null, data: null, linked: false, decor: null, column: null };
 
 // Pixels to the rem the hangar lays out in; 1 when the view does not say.
 const toRem = (px) => (typeof viewEnv !== "undefined" && viewEnv.pxToRem ? viewEnv.pxToRem(px) : px);
@@ -153,12 +153,40 @@ function missionCards() {
     return cards;
 }
 
+// The width of the hangar's mission column and its gap to the right edge, in
+// rem. Measured rather than written down: the hangar gives that column 241rem
+// or 319rem depending on the screen, so one number here would be wrong on one
+// of them. Kept until the screen changes size.
+function column(cards) {
+    if (state.column && state.column.screen === window.innerWidth) {
+        return state.column;
+    }
+    if (!cards.length) {
+        return null;
+    }
+    const rect = cards[0].getBoundingClientRect();
+    state.column = {
+        screen: window.innerWidth,
+        width: Math.round(toRem(rect.width)),
+        right: Math.round(toRem(window.innerWidth - rect.right)),
+    };
+    return state.column;
+}
+
 function place() {
+    const cards = missionCards();
     let bottom = 0;
-    for (const card of missionCards()) {
+    for (const card of cards) {
         bottom = Math.max(bottom, card.getBoundingClientRect().bottom);
     }
     root.style.top = bottom > 0 ? `${Math.round(toRem(bottom)) + CARD_GAP}rem` : "";
+    // On the column's own two edges, which the Twitch panel below shares: the
+    // three of them read as one column or as none.
+    const own = column(cards);
+    if (own) {
+        root.style.width = `${own.width}rem`;
+        root.style.right = `${own.right}rem`;
+    }
 }
 
 function classesOf(node) {

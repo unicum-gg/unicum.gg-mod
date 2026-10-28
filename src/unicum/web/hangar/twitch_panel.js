@@ -36,6 +36,9 @@ const state = {
     alive: true, json: null, data: null, stuckToBottom: true, drag: null, resize: null,
     // The key code that types "a" on this keyboard, and the last key typed.
     selectAllKey: 65, lastKey: 0,
+    // What the hangar lends, each read once and kept: the layer that draws its
+    // cards, and the column they line up in (`syncDecor`, `column`).
+    decor: null, column: null,
 };
 
 // Pixels to the rem the hangar lays out in; 1 when the view does not say.
@@ -43,7 +46,9 @@ const toRem = (px) => (typeof viewEnv !== "undefined" && viewEnv.pxToRem ? viewE
 const DRAG_THRESHOLD = 4;
 
 const root = document.createElement("div");
-root.className = "UnicumTwitchPanel";
+// Plain until the hangar lends its decor, and plain for good in the battle
+// queue window, where there is no hangar to lend it (twitch_panel.css).
+root.className = "UnicumTwitchPanel UnicumTwitchPanel__plain";
 // Hidden until Python has said anything: a button made before this panel
 // existed has no `twitch` property at all.
 root.style.display = "none";
@@ -301,11 +306,91 @@ const DEFAULT_HEIGHT = 220;
 const OWN_RIGHT = 46;
 const OWN_TOP = 890;
 
-// The panel at the size the player dragged it to, or the stylesheet's.
+// The hangar's mission cards, which this panel hangs under: the column they
+// line up in gives it its width and its gap to the screen's edge, and one of
+// them lends the layer that draws it.
+const MISSION_CARDS = '[class*="QuestCard_base"], [class*="PersonalMissionCard_base"]';
+
+// One of those cards, or null. Unlike the panel's own top, which follows the
+// account card and so has to ignore the cards the hangar keeps laid out but
+// transparent, a card on its way out carries the same column and the same
+// class names as one on show, so any of them will do here.
+function missionCard() {
+    for (const card of document.querySelectorAll(MISSION_CARDS)) {
+        if (card.getBoundingClientRect().width > 0) {
+            return card;
+        }
+    }
+    return null;
+}
+
+// The whole class name of `node` that `exact` matches, or null.
+function matching(node, exact) {
+    for (const name of String(node.className || "").split(/\s+/)) {
+        if (exact.test(name)) {
+            return name;
+        }
+    }
+    return null;
+}
+
+// The width of the hangar's mission column and its gap to the right edge, in
+// rem. Measured because the hangar gives that column 241rem or 319rem
+// depending on the screen, so a width written here would be wrong on one of
+// them; kept until the screen changes size.
+function column() {
+    if (windowed) {
+        return null;
+    }
+    if (state.column && state.column.screen === window.innerWidth) {
+        return state.column;
+    }
+    const card = missionCard();
+    if (!card) {
+        return null;
+    }
+    const rect = card.getBoundingClientRect();
+    state.column = {
+        screen: window.innerWidth,
+        width: Math.round(toRem(rect.width)),
+        right: Math.round(toRem(window.innerWidth - rect.right)),
+    };
+    return state.column;
+}
+
+// The layer that draws a hangar card at rest: a border-image of the ui_kit's
+// noise, borrowed by class because the hash in that name changes with every
+// client build. account_card.js borrows the same and says more about why.
+function syncDecor() {
+    if (state.decor || windowed) {
+        return;
+    }
+    const card = missionCard();
+    if (!card) {
+        return;
+    }
+    const base = matching(card, /^Card_[0-9a-f]+$/);
+    const node = card.querySelector('[class*="Card_borderHelper_"]');
+    const noise = node ? matching(node, /^Card_borderHelper_[0-9a-f]+$/) : null;
+    if (!base || !noise) {
+        return;
+    }
+    state.decor = { base: base, noise: noise };
+    const layer = document.createElement("div");
+    layer.className = noise;
+    root.insertBefore(layer, root.firstChild);
+    // The noise is styled only as a child of the card's own class.
+    root.classList.add(base);
+    root.classList.remove("UnicumTwitchPanel__plain");
+    report(`twitch panel: drawn by the hangar (${base})`);
+}
+
+// The panel at the size the player dragged it to, or the hangar's column.
 function size(wanted) {
     const collapsed = root.classList.contains("UnicumTwitchPanel__collapsed");
     const compact = root.classList.contains("UnicumTwitchPanel__compact");
-    root.style.width = wanted ? `${wanted[0]}rem` : "";
+    const own = column();
+    root.style.width = wanted ? `${wanted[0]}rem` : (own ? `${own.width}rem` : "");
     // Folded or without a chat, the height is the class's; the width is kept.
     root.style.height = wanted && !collapsed && !compact ? `${wanted[1]}rem` : "";
     const height = wanted ? wanted[1] - HEADER_HEIGHT - FOOTER_HEIGHT - BORDERS : 0;
@@ -348,7 +433,8 @@ function fit() {
     const room = Math.round(toRem(floorOf() - root.getBoundingClientRect().top)) - CARD_GAP;
     const height = wanted ? wanted[1] : DEFAULT_HEIGHT;
     if (room < height) {
-        size([wanted ? wanted[0] : DEFAULT_WIDTH, Math.max(MIN_HEIGHT, room)]);
+        const own = column();
+        size([wanted ? wanted[0] : (own ? own.width : DEFAULT_WIDTH), Math.max(MIN_HEIGHT, room)]);
     } else {
         size(wanted);
     }
@@ -371,7 +457,10 @@ function place(position) {
         return;
     }
     root.style.left = "";
-    root.style.right = "";
+    // On the mission column's own right edge, which the account card above
+    // shares: the three of them read as one column or as none.
+    const own = column();
+    root.style.right = own ? `${own.right}rem` : "";
     const card = document.querySelector(".UnicumAccountCard");
     const rect = card && card.style.display !== "none" ? card.getBoundingClientRect() : null;
     root.style.top = rect && rect.height > 0 ? `${Math.round(toRem(rect.bottom)) + CARD_GAP}rem` : "";
@@ -563,15 +652,17 @@ let rectTicks = 0;
 let openHeight = 0;
 
 // The panel's own top left corner, in pixels, as place(null) and the
-// stylesheet put it: right under the account card when it shows, 46rem from
-// the right edge, at the stylesheet's width.
+// stylesheet put it: right under the account card when it shows, on the
+// mission column's right edge and at its width, or the stylesheet's own two
+// when the hangar has no card to measure.
 function ownPlace(pxPerRem) {
     const card = document.querySelector(".UnicumAccountCard");
     const cardRect = card && card.style.display !== "none" ? card.getBoundingClientRect() : null;
     const top = cardRect && cardRect.height > 0
         ? (Math.round(toRem(cardRect.bottom)) + CARD_GAP) * pxPerRem
         : OWN_TOP * pxPerRem;
-    return [window.innerWidth - (OWN_RIGHT + DEFAULT_WIDTH) * pxPerRem, top];
+    const own = column() || { right: OWN_RIGHT, width: DEFAULT_WIDTH };
+    return [window.innerWidth - (own.right + own.width) * pxPerRem, top];
 }
 
 function reportRect() {
@@ -598,6 +689,9 @@ function reportRect() {
 }
 
 const timer = setInterval(() => {
+    // The hangar's cards can arrive after this script does, and its decor with
+    // them: until they do the panel stays plain.
+    syncDecor();
     poll();
     reportRect();
 }, 250);
