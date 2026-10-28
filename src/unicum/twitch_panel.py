@@ -125,11 +125,11 @@ class TwitchPanel(object):
             self._link.hide_card()
             _card_hidden_notice()
         elif item == 'accountConnect':
-            from unicum.settings_window import _linked_notice
-            self._link.connect(_linked_notice, twitch=False)
+            from unicum.settings_window import linked_notice
+            self._link.connect(linked_notice, twitch=False)
         elif item == 'twitchConnect':
-            from unicum.settings_window import _linked_notice
-            self._link.connect(_linked_notice)
+            from unicum.settings_window import linked_notice
+            self._link.connect(linked_notice)
         elif item == 'twitchCollapse':
             self._settings.update({'twitch': {'garageCollapsed': args.get('text') == '1'}})
         elif item == 'twitchClose':

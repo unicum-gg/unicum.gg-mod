@@ -9,7 +9,8 @@ def check_battle_modes(workdir):
     from unicum.modes import mode_of
     from unicum.runtime.session import Session
     from unicum.settings import MODES, Settings, validate
-    from unicum.settings_window import TEAM_CHOICES, from_window, to_window
+    from unicum.settings_window.codec import from_window, to_window
+    from unicum.settings_window.labels import TEAM_CHOICES
 
     class Bonus(object):
         REGULAR = 1
@@ -251,7 +252,7 @@ def check_reload_announcer():
 def check_alt_only():
     """The battle ratings that wait for the extended info key, per surface."""
     from unicum.settings import validate
-    from unicum.settings_window import from_window, to_window
+    from unicum.settings_window.codec import from_window, to_window
 
     values = validate({})
     check('ratings show without Alt by default',

@@ -5,7 +5,7 @@ from checks.common import check
 
 def check_twitch():
     from unicum.settings import validate
-    from unicum.settings_window import from_window, to_window
+    from unicum.settings_window.codec import from_window, to_window
     from unicum.twitch import ChatQueue, Message, format_message, linked_channel, linked_url, parse_line
 
     line = ('@badge-info=;color=#1E90FF;display-name=Some\\sOne;mod=0 '
@@ -422,7 +422,7 @@ def check_panel_size():
 
 
 def check_channel_label():
-    from unicum.settings_window import channel_label
+    from unicum.settings_window.page import channel_label
 
     check('the Twitch section names the channel followed, and says when writing needs Connect',
           channel_label(u'license__', True) == u'Channel: license__'

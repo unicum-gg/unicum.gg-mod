@@ -73,7 +73,8 @@ def check_res_mods_version():
 def check_settings_window():
     """The window's values and settings.json's translate both ways."""
     from unicum.settings import DEFAULTS, validate
-    from unicum.settings_window import CARD_VAR, SHOW_CHOICES, from_window, to_window
+    from unicum.settings_window.codec import from_window, to_window
+    from unicum.settings_window.labels import CARD_VAR, SHOW_CHOICES
 
     values = validate(dict(DEFAULTS, metric='wn7', window='total', maxFlags=2,
                            battle={'flags': False, 'rating': True, 'average': True}))
@@ -90,13 +91,15 @@ def check_settings_window():
           to_window(values)[CARD_VAR] is True and to_window(values, False)[CARD_VAR] is False)
     check('the account card box is not a settings.json value', CARD_VAR not in from_window({CARD_VAR: False}))
 
-    from unicum.settings_window import HIDE_LABEL, HIDE_VAR
+    from unicum.settings_window.labels import HIDE_LABEL, HIDE_VAR
     check('the hiding box follows the site rather than settings.json',
           to_window(values)[HIDE_VAR] is False
           and to_window(values, True, True)[HIDE_VAR] is True
           and HIDE_VAR not in from_window({HIDE_VAR: True}))
 
-    from unicum.settings_window import CONNECT_VAR, native_page, read_native
+    from unicum.settings_window.codec import read_native
+    from unicum.settings_window.labels import CONNECT_VAR
+    from unicum.settings_window.page import native_page
     lines = [line.split(u'\t') for line in native_page(values, u'license__', True).split(u'\n')]
     check('the hiding box is not offered to somebody who cannot use it',
           not any(line[2] == HIDE_LABEL for line in lines if line[0] == u'checkbox'))
@@ -117,7 +120,9 @@ def check_settings_window():
           [u'text', u'Channel: license__'] in lines
           and [u'button', CONNECT_VAR, u'Channel: not linked', u'Connect'] in
           [line.split(u'\t') for line in native_page(values, u'', False).split(u'\n')])
-    from unicum.settings_window import DISCORD_VAR, LINKS, SOURCE_VAR, SUPPORT_VAR, link_url
+    from unicum.settings_window.labels import (DISCORD_VAR, LINKS, SOURCE_VAR,
+                                               SUPPORT_VAR)
+    from unicum.settings_window.window import link_url
     unlinked = [line.split(u'\t') for line in native_page(values, u'', False).split(u'\n')]
     check('the settings tab has the link buttons, whatever the Twitch state',
           all([u'button', var, text, word] in lines and [u'button', var, text, word] in unlinked

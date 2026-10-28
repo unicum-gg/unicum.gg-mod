@@ -32,7 +32,7 @@ import time
 import BigWorld
 
 from unicum import config
-from unicum.settings_window import LINKAGE
+from unicum.settings_window.labels import LINKAGE
 
 _logger = logging.getLogger('unicum.mods_list')
 

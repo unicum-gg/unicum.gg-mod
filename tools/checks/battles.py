@@ -596,7 +596,7 @@ def check_battle_reporter():
 def check_battle_setting():
     """The box that turns this on, and what it is wired to."""
     from unicum.settings import DEFAULTS, validate
-    from unicum.settings_window import from_window, to_window
+    from unicum.settings_window.codec import from_window, to_window
 
     # On by default, like the loadouts: a box nobody ticks collects nothing,
     # and a battle names all thirty players, so each client that speaks covers

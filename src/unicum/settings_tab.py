@@ -3,20 +3,21 @@
 The tab is drawn by the mod's AS3 views (as3/src/unicum/SettingsTab.as, added
 to the window by SettingsTabs.as), with the game's own controls, in sub-tabs:
 Garage, Battle and Twitch. It holds the very settings of the modsSettingsApi
-page (settings_window.py), the same variables with the same choices, and both
+page (settings_window/page.py), the same variables with the same choices, and both
 write settings.json, so either shows what the other changed.
 
-The views are handed the page as text (settings_window.native_page) in their
+The views are handed the page as text (settings_window.page.native_page) in their
 `settingsTab` property, again whenever the settings or the Twitch link change.
 What the player changes waits in the tab until Apply or OK, as the window's
-own settings do, then comes back in `settingsTabOut` (settings_window.read_native),
+own settings do, then comes back in `settingsTabOut` (settings_window.codec.read_native),
 taken on the next tick and applied as the modsSettingsApi page's are; Cancel or
 the window's cross drop it. The buttons act at once: Connect, and the ones
 that only open a page.
 """
 import logging
 
-from unicum import settings_window, views
+from unicum import views
+from unicum.settings_window import codec, labels, page, window
 
 _logger = logging.getLogger('unicum.settings_tab')
 
@@ -46,7 +47,7 @@ class SettingsTab(object):
         linked = bool(link is not None and link.secret)
         channel = self._chat.channel if self._chat is not None else u''
         card_shown = not (link is not None and link.card_hidden)
-        return settings_window.native_page(
+        return page.native_page(
             self._settings.values(), channel, linked and link.twitch == 'ready', card_shown,
             supporter=bool(link is not None and link.supporter),
             loadouts_hidden=bool(link is not None and link.loadouts_hidden))
@@ -87,14 +88,14 @@ class SettingsTab(object):
         for line in text.split(u'\n'):
             if line.startswith(u'log\tl\t'):
                 _logger.info('tab: %s', line[len(u'log\tl\t'):])
-        raw, buttons = settings_window.read_native(text)
+        raw, buttons = codec.read_native(text)
         if raw:
-            settings_window.apply_window(raw, self._settings, self._link)
+            codec.apply_window(raw, self._settings, self._link)
         # Each button once, however many times the message names it.
         for var in dict.fromkeys(buttons):
-            settings_window.handle_button(var, self._settings, 'settings-tab')
-        if settings_window.CONNECT_VAR in buttons and self._link is not None:
-            self._link.connect(settings_window._linked_notice)
+            window.handle_button(var, self._settings, 'settings-tab')
+        if labels.CONNECT_VAR in buttons and self._link is not None:
+            self._link.connect(labels.linked_notice)
 
 
 def install(session, settings, link=None):

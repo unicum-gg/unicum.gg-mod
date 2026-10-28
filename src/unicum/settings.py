@@ -3,7 +3,7 @@
 mods/configs/unicum/settings.json is the one source of truth. It is written
 with the defaults on first start, can be edited by hand while the client runs
 (it is checked every second), and is all the mod needs: no other mod is
-required. When izeberg's modsSettingsApi is installed, settings_window.py
+required. When izeberg's modsSettingsApi is installed, settings_window/
 also shows these settings in its window, and writes back here.
 
     {"enabled": true, "metric": "wnx", "window": "recent", "maxFlags": 3, "tankButton": true,
