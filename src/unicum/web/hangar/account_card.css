@@ -17,6 +17,8 @@
     padding: 9rem 10rem;
     background-color: rgba(23, 23, 23, 0.2);
     border: 1rem solid rgba(255, 255, 255, 0.12);
+    /* The hangar's own hover timing, measured on a mission card. */
+    transition: border-color 0.1s ease-in-out;
     font-family: PFDINMax, sans-serif;
     color: #e6e2d8;
     pointer-events: auto;
@@ -38,15 +40,17 @@
 }
 
 /* The hangar does not recolour a card on hover: it fades a layer in over it.
-   Measured on the mission cards beside this one (`QuestCard_hoverBg`): a plain
-   white layer, `opacity: 0` at rest, `transition: opacity 0.1s ease-in-out`,
-   and `.15` when hovered, which is the value five other views of the client
-   spell out for the same `hoverBg` pattern.
+   Every number here was read off a mission card in the running client, during
+   a real hover (`QuestCard_hoverBg`): a plain white layer, `opacity: 0` at
+   rest, `0.05` hovered, `transition: opacity 0.1s ease-in-out`.
 
-   Copied rather than approximated. The first version of this hover brightened
-   the border instead, on the reasoning that a fill would make the card the one
-   lit panel in a dark hangar: that reasoning was never measured and was simply
-   wrong, and the card read as foreign among the ones it sits with. */
+   `0.05`, and it is worth saying why the number is written down rather than
+   chosen. This hover was wrong twice before being measured: first a brighter
+   border, on the untested reasoning that a fill would make the card the one
+   lit panel in a dark hangar; then this same layer at `0.15`, which is what
+   five other views of the client use for the identically named class and is
+   three times what the mission cards actually do. A tenth of an alpha channel
+   is the difference between belonging and standing out. */
 .UnicumAccountCard__linked::after {
     content: "";
     position: absolute;
@@ -63,7 +67,15 @@
 }
 
 .UnicumAccountCard__linked:hover::after {
-    opacity: 0.15;
+    opacity: 0.05;
+}
+
+/* The border lifts with it, which the mission cards cannot show us because
+   they have none: measured, theirs is `initial / medium / none` and nothing
+   on them moves but the layer. This card does have a border, so it answers
+   the pointer the way the rest of its own frame would, on the same 0.1s. */
+.UnicumAccountCard__linked:hover {
+    border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* Over the layer, where the client's own cards keep their content: theirs sits
