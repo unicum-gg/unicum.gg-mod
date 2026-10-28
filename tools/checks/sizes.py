@@ -33,7 +33,8 @@ ALLOWED = {
     # became the five modules of settings_window/, the largest 263.
     # twitch_window.py came off on 2026-10-28: 670 lines became the
     # five modules of twitch_window/, the largest 216.
-    'twitch.py': 595,
+    # twitch.py came off on 2026-10-28: 595 lines became the four
+    # modules of twitch/, the largest 305.
     'battle.py': 551,
     'settings.py': 526,
     'lobby.py': 492,

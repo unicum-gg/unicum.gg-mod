@@ -6,7 +6,8 @@ from checks.common import check
 def check_twitch():
     from unicum.settings import validate
     from unicum.settings_window.codec import from_window, to_window
-    from unicum.twitch import ChatQueue, Message, format_message, linked_channel, linked_url, parse_line
+    from unicum.twitch.protocol import Message, format_message, parse_line
+    from unicum.twitch.queueing import ChatQueue, linked_channel, linked_url
 
     line = ('@badge-info=;color=#1E90FF;display-name=Some\\sOne;mod=0 '
             ':someone!someone@someone.tmi.twitch.tv PRIVMSG #unicum :gg <b>wp</b> & co')
@@ -76,8 +77,9 @@ def check_twitch():
 
 def check_battle_opening():
     """The chat a battle opens on: what was said before it, not an empty screen."""
-    from unicum import twitch
-    from unicum.twitch import _REPLAY, _REPLAY_SECONDS, ChatQueue, Message
+    from unicum.twitch import queueing as twitch
+    from unicum.twitch.protocol import Message
+    from unicum.twitch.queueing import _REPLAY, _REPLAY_SECONDS, ChatQueue
 
     class Clock(object):
         """Stands in for the module's `time`, so an age can be arranged."""
@@ -126,10 +128,11 @@ def check_loading_screen_hold():
     """Nothing is written while the battle loads: that chat goes with the screen."""
     import os
     import tempfile
-    from unicum import twitch
+    from unicum.twitch import chat as twitch
     from unicum.runtime.session import Session
     from unicum.settings import Settings
-    from unicum.twitch import _LOADING_HOLD, Message, TwitchChat
+    from unicum.twitch.chat import _LOADING_HOLD, TwitchChat
+    from unicum.twitch.protocol import Message
 
     def loading(shown):
         return type('FiredEvent', (object,), {'ctx': {'isShown': shown}})()
@@ -168,7 +171,7 @@ def check_loading_screen_hold():
 
 
 def check_twitch_badges():
-    from unicum.twitch import Message, format_message, parse_line
+    from unicum.twitch.protocol import Message, format_message, parse_line
     from unicum.twitch_badges import ChatBadges, badges_url, parse_badges, read_badges, res_path
 
     line = '@badges=subscriber/12,moderator/1;display-name=M :m!m@m PRIVMSG #c :hey'
@@ -216,7 +219,7 @@ def check_linked_channel():
     treated it as final.
     """
     import sys
-    from unicum.twitch import LinkedChannel
+    from unicum.twitch.queueing import LinkedChannel
 
     class Player(object):
         name = 'okuni'
@@ -334,7 +337,7 @@ def check_twitch_receiver():
 
 
 def check_echo_guard():
-    from unicum.twitch import EchoGuard
+    from unicum.twitch.queueing import EchoGuard
 
     guard = EchoGuard()
     guard.expect(u'gg', 100.0)
@@ -347,7 +350,8 @@ def check_echo_guard():
 
 
 def check_own_message():
-    from unicum.twitch import Message, appearance_of, own_message, parse_line
+    from unicum.twitch.protocol import (Message, appearance_of, own_message,
+                                        parse_line)
 
     first = own_message(None, 'license__', u'gg')
     check('before any of their messages, the player wears the broadcaster badge',
@@ -364,7 +368,7 @@ def check_own_message():
 
 
 def check_twitch_panel():
-    from unicum.twitch import Message
+    from unicum.twitch.protocol import Message
     from unicum.twitch_panel import state
 
     class Settings(object):
