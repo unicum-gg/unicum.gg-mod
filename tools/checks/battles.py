@@ -593,6 +593,78 @@ def check_battle_reporter():
           and _seconds(None) is None)
 
 
+def check_battle_blame():
+    """A refusal the body earned costs one battle, never the queue behind it.
+
+    Measured, not imagined: one vehicle in one skirmish arrived without a
+    `typeCompDescr`, the server refused the lot it travelled in with a 400,
+    and because a 400 was handled like a dropped connection the same lot went
+    out at every garage and was refused every time. Thirty-five innocent
+    battles sat behind it for a day, and the only clue was a warning that did
+    not even carry the server's reason.
+    """
+    from unicum.battles.reporter import Reporter
+    from unicum.battles.sending import _BATCH, _PAYLOAD_FAULTS
+
+    workdir = tempfile.mkdtemp(prefix='unicum-blame-')
+    original = os.getcwd()
+    try:
+        os.chdir(workdir)
+        _with_arena_cache()
+        reporter = Reporter(_FakeSession(), _Settings(), link=None)
+
+        # Standing in for the wire, and recording the queue each attempt saw.
+        sent = []
+        reporter._post = lambda: sent.append(len(reporter._queue))
+
+        rows = [{'arenaUniqueId': str(n)} for n in range(1, 6)]
+        reporter._queue = list(rows)
+        reporter._settled = []
+
+        # A batch refused as a unit says nothing about which battle did it, so
+        # nothing may be dropped on that answer alone.
+        reporter._blame(rows, 400, '{"error":"invalid_body"}')
+        check('a refused batch costs no battle yet',
+              [row['arenaUniqueId'] for row in reporter._queue]
+              == ['1', '2', '3', '4', '5'])
+        check('a refused batch narrows to one battle per request',
+              reporter._batch == 1)
+        check('and goes back out at once, not at the next garage', sent == [5])
+
+        # Alone and still refused: this one is the cause, and no later garage
+        # will take it. Keeping it would stop the four behind it for good.
+        reporter._blame(rows[:1], 400, '{"error":"invalid_body"}')
+        check('a battle refused on its own leaves the queue',
+              [row['arenaUniqueId'] for row in reporter._queue]
+              == ['2', '3', '4', '5'])
+        check('it is written down so it is never declared again',
+              reporter._settled == ['1'])
+        check('the batch goes back to full size once it is gone',
+              reporter._batch == _BATCH)
+        check('and the battles behind it leave immediately', sent == [5, 4])
+
+        # A battle with no id cannot be remembered, only dropped: `None` in
+        # the settled list would match the next battle that has no id either.
+        reporter._queue = [{'mapName': 'nowhere'}, {'arenaUniqueId': '9'}]
+        reporter._settled = []
+        reporter._blame([{'mapName': 'nowhere'}], 400, 'no id')
+        check('a battle with no id is dropped without being remembered',
+              reporter._queue == [{'arenaUniqueId': '9'}]
+              and reporter._settled == [])
+
+        # The whole point of the distinction. An outage is not the battles'
+        # fault and must not cost a single one, which is why this is a list of
+        # two codes and not a test on the 4xx range.
+        check('an outage never blames the battles',
+              not [code for code in (401, 403, 404, 429, 500, 502, 503)
+                   if code in _PAYLOAD_FAULTS])
+        check('a body refused for what it says, or for its size, does',
+              400 in _PAYLOAD_FAULTS and 413 in _PAYLOAD_FAULTS)
+    finally:
+        os.chdir(original)
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
 def check_battle_setting():
     """The box that turns this on, and what it is wired to."""
     from unicum.settings import DEFAULTS, validate

@@ -22,6 +22,19 @@ from unicum.battles.store import (_MAX_SETTLED, read_answer, save_queue,
 
 _logger = logging.getLogger('unicum.battles.sending')
 
+# The refusals the payload itself earned, which no retry will change.
+#
+# Only these two. Every other 4xx is about the request rather than the battles
+# in it: a 401 while the session is being renewed, a 403 from something in
+# front of the app, a 404 while a deploy moves the route. Treating those as
+# the battles' fault would throw away good battles to recover from an outage,
+# which is the opposite of the point.
+#
+#   400  the body was refused for what it says
+#   413  the body was refused for how big it is, and one battle alone that is
+#        still too big is one no batch size will ever carry
+_PAYLOAD_FAULTS = (400, 413)
+
 # Battles per request.
 #
 # Five rather than the twenty-five the endpoint accepts, and the measurement is
@@ -89,6 +102,23 @@ def garage_ready():
     except Exception:
         return True
 
+def _said(body):
+    """What the server put in the body of a refusal, short enough to log.
+
+    The status code alone was not enough: a 400 repeated for a whole evening
+    without once saying which field the server disliked, while the body was
+    carrying the `{error: ...}` that names it the entire time.
+    """
+    try:
+        text = body if isinstance(body, str) else str(body)
+    except Exception:
+        return 'no body'
+    text = ' '.join(text.split())
+    if not text:
+        return 'empty body'
+    return text[:300] + ('...' if len(text) > 300 else '')
+
+
 def _seconds(headers):
     """The server's own Retry-After in seconds, or None."""
     if not isinstance(headers, dict):
@@ -148,6 +178,52 @@ class Sending(object):
     def _done(self):
         self._busy_since = None
 
+    def _blame(self, batch, code, said):
+        """A refusal the payload earned, which no later garage will change.
+
+        The queue is the only copy of a battle not yet placed, so nothing here
+        drops a battle without first pinning the refusal on it. With more than
+        one battle in the request any of them could be the cause and the rest
+        are hostages, so the batch narrows to one: that names the battle at
+        fault in at most as many requests as the batch held. Alone and still
+        refused, a battle will never be accepted by anyone, and keeping it
+        would hold up every battle queued behind it for good. That is not a
+        hypothetical: thirty-five battles waited a day behind one.
+        """
+        if len(batch) > 1:
+            self._batch = 1
+            _logger.warning('the server refused a batch of %d on HTTP %s: %s; '
+                            'sending them one at a time to find out which',
+                            len(batch), code, said)
+            self._post()
+            return
+
+        name = batch[0].get('arenaUniqueId')
+        _logger.error('battle %s was refused on its own on HTTP %s: %s; '
+                      'dropping it, because it would otherwise hold up every '
+                      'battle behind it', name, code, said)
+        self._queue = settled(self._queue, [name])
+        save_queue(self._queue)
+        if name is not None:
+            # Written down as settled so it is never declared again. A battle
+            # with no id at all is only taken off the queue: there is nothing
+            # to remember it by, and `None` in here would match the next one.
+            self._settled = (self._settled + [name])[-_MAX_SETTLED:]
+            save_settled(self._settled)
+            if self._replays is not None:
+                # Its replay will never be taken either: a file offered for a
+                # battle that has no row comes back `unknown_battle`.
+                try:
+                    self._replays.disown([name])
+                except Exception:
+                    _logger.exception('could not tell the replay archive about '
+                                      'the battle that was dropped')
+        self._batch = _BATCH
+        if self._queue:
+            self._post()
+        else:
+            self._done()
+
     def _post(self):
         # Re-read every batch: unticking the box has to stop the flush that is
         # already running, not only the next one. A full queue is forty calls.
@@ -156,7 +232,7 @@ class Sending(object):
                          len(self._queue))
             self._done()
             return
-        batch = self._queue[:_BATCH]
+        batch = self._queue[:self._batch]
         if not batch:
             self._done()
             return
@@ -173,12 +249,16 @@ class Sending(object):
                 _logger.warning('the server is rate limiting us; quiet for %.0fs, '
                                 '%d battle(s) still waiting', wait, len(self._queue))
                 return
+            if code in _PAYLOAD_FAULTS:
+                self._blame(batch, code, _said(getattr(response, 'body', None)))
+                return
             if code != 200:
                 # Kept, not dropped: a battle a network refused is one the next
                 # garage sends.
                 self._done()
-                _logger.warning('battle upload stopped on HTTP %s, %d still waiting',
-                                code, len(self._queue))
+                _logger.warning('battle upload stopped on HTTP %s: %s; %d still waiting',
+                                code, _said(getattr(response, 'body', None)),
+                                len(self._queue))
                 return
             answer = read_answer(getattr(response, 'body', None))
             if answer is None:
@@ -197,6 +277,9 @@ class Sending(object):
                 _logger.warning('the server named no battle at all; %d kept',
                                 len(self._queue))
                 return
+            # The server took a request, so whatever narrowed the batch is
+            # behind us and the next one can carry a full load again.
+            self._batch = _BATCH
             self._queue = settled(self._queue, names)
             self._settled = (self._settled + names)[-_MAX_SETTLED:]
             save_queue(self._queue)

@@ -13,7 +13,7 @@ import time
 from unicum.battles.claiming import Claiming
 from unicum.battles.extract import _int, payload
 from unicum.battles.naming import arena_names, full_version
-from unicum.battles.sending import Sending
+from unicum.battles.sending import _BATCH, Sending
 from unicum.battles.store import (_MAX_QUEUED, append_queued, load_played,
                                   load_queue, load_settled, queued,
                                   save_played, save_settled)
@@ -70,6 +70,10 @@ class Reporter(Sending, Claiming):
         self._busy_since = None
         self._last_flush = 0.0
         self._quiet_until = 0.0
+        # How many battles go in one request. Drops to one while a refusal is
+        # being pinned on the battle that earned it, and goes back up as soon
+        # as a request succeeds. See `Sending._blame`.
+        self._batch = _BATCH
 
     def install(self):
         """Read every mode's results, by patching the one place they all pass.
