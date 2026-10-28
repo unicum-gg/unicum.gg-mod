@@ -39,7 +39,8 @@ ALLOWED = {
     # settings.py came off on 2026-10-28: 526 lines became the four
     # modules of settings/, the largest 242.
     'lobby.py': 492,
-    'game_link.py': 469,
+    # game_link.py came off on 2026-10-28: 469 lines became the three
+    # modules of game_link/, the largest 348.
     'tank_button.py': 458,
 }
 

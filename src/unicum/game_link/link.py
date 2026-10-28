@@ -1,47 +1,27 @@
-"""The link between this client and the player's unicum.gg account.
+"""Getting the account linked, and keeping it that way.
 
-It lets the mod act for the player where that needs their account: today,
-writing in their Twitch chat (see twitch_send.py). Nothing is typed.
-
-Linking opens the player's own browser (BigWorld.wg_openWebBrowser) on
-unicum.gg's /api/connect/game/<hash>#account_id=...&token=..., where the
-fragment carries the game's WGNI web token. The game's built-in browser cannot
-be used: it only opens the domains Wargaming's servers list (wargaming.net,
-worldoftanks.eu...) and refuses any other with a 418 before a request is made.
-On that page unicum.gg starts its Wargaming sign-in and sends the browser
-through Wargaming's token sign-in, the one the client uses to open the shop
-signed in, on to the OpenID page: signed in already, one confirmation screen
-at most. It then links the account and, when Twitch is not linked with the
-chat scope yet, goes on to Twitch, where the player's browser is usually
-signed in too. A fragment never reaches a server, so the token goes from the
-game to Wargaming without passing through unicum.gg.
-
-The mod draws a random secret and sends only its SHA-256 along that chain.
-Once the site has linked the hash, the secret is the mod's bearer token; the
-mod learns that by polling GET /api/game/me with it. The secrets live in
-mods/configs/unicum/account.json, one per Wargaming account the game has been
-linked on, and nowhere else.
+Opens the browser once, then polls until the site says the hash is claimed,
+backing off as it goes. Everything about what is being proved is in `proof`;
+this is the part that waits.
 """
-import binascii
-import hashlib
+from __future__ import absolute_import
+
 import json
 import logging
 import os
-import urllib
+import time
 
 from unicum import config
+from unicum.game_link.proof import (ME_PATH, STORE, TWITCH_READY, bearer,
+                                    connect_url, current_account_id,
+                                    new_secret, read_me, read_privacy,
+                                    read_store, secret_hash)
 
-_logger = logging.getLogger('unicum.game_link')
-
-STORE = os.path.join('mods', 'configs', 'unicum', 'account.json')
+_logger = logging.getLogger('unicum.game_link.link')
 
 _POLL_SECONDS = 3.0
 # How long a linking attempt waits for the player before giving up.
 _GIVE_UP_SECONDS = 600.0
-
-TWITCH_READY = 'ready'
-
-ME_PATH = '%s/api/game/me'
 
 # How often a linked game asks the site who it is, so a link revoked elsewhere shows.
 _REFRESH_SECONDS = 600.0
@@ -49,103 +29,6 @@ _REFRESH_SECONDS = 600.0
 _RETRY_SECONDS = 30.0
 # How often the account logged in is looked at, to follow a switch.
 _ACCOUNT_SECONDS = 2.0
-
-
-def new_secret():
-    return binascii.hexlify(os.urandom(32))
-
-
-def secret_hash(secret):
-    return hashlib.sha256(secret).hexdigest()
-
-
-def connect_url(api_base, region, secret, account_id=None, token=None, twitch=True):
-    """The page that links this client; the Wargaming web token rides in the fragment.
-
-    Without `twitch`, the account alone is linked and the page never goes on to Twitch.
-    `account` names the game's Wargaming account, which the site checks the
-    browser's session against before linking.
-    """
-    url = '%s/api/connect/game/%s?region=%s' % (api_base.rstrip('/'), secret_hash(secret), region)
-    if account_id:
-        url += '&account=%s' % account_id
-    if not twitch:
-        url += '&twitch=0'
-    if account_id and token:
-        url += '#' + urllib.urlencode([('account_id', account_id), ('token', token)])
-    return url
-
-
-def bearer(secret):
-    return {'Authorization': 'Bearer %s' % secret}
-
-
-def read_me(response):
-    """(name, twitch access, twitch login) from GET /api/game/me; None when not linked or unreadable."""
-    if getattr(response, 'responseCode', None) != 200:
-        return None
-    try:
-        payload = json.loads(response.body)
-    except (TypeError, ValueError):
-        return None
-    if not isinstance(payload, dict):
-        return None
-    login = payload.get('twitchLogin')
-    login = str(login).lower() if isinstance(login, basestring) and login else None
-    return payload.get('name'), payload.get('twitch'), login
-
-
-def read_privacy(response):
-    """(supports the site, loadouts hidden) from the same answer as `read_me`.
-
-    Read apart from the identity rather than widened into it: the identity
-    tuple is unpacked at four call sites, and growing it to carry two more
-    fields would have meant changing every one of them for a switch only the
-    settings window looks at.
-
-    Both default to false, which is the safe way round. A client that cannot
-    read the answer draws no switch rather than an inert one, and treats the
-    loadouts as shown rather than claiming they are hidden.
-    """
-    if getattr(response, 'responseCode', None) != 200:
-        return False, False
-    try:
-        payload = json.loads(response.body)
-    except (TypeError, ValueError):
-        return False, False
-    if not isinstance(payload, dict):
-        return False, False
-    return bool(payload.get('supporter')), bool(payload.get('loadoutsHidden'))
-
-
-def current_account_id():
-    """The Wargaming account id the client is logged in with, or None (a battle, the login screen)."""
-    try:
-        import BigWorld
-        account_id = getattr(BigWorld.player(), 'databaseID', None)
-    except Exception:
-        return None
-    return str(account_id) if account_id else None
-
-
-def read_store(raw):
-    """(links {account id: secret}, card hidden for [account ids]) from account.json's content.
-
-    An account.json from before links were per account holds one `secret`,
-    returned under None for the first account the game logs in with.
-    """
-    links, hidden = {}, []
-    if not isinstance(raw, dict):
-        return links, hidden
-    for account_id, secret in (raw.get('links') or {}).items():
-        if isinstance(secret, basestring) and len(secret) == 64:
-            links[str(account_id)] = str(secret)
-    legacy = raw.get('secret')
-    if isinstance(legacy, basestring) and len(legacy) == 64:
-        links[None] = str(legacy)
-    hidden = [str(account_id) for account_id in raw.get('cardHidden') or [] if account_id]
-    return links, hidden
-
 
 class GameLink(object):
     """The links of this client, one per Wargaming account it has been logged in with.
@@ -404,7 +287,6 @@ class GameLink(object):
                 json.dump({'links': links, 'cardHidden': self._hidden}, handle)
         except (IOError, OSError):
             _logger.exception('could not save the account links')
-
 
 class _Attempt(object):
     """One linking: from opening the player's browser to the account answering."""
