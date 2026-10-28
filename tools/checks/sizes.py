@@ -25,7 +25,8 @@ LIMIT = 400
 ALLOWED = {
     # battles.py came off this list on 2026-10-28: 1498 lines became the
     # seven modules of battles/, the largest 333.
-    'loadouts.py': 972,
+    # loadouts.py came off on 2026-10-28: 972 lines became the five
+    # modules of loadouts/, the largest 318.
     'replays.py': 950,
     'settings_window.py': 770,
     'twitch_window.py': 670,

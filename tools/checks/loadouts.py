@@ -4,7 +4,8 @@ from checks.common import check
 
 
 def check_loadouts():
-    from unicum.loadouts import changed, fingerprint
+    from unicum.loadouts.reading import fingerprint
+    from unicum.loadouts.store import changed
 
     first = {'tankId': 7169, 'crew': [{'role': 'commander', 'skills': ['repair']}]}
     same = {'crew': [{'role': 'commander', 'skills': ['repair']}], 'tankId': 7169}
@@ -36,7 +37,7 @@ def check_loadout_store():
     import json
     import os
     import tempfile
-    from unicum import loadouts
+    from unicum.loadouts import store as loadouts
 
     folder = tempfile.mkdtemp()
     path = os.path.join(folder, 'loadouts.json')
@@ -100,7 +101,8 @@ def _with_devices(tank, names, extra=None):
 
 def check_demounting():
     """A vehicle stripped to equip another must not lose its build on the page."""
-    from unicum.loadouts import changed, fingerprint, mounted
+    from unicum.loadouts.reading import fingerprint, mounted
+    from unicum.loadouts.store import changed
 
     full = _with_devices(7169, ['rammer', 'vents', 'stabilizer'])
     stripped = _with_devices(7169, ['rammer', 'vents', None])
@@ -167,7 +169,7 @@ class _CrewVehicle(object):
 
 def check_crew_from_last_battle():
     """A crew off driving another vehicle still describes the one it left."""
-    from unicum.loadouts import _crew
+    from unicum.loadouts.reading import _crew
 
     roles = (('commander',), ('gunner',), ('driver',))
     away = [_Tankman('commander', ['brotherhood']),
@@ -200,7 +202,8 @@ def check_crew_from_last_battle():
 
 def check_crew_away():
     """One crew driving several vehicles must not empty the ones it left."""
-    from unicum.loadouts import changed, crewed, fingerprint, uncrewed
+    from unicum.loadouts.reading import crewed, fingerprint
+    from unicum.loadouts.store import changed, uncrewed
 
     full = _with_crew(7169, 5)
     gone = _with_crew(7169, 0)
@@ -270,14 +273,15 @@ def check_withdrawal():
     """Unticking the box has to take the player off the site, not freeze them there."""
     import os
     import tempfile
-    from unicum import loadouts
+    from unicum.loadouts import store as loadouts
+    from unicum.loadouts.uploader import Uploader
 
     folder = tempfile.mkdtemp()
     store, loadouts.STORE = loadouts.STORE, os.path.join(folder, 'loadouts.json')
     try:
         session, switch = _Recorder(), _Switch(on=True)
         link = type('L', (object,), {'secret': 'a-linked-client'})()
-        uploader = loadouts.Uploader(session, switch, link)
+        uploader = Uploader(session, switch, link)
         uploader._sent = {7169: {'f': 'abc', 'd': set(), 'c': 5}}
         loadouts.save_sent(uploader._sent)
 
