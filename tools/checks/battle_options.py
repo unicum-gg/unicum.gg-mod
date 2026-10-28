@@ -203,16 +203,49 @@ def check_reload_announcer():
     only.reload(20.0, True)
     check('the report that settles it is acted on at once', len(picked) == 5)
 
-    # Off means off, for a swap as much as for a shot.
+    # The C key: a clip reloaded on purpose, with shells still in it. Heard by
+    # nothing before, for the same reason a swap was not: the decision only
+    # ever armed on a shot, and the press fires none.
+    now[0] += 60.0
+    only.reloaded()
+    only.reload(20.0, True)
+    settle_only()
+    check('a clip reloaded by hand is announced', len(picked) == 6)
+
+    now[0] += 60.0
+    only.reloaded()
+    settle_only()
+    check('a press the client dropped, bringing no reload, is not announced',
+          len(picked) == 6)
+
+    # The press answers nothing, so a full clip or an autoloader reaches here
+    # as an ordinary press. What keeps it quiet is that no reload follows,
+    # which is the case above, not a guess made about the gun.
+    now[0] += 60.0
+    only.shells(1, 5, 2)
+    now[0] += 0.1
+    only.reloaded()
+    only.reload(20.0, True)
+    settle_only()
+    check('a manual reload does not steal the reload of a shot already waiting',
+          len(picked) == 6)
+
+    # Off means off, for either press as much as for a shot.
     silent = []
     quiet = ReloadAnnouncer(lambda: now[0], lambda: silent.append(now[0]),
-                            allows_swap=lambda: False)
+                            allows_press=lambda: False)
     now[0] += 60.0
     quiet.swapped()
     quiet.reload(20.0, False)
     now[0] += 0.6
     quiet.tick()
     check('a change of shell says nothing with announcements off', silent == [])
+    now[0] += 60.0
+    quiet.reloaded()
+    quiet.reload(20.0, True)
+    now[0] += 0.6
+    quiet.tick()
+    check('nor does a manual reload', silent == [])
 
 
 def check_alt_only():

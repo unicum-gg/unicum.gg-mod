@@ -7,12 +7,19 @@ autoloader only when its magazine runs out. The message is the client's own: the
 battle's chat commands controller builds it from the reload time and shells
 left (sendReloadingCommand), special reloads included. This only chooses when.
 
-And after a change of shell, which reloads the gun with the new one and left
-nothing to announce at all: the decision only ever armed on a shot, and a
-swap fires nothing, so the reload arrived, paired with nothing and was
-dropped. A swap is not gated on the magazine/all setting the way a shot is:
-that setting is there to keep a single-shot gun from announcing every shot,
-and a swap is a deliberate act a player performs a handful of times.
+And after either of the two presses that reload the gun on purpose, neither of
+which left anything to announce at all: the decision only ever armed on a
+shot, and a press fires nothing, so the reload arrived, paired with nothing
+and was dropped.
+
+    change of shell    `ammo.changeSetting`, from the keys or the panel
+    reload the clip    `ammo.reloadClip`, the C key (CMD_RELOAD_PARTIAL_CLIP)
+
+Neither is gated on the magazine/all setting the way a shot is. That setting
+is there to keep a single-shot gun from announcing every shot, and these are
+deliberate acts a player performs a handful of times. The C key is a magazine
+gun's alone: the client drops the press on an autoloader and on a single-shot
+gun, which is left to the client rather than predicted here.
 
 The server lets the same command through once every 5 seconds
 (messenger_common_chat2._SAME_BATTLE_CHAT_CMD_COOLDOWN_DURATION). A reload
@@ -53,6 +60,13 @@ _TICK_SECONDS = 0.1
 # what the player actually did.
 _SHOT = 'shot'
 _SWAP = 'change of shell'
+_CLIP = 'manual reload'
+
+# The two deliberate presses, as against a shot. Both reload the gun on
+# purpose and with shells still in the magazine, which is the whole point of
+# either, so neither is judged by the rule that sends a shot away when the
+# magazine is not empty.
+_PRESSES = (_SWAP, _CLIP)
 
 
 class ReloadAnnouncer(object):
@@ -62,16 +76,17 @@ class ReloadAnnouncer(object):
     announces, and tick() is called often to decide on a settled shot.
     """
 
-    def __init__(self, clock, send, skipped=None, allows=None, allows_swap=None):
+    def __init__(self, clock, send, skipped=None, allows=None, allows_press=None):
         self._clock = clock
         self._send = send
         # skipped(reason): a shot that is not announced, and why.
         self._skipped = skipped or (lambda reason: None)
         # allows(magazine): whether this kind of reload is announced at all.
         self._allows = allows or (lambda magazine: True)
-        # allows_swap(): whether a change of shell is announced; see the
-        # module docstring for why it does not ask `allows`.
-        self._allows_swap = allows_swap or (lambda: True)
+        # allows_press(): whether a deliberate press is announced, meaning a
+        # change of shell or a manual clip reload. See the module docstring
+        # for why neither asks `allows`.
+        self._allows_press = allows_press or (lambda: True)
         self._quantities = {}
         self._pending = None
         self._reloads = []
@@ -94,6 +109,22 @@ class ReloadAnnouncer(object):
         """
         if self._pending is None:
             self._pending = (self._clock(), _SWAP, 0)
+
+    def reloaded(self):
+        """The player asked for the clip to be reloaded, which is the C key.
+
+        A magazine gun only, and deliberately: the client refuses the press
+        outright on an autoloader and on a single-shot gun
+        (`ammo_ctrl.reloadClip` requires `isMagazineClip` and not
+        `hasAutoReload`), and refuses it on a clip that is already full. None
+        of that is predicted here. Whether a reload actually followed is
+        observed, exactly as it is for a swap, so a press that did nothing
+        pairs with nothing and is never announced.
+
+        Not over a shot already waiting, for the reason given in `swapped`.
+        """
+        if self._pending is None:
+            self._pending = (self._clock(), _CLIP, 0)
 
     def reload(self, time_left, magazine):
         """A reload was reported, `time_left` seconds to go; `magazine` for a clip or autoloader."""
@@ -146,14 +177,14 @@ class ReloadAnnouncer(object):
     def _decide(self, now, kind, in_clip, time_left, magazine):
         """Announce this reload or say why not; the reloads seen are spent."""
         self._reloads = []
-        if kind == _SWAP:
-            if not self._allows_swap():
-                self._skipped('a change of shell is not announced by the settings')
+        if kind in _PRESSES:
+            if not self._allows_press():
+                self._skipped('a %s is not announced by the settings' % kind)
                 return
         else:
             # A magazine with shells left starts no reload of its own, so the
             # reload that came with the shot belongs to something else. A
-            # swap is the exception and is handled above: it reloads whatever
+            # press is the exception and is handled above: it reloads whatever
             # is still in the magazine, which is the point of announcing it.
             if magazine and in_clip > 0:
                 self._skipped('%d shells still in the magazine' % in_clip)
@@ -179,9 +210,10 @@ class AutoReload(object):
         self._settings = settings
         self._ammo = None
         self._announcer = None
-        # The instance attribute put over `changeSetting`, so _detach can
-        # take it back off again. None when nothing is wrapped.
-        self._wrapped_change = None
+        # {name: wrapper} for each controller call we put our own over, so
+        # _detach can take each back off again. Empty when nothing is
+        # wrapped.
+        self._wrapped = {}
 
     def install(self):
         self._session.repeat(_ATTACH_SECONDS, self._follow)
@@ -204,7 +236,7 @@ class AutoReload(object):
                                           self._settings.shows_auto_reload)
         ammo.onShellsUpdated += self._on_shells
         ammo.onGunReloadTimeSet += self._on_reload
-        self._watch_swaps(ammo)
+        self._watch_presses(ammo)
         _logger.info('following the reloads of this battle, announcing %s',
                      'on' if self._settings.shows_auto_reload() else 'off')
 
@@ -215,41 +247,60 @@ class AutoReload(object):
         except Exception:
             _logger.exception('could not decide on a shot')
 
-    def _watch_swaps(self, ammo):
-        """Hear every change of shell, by wrapping the one call they all make.
+    def _watch_presses(self, ammo):
+        """Hear the two deliberate presses, by wrapping the calls they make.
 
-        `changeSetting` is where the keys and the panel both end up
-        (`handleAmmoChoice` reaches it through the view component,
-        `_handleAmmoPressed` calls it outright), and it answers True only
-        when the change was really dispatched to the server. So it says what
-        the player did without this having to read keys or guess at a reload
-        event, which also fires at the start of a battle and whenever the
-        panel refreshes.
+        `changeSetting` is where a change of shell ends up, from the keys and
+        from the panel alike (`handleAmmoChoice` reaches it through the view
+        component, `_handleAmmoPressed` calls it outright), and it answers
+        True only when the change was really dispatched to the server.
 
-        An instance attribute rather than `session.patch`: the controller is
+        `reloadClip` is the C key, straight from `Avatar.handleKey` on
+        `CMD_RELOAD_PARTIAL_CLIP`. It answers nothing at all, so unlike a swap
+        there is no telling from the call whether anything happened: the
+        client drops the press on an autoloader, on a single-shot gun and on a
+        full clip. That costs nothing, because an announcement waits on a
+        reload being reported either way, and a press that started none pairs
+        with nothing.
+
+        Wrapping these rather than reading keys: the key is rebindable, and
+        the reload event they lead to also fires at the start of a battle and
+        whenever the panel refreshes, so neither the key nor the event says
+        what the player did.
+
+        Instance attributes rather than `session.patch`: the controller is
         built fresh for every battle, so a patch per battle would pile up
-        undos for objects long gone. This comes off in `_detach`, with the
+        undos for objects long gone. These come off in `_detach`, with the
         subscriptions, for the same reason and at the same time.
         """
+        self._wrapped = {}
+        self._wrap(ammo, 'changeSetting', lambda answer: bool(answer),
+                   lambda announcer: announcer.swapped())
+        # Answered by nothing, so every press arms the decision and the
+        # pairing decides. See above.
+        self._wrap(ammo, 'reloadClip', lambda answer: True,
+                   lambda announcer: announcer.reloaded())
+
+    def _wrap(self, ammo, name, happened, tell):
+        """Put our own `name` over the controller's, remembering it to undo."""
         try:
-            original = ammo.changeSetting
+            original = getattr(ammo, name)
 
-            def changeSetting(*args, **kwargs):
-                changed = original(*args, **kwargs)
+            def wrapper(*args, **kwargs):
+                answer = original(*args, **kwargs)
                 try:
-                    if changed and self._announcer is not None:
-                        self._announcer.swapped()
+                    if self._announcer is not None and happened(answer):
+                        tell(self._announcer)
                 except Exception:
-                    _logger.exception('could not follow a change of shell')
-                return changed
+                    _logger.exception('could not follow %s', name)
+                return answer
 
-            ammo.changeSetting = changeSetting
-            self._wrapped_change = changeSetting
+            setattr(ammo, name, wrapper)
+            self._wrapped[name] = wrapper
         except Exception:
-            # A client that will not take the wrapper keeps every other
-            # announcement: only swaps go unheard.
-            _logger.exception('could not follow the changes of shell')
-            self._wrapped_change = None
+            # A client that will not take one wrapper keeps every other
+            # announcement: only that one press goes unheard.
+            _logger.exception('could not follow %s', name)
 
     def _detach(self):
         if self._ammo is not None:
@@ -258,16 +309,16 @@ class AutoReload(object):
                 self._ammo.onGunReloadTimeSet -= self._on_reload
             except Exception:
                 _logger.exception('could not let go of the ammo controller')
-            if self._wrapped_change is not None:
+            for name, wrapper in self._wrapped.items():
                 try:
                     # Only our own wrapper is removed. Another mod may have
                     # wrapped ours since, and deleting the attribute then
                     # would throw that one away with it.
-                    if self._ammo.__dict__.get('changeSetting') is self._wrapped_change:
-                        del self._ammo.changeSetting
+                    if self._ammo.__dict__.get(name) is wrapper:
+                        delattr(self._ammo, name)
                 except Exception:
-                    _logger.exception('could not unwrap the change of shell')
-        self._wrapped_change = None
+                    _logger.exception('could not unwrap %s', name)
+        self._wrapped = {}
         self._ammo = None
         self._announcer = None
 
