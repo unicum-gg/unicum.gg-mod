@@ -31,7 +31,8 @@ ALLOWED = {
     # modules of replays/, the largest 261.
     # settings_window.py came off on 2026-10-28 (issue #3): 770 lines
     # became the five modules of settings_window/, the largest 263.
-    'twitch_window.py': 670,
+    # twitch_window.py came off on 2026-10-28: 670 lines became the
+    # five modules of twitch_window/, the largest 216.
     'twitch.py': 595,
     'battle.py': 551,
     'settings.py': 526,

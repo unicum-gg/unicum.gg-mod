@@ -179,7 +179,7 @@ def parse_position(text):
 
 # Where the garage panel last was: a PanelRect, or None until it has said.
 # The battle queue screen, which replaces the hangar, opens the Twitch window
-# at the same place and size (twitch_window.py).
+# at the same place and size (twitch_window/placing.py).
 _rect = None
 
 # How many reports the garage panel has sent: a new one is the sign a garage
@@ -189,7 +189,7 @@ _reports = 0
 # Called on every report, for the Twitch window to hand the screen back at once.
 _report_hook = None
 
-# Whether the Twitch window covers the panel (twitch_window.py).
+# Whether the Twitch window covers the panel (twitch_window/window.py).
 _covered = False
 
 PanelRect = collections.namedtuple('PanelRect', 'left top width height screen_width screen_height folded '

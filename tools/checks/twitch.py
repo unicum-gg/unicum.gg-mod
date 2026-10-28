@@ -550,7 +550,9 @@ def check_error_reporting():
 def check_twitch_window():
     """The Twitch window on the queue screen: the garage panel's state, place and size."""
     from unicum.twitch_panel import PanelRect, parse_rect
-    from unicum.twitch_window import is_queue_route, parse_size, resized, window_place, window_state
+    from unicum.twitch_window.placing import (parse_size, resized,
+                                              window_place, window_state)
+    from unicum.twitch_window.where import is_queue_route
 
     rect = parse_rect('1500,600,322,220,1920,1080,0,322,220,1552,700')
     check('the garage panel reports its box, the screen, the fold, its size in rem and its own place',
