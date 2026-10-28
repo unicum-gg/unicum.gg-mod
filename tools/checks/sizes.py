@@ -41,7 +41,8 @@ ALLOWED = {
     'lobby.py': 492,
     # game_link.py came off on 2026-10-28: 469 lines became the three
     # modules of game_link/, the largest 348.
-    'tank_button.py': 458,
+    # tank_button.py came off on 2026-10-28: 458 lines became the four
+    # modules of tank_button/, the largest 209.
 }
 
 
