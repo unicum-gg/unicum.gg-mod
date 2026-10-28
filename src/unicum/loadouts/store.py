@@ -99,6 +99,28 @@ def marks_hash(marks):
     """
     return hashlib.md5(json.dumps(sorted(marks.items()), sort_keys=True)).hexdigest()
 
+def load_garage_hash():
+    """The garage as it was when the server last accepted it."""
+    return _read_store().get('garageHash')
+
+def save_garage_hash(value):
+    document = _read_store()
+    document['garageHash'] = value
+    _write_store(document)
+
+def garage_hash(garage):
+    """One value for the whole garage, so an unchanged one is free.
+
+    The same reasoning as `marks_hash`, with the opposite rhythm: marks move
+    with every battle, while a garage changes only when the player buys or
+    sells. Without this the list would ride on sweeps that had a loadout to
+    send and nothing else, and a player who has not touched their garage in a
+    month has nothing to send -- which is exactly when the list is worth
+    having, because it is then the only statement that their collection is
+    still what it was.
+    """
+    return hashlib.md5(json.dumps(sorted(garage))).hexdigest()
+
 def load_withdraw():
     """Whether the player asked us to be forgotten and the server has not said it did."""
     return bool(_read_store().get('withdraw'))

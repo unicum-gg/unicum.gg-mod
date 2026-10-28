@@ -117,6 +117,16 @@ def install_fake_client(bigworld):
     _attach('gui.Scaleform.framework.managers',
             'gui.Scaleform.framework.managers.loaders', loaders)
     shared = sys.modules['gui.shared']
+    # The criteria the mod asks the item cache with. Only their identity
+    # matters here: a fake cache is handed the criterion and answers with the
+    # inventory it was built with, so what is tested is what the mod does with
+    # the answer rather than the client's own filtering.
+    utils = _package('gui.shared.utils')
+    setattr(shared, 'utils', utils)
+    requesters = types.ModuleType('gui.shared.utils.requesters')
+    requesters.REQ_CRITERIA = type('REQ_CRITERIA', (object,),
+                                   {'INVENTORY': 'inventory'})
+    _attach('gui.shared.utils', 'gui.shared.utils.requesters', requesters)
     shared.EVENT_BUS_SCOPE = type('EVENT_BUS_SCOPE', (object,), {'GLOBAL': 'global', 'BATTLE': 'battle'})
     shared.events = types.ModuleType('gui.shared.events')
     shared.events.GameEvent = type('GameEvent', (object,), {'BATTLE_LOADING': 'battleLoading'})

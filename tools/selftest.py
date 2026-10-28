@@ -46,6 +46,7 @@ from checks.imports import check_imports
 from checks.sizes import check_file_sizes
 from checks.settings import check_live_settings, check_res_mods_version, check_settings, check_settings_window
 from checks.loadouts import (check_crew_away, check_crew_from_last_battle, check_demounting,
+                             check_garage_statement,
                              check_loadout_setting, check_loadout_store, check_loadouts,
                              check_withdrawal)
 from checks.battles import (check_announced_battles, check_battle_answer, check_battle_blame, check_battle_claims, check_battle_lives,
@@ -145,6 +146,7 @@ def main():
         check_crew_away()
         check_crew_from_last_battle()
         check_loadout_store()
+        check_garage_statement()
         check_loadout_setting()
         check_battles()
         check_battle_lives()

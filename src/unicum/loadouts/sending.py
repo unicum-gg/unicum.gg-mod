@@ -16,10 +16,12 @@ import logging
 import time
 
 from unicum import build, config, game_link
-from unicum.loadouts.reading import crewed, fingerprint, mounted
-from unicum.loadouts.store import (_keep_rejected, changed, load_marks_hash,
-                                   load_sent, marks_hash, save_marks_hash,
-                                   save_sent, save_withdraw)
+from unicum.loadouts.reading import (crewed, fingerprint, fleet_garage,
+                                     mounted)
+from unicum.loadouts.store import (_keep_rejected, changed, garage_hash,
+                                   load_garage_hash, load_marks_hash,
+                                   load_sent, marks_hash, save_garage_hash,
+                                   save_marks_hash, save_sent, save_withdraw)
 
 _logger = logging.getLogger('unicum.loadouts.sending')
 
@@ -44,11 +46,21 @@ class Sending(object):
         except Exception:
             _logger.exception('could not read the fleet marks')
             self._marks, fresh_marks = {}, False
+        # The garage itself, for the same reason and on the same terms: it is
+        # the only statement of what is owned that anyone can make, since
+        # Wargaming has no row for a vehicle that was never played.
+        try:
+            self._garage = fleet_garage()
+            fresh_garage = (bool(self._garage)
+                            and garage_hash(self._garage) != load_garage_hash())
+        except Exception:
+            _logger.exception('could not read the garage')
+            self._garage, fresh_garage = [], False
         # A vehicle the player parted with: we hold a fingerprint for it and
         # it is no longer in the carousel.
         owned = set(record['tankId'] for record in records)
         sold = [tank for tank in self._sent if tank not in owned]
-        if not pending and not sold and not fresh_marks:
+        if not pending and not sold and not fresh_marks and not fresh_garage:
             self._busy = False
             _logger.info('nothing to send: %d vehicles, all of them unchanged', len(records))
             return
@@ -88,7 +100,9 @@ class Sending(object):
     def _post(self, pending, sold, at=0):
         """One batch, then the next. Stops at the first failure."""
         batch = pending[at:at + _BATCH]
-        if not batch and (at > 0 or (not sold and not getattr(self, '_marks', None))):
+        if not batch and (at > 0 or (not sold
+                                     and not getattr(self, '_marks', None)
+                                     and not getattr(self, '_garage', None))):
             self._busy = False
             save_sent(self._sent)
             return
@@ -106,11 +120,18 @@ class Sending(object):
         # once per upload, not once per vehicle, so the lookup is free here
         # and the uploader does not need to hold the sweep's state.
         marks = []
+        garage = []
         if at == 0:
             marks = [{'tankId': intCD, 'marks': found[0], 'markPercent': found[1]}
                      for intCD, found in getattr(self, '_marks', {}).items()]
+            # The garage rides with the first batch too, and for a third set
+            # again: `loadouts` is what is bolted to a vehicle, `marks` what
+            # was achieved on one the player may have sold, and this is simply
+            # what is held. It is the only one of the three that can be
+            # stated as a whole, so it is stated as a whole or not at all.
+            garage = getattr(self, '_garage', None) or []
         body = json.dumps({'loadouts': batch, 'sold': sold if at == 0 else [],
-                           'marks': marks})
+                           'marks': marks, 'garage': garage})
 
         def answered(response):
             code = getattr(response, 'responseCode', None)
@@ -129,6 +150,8 @@ class Sending(object):
                 # refused batch must leave the fleet looking unsent so the next
                 # sweep offers it again.
                 save_marks_hash(marks_hash(getattr(self, '_marks', {})))
+            if at == 0 and garage:
+                save_garage_hash(garage_hash(garage))
             for record in batch:
                 self._sent[record['tankId']] = {'f': fingerprint(record),
                                                 'd': mounted(record),

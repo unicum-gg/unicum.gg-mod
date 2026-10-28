@@ -21,6 +21,87 @@ _logger = logging.getLogger('unicum.loadouts.reading')
 _AMMO = 1
 _DEVICES = 2
 
+# What makes a vehicle in the inventory not one the player owns.
+#
+# Each is the client's own property, not the tag behind it, so a rename in
+# `VEHICLE_TAGS` costs nothing here. Only the ones we are sure about: a
+# vehicle locked to one mode is handed out for that mode, cannot be sold and
+# has no value to count, while a rented one is somebody else's.
+#
+# `isOnlyForEpicBattles` is deliberately absent. Frontline is played in the
+# player's own tier 8 vehicles, so the flag marks a mode a vehicle can enter
+# rather than a vehicle the mode lent out; the rented ones among them are
+# already caught by `isRented`.
+_NOT_OWNED = ('isRented',
+              'isOnlyForEventBattles',
+              'isOnlyForBattleRoyaleBattles',
+              'isOnlyForMapsTrainingBattles',
+              'isOnlyForClanWarsBattles',
+              'isObserver')
+
+
+def _why_not_owned(vehicle):
+    """The first reason this vehicle is not the player's, or None."""
+    for flag in _NOT_OWNED:
+        try:
+            if bool(getattr(vehicle, flag, False)):
+                return flag
+        except Exception:
+            # A property that raises is a client change, not an answer. Read
+            # as "no reason found", which keeps the vehicle: this list decides
+            # what to leave out, so a failure here must not silently empty a
+            # garage.
+            _logger.exception('could not read %s', flag)
+    return None
+
+
+def fleet_garage(items=None):
+    """Every vehicle the account owns, as sorted intCDs.
+
+    The inventory rather than the dossier, which is the opposite of
+    `build.fleet_marks` and for the opposite reason: a mark is something that
+    was achieved and is kept after a sale, while the garage is what is held
+    right now. The two sets differ by about a third on a real account.
+
+    This exists because Wargaming cannot answer the question. `wot/tanks/stats`
+    only has a row for a vehicle with a stats record, so a tank bought and
+    never taken into a battle does not exist for the API, token or not.
+    Measured on one account: 80 of ~206 vehicles, and they are the collection
+    pieces, which are usually the expensive ones. The client knows all of
+    them, and nobody but the client does.
+
+    Entirely local and synchronous, like `fleet_marks`: the item cache is
+    already in memory, so this is safe on the thread that draws the garage.
+    """
+    from gui.shared.utils.requesters import REQ_CRITERIA
+    if items is None:
+        from helpers import dependency
+        from skeletons.gui.shared import IItemsCache
+        items = dependency.instance(IItemsCache).items
+    try:
+        inventory = items.getVehicles(REQ_CRITERIA.INVENTORY).values()
+    except Exception:
+        _logger.exception('could not list the garage')
+        return []
+
+    owned, left_out = [], {}
+    for vehicle in inventory:
+        reason = _why_not_owned(vehicle)
+        if reason is None:
+            owned.append(vehicle.intCD)
+        else:
+            left_out.setdefault(reason, []).append(vehicle.intCD)
+    if left_out:
+        # Said out loud rather than counted: the ids are how a vehicle that
+        # should have been kept gets found, and the site has already seen a
+        # handful it cannot name.
+        _logger.info('garage: %d owned, left out %s', len(owned),
+                     ', '.join('%d %s' % (len(ids), flag)
+                               for flag, ids in sorted(left_out.items())))
+        _logger.debug('garage: left out %s', left_out)
+    return sorted(owned)
+
+
 def _names(items):
     return [item.name if item is not None else None for item in items]
 

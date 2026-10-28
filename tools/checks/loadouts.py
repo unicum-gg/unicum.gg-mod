@@ -333,3 +333,88 @@ def check_loadout_setting():
     check('turning it off stops them', not settings.sends_loadouts())
     settings.update({'sendLoadouts': True, 'enabled': False})
     check('the mod off sends nothing either', not settings.sends_loadouts())
+
+
+class _Vehicle(object):
+    """A garage vehicle, as `fleet_garage` reads one."""
+
+    def __init__(self, intCD, **flags):
+        self.intCD = intCD
+        for name, value in flags.items():
+            setattr(self, name, value)
+
+
+class _Items(object):
+    """The client's item cache, holding one inventory."""
+
+    def __init__(self, vehicles):
+        self._vehicles = vehicles
+
+    def getVehicles(self, criteria=None):
+        return dict((vehicle.intCD, vehicle) for vehicle in self._vehicles)
+
+
+def check_garage_statement():
+    """The inventory as a statement: what counts as owned, and when it is sent.
+
+    This exists because Wargaming cannot answer the question at all. A vehicle
+    bought and never taken into a battle has no stats record, so it has no row
+    in `wot/tanks/stats` and no token makes one appear. Measured on one
+    account: 80 vehicles out of about 206, and they are the collection pieces.
+    The client knows them and nothing else does.
+    """
+    import os
+    import tempfile
+    from unicum.loadouts import store as loadouts
+    from unicum.loadouts.reading import fleet_garage
+
+    held = _Vehicle(7169)
+    rented = _Vehicle(7170, isRented=True)
+    event = _Vehicle(1311569, isOnlyForEventBattles=True)
+    hunter = _Vehicle(1331969, isOnlyForBattleRoyaleBattles=True)
+    training = _Vehicle(1343521, isOnlyForMapsTrainingBattles=True)
+    globalmap = _Vehicle(1344081, isOnlyForClanWarsBattles=True)
+    observer = _Vehicle(1345089, isObserver=True)
+
+    garage = fleet_garage(_Items([held, rented, event, hunter, training,
+                                  globalmap, observer]))
+    check('only what the player really owns is stated', garage == [7169])
+
+    # Frontline is played in the player's own tier 8 vehicles, so the flag
+    # marks a mode a vehicle may enter, not a vehicle the mode lent out. A
+    # rented one is caught by `isRented` instead.
+    epic = _Vehicle(7171, isOnlyForEpicBattles=True)
+    check('a vehicle merely allowed into a mode is still owned',
+          fleet_garage(_Items([epic])) == [7171])
+
+    # A property that raises is a client change, not an answer: the vehicle is
+    # kept, because this list decides what to leave OUT and a failure here
+    # must never silently empty a garage.
+    class _Broken(object):
+        intCD = 7172
+
+        @property
+        def isRented(self):
+            raise RuntimeError('a client patch moved this')
+
+    check('a flag that cannot be read keeps the vehicle',
+          fleet_garage(_Items([_Broken()])) == [7172])
+    check('sorted, so the same garage hashes the same',
+          fleet_garage(_Items([_Vehicle(99), _Vehicle(7), _Vehicle(50)]))
+          == [7, 50, 99])
+
+    folder = tempfile.mkdtemp()
+    store, loadouts.STORE = loadouts.STORE, os.path.join(folder, 'loadouts.json')
+    try:
+        check('nothing has been accepted yet', loadouts.load_garage_hash() is None)
+        loadouts.save_garage_hash(loadouts.garage_hash([7169, 7170]))
+        check('an unchanged garage costs no request',
+              loadouts.garage_hash([7169, 7170]) == loadouts.load_garage_hash())
+        check('and the order it is read in does not make it changed',
+              loadouts.garage_hash([7170, 7169]) == loadouts.load_garage_hash())
+        check('a purchase makes it worth sending',
+              loadouts.garage_hash([7169, 7170, 7171]) != loadouts.load_garage_hash())
+        check('a sale too',
+              loadouts.garage_hash([7169]) != loadouts.load_garage_hash())
+    finally:
+        loadouts.STORE = store
