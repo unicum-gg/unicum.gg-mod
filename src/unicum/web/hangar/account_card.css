@@ -37,10 +37,40 @@
     cursor: pointer;
 }
 
-/* The border alone, which is the only thing these cards draw with: a fill on
-   hover would make it the one lit panel in a dark hangar. */
-.UnicumAccountCard__linked:hover {
-    border-color: rgba(255, 255, 255, 0.28);
+/* The hangar does not recolour a card on hover: it fades a layer in over it.
+   Measured on the mission cards beside this one (`QuestCard_hoverBg`): a plain
+   white layer, `opacity: 0` at rest, `transition: opacity 0.1s ease-in-out`,
+   and `.15` when hovered, which is the value five other views of the client
+   spell out for the same `hoverBg` pattern.
+
+   Copied rather than approximated. The first version of this hover brightened
+   the border instead, on the reasoning that a fill would make the card the one
+   lit panel in a dark hangar: that reasoning was never measured and was simply
+   wrong, and the card read as foreign among the ones it sits with. */
+.UnicumAccountCard__linked::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background-color: #ffffff;
+    opacity: 0;
+    transition: opacity 0.1s ease-in-out;
+    /* The click belongs to the card, and a layer over it would swallow it. */
+    pointer-events: none;
+    z-index: 0;
+}
+
+.UnicumAccountCard__linked:hover::after {
+    opacity: 0.15;
+}
+
+/* Over the layer, where the client's own cards keep their content: theirs sits
+   after the layer in the DOM, ours needs saying because `::after` is last. */
+.UnicumAccountCard__linked > * {
+    position: relative;
+    z-index: 1;
 }
 
 .UnicumAccountCard_logo {
