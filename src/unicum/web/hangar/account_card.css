@@ -28,8 +28,19 @@
     align-items: flex-start;
 }
 
+/* Linked, the whole card opens the player's page, so it says so: the hangar's
+   own cards are clickable and this one sat among them looking inert. Only
+   linked, because unlinked there is no page to open and a card that looks
+   clickable without being it is worse than one that plainly is not. */
 .UnicumAccountCard__linked {
     min-height: 40rem;
+    cursor: pointer;
+}
+
+/* The border alone, which is the only thing these cards draw with: a fill on
+   hover would make it the one lit panel in a dark hangar. */
+.UnicumAccountCard__linked:hover {
+    border-color: rgba(255, 255, 255, 0.28);
 }
 
 .UnicumAccountCard_logo {

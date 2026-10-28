@@ -60,7 +60,7 @@ from checks.extras import (check_badge_glyphs, check_battle_count, check_entry_s
                            check_winrate_label)
 from checks.perf import check_perf_meter, check_perf_naming, check_perf_setting
 from checks.tank_menu import check_tank_menu
-from checks.twitch import check_error_reporting, check_links_per_account, check_channel_label, check_echo_guard, check_panel_position, check_own_message, check_panel_size, check_twitch_window, check_twitch_panel, check_regions, check_twitch, check_linked_channel, check_twitch_badges, check_twitch_receiver, check_twitch_send
+from checks.twitch import check_account_card_link, check_error_reporting, check_links_per_account, check_channel_label, check_echo_guard, check_panel_position, check_own_message, check_panel_size, check_twitch_window, check_twitch_panel, check_regions, check_twitch, check_linked_channel, check_twitch_badges, check_twitch_receiver, check_twitch_send
 
 
 def main():
@@ -132,6 +132,7 @@ def main():
         check_echo_guard()
         check_own_message()
         check_twitch_panel()
+        check_account_card_link()
         check_twitch_window()
         check_error_reporting()
         check_panel_position()

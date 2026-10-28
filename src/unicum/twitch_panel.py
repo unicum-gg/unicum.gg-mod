@@ -118,6 +118,15 @@ class TwitchPanel(object):
             text = args.get('text')
             if isinstance(text, basestring) and text.strip() and self._sender is not None:
                 self._sender.send(text.strip()[:500])
+        elif item == 'accountProfile':
+            # The name the site answered with, which is the Wargaming nickname:
+            # the account was created by the Wargaming sign-in, so the page is
+            # addressed by the same word the card shows. No name means the site
+            # has not answered yet, and a URL built on that would be a 404.
+            name = getattr(self._link, 'name', None)
+            if name:
+                from unicum.tank_button import open_url, player_url
+                open_url(player_url(name, content='account-card'))
         elif item == 'accountSettings':
             from unicum import mods_list
             mods_list.open_settings()

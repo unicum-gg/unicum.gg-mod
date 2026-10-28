@@ -10,13 +10,17 @@
 // the model's onItemClick, which links the account alone
 // (src/unicum/game_link.py), the gear accountSettings, which opens the mod's
 // settings window, and the cross accountHide, which hides the card for the
-// Wargaming account logged in only.
+// Wargaming account logged in only. Linked, the card itself sends
+// accountProfile, which opens the player's own page on the site: the hangar's
+// cards are clickable and this one sat beside them doing nothing.
 
 const { model, report } = api;
 // Replaced by Python with data URIs of web/hangar/panel_icons/*.png.
 const PANEL_ICONS = __PANEL_ICONS__;
 
-const state = { alive: true, json: null };
+// `linked` decides whether the card is a link at all: unlinked there is no
+// page to open, and the Connect button is the only thing to press.
+const state = { alive: true, json: null, linked: false };
 
 // Pixels to the rem the hangar lays out in; 1 when the view does not say.
 const toRem = (px) => (typeof viewEnv !== "undefined" && viewEnv.pxToRem ? viewEnv.pxToRem(px) : px);
@@ -90,9 +94,20 @@ function onSettingsClick(event) {
     }
 }
 
+// The card itself: the player's own page on the site. The gear, the cross and
+// Connect all stop the click before it gets here, so each keeps its own job.
+function onCardClick(event) {
+    event.stopPropagation();
+    if (!state.linked || !model.model) {
+        return;
+    }
+    model.model.onItemClick({ item: "accountProfile", text: "" });
+}
+
 connect.addEventListener("click", onConnectClick);
 settings.addEventListener("click", onSettingsClick);
 close.addEventListener("click", onCloseClick);
+root.addEventListener("click", onCardClick);
 root.addEventListener("mousedown", stop);
 
 // Right under the lowest mission card on the right of the screen: how many
@@ -123,6 +138,7 @@ function place() {
 
 function render(data) {
     const account = data.account || {};
+    state.linked = Boolean(account.linked);
     root.style.display = account.hidden ? "none" : "";
     root.className = "UnicumAccountCard" + (account.linked ? " UnicumAccountCard__linked" : "");
     if (account.linked) {
@@ -168,6 +184,7 @@ return {
         connect.removeEventListener("click", onConnectClick);
         settings.removeEventListener("click", onSettingsClick);
         close.removeEventListener("click", onCloseClick);
+        root.removeEventListener("click", onCardClick);
         root.removeEventListener("mousedown", stop);
         if (root.parentNode) {
             root.parentNode.removeChild(root);

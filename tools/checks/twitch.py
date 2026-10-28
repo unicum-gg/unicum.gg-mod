@@ -589,3 +589,51 @@ def check_twitch_window():
           window_place(None, (1920, 1080), (322, 220)) == (1552, 430))
     check('the page\'s size is read in pixels, and nothing else',
           parse_size('322,220') == (322, 220) and parse_size('0,5') is None and parse_size('x') is None)
+
+
+def check_account_card_link():
+    """The account card opens the player's own page, and only when it can.
+
+    The hangar's own cards are clickable, and this one sat among them doing
+    nothing: a card that says "Connected as X" and ignores a click reads as
+    broken rather than as decoration.
+    """
+    import unicum.tank_button as tank_button
+    from unicum.twitch_panel import TwitchPanel
+
+    opened = []
+
+    class Link(object):
+        secret = 'a-secret'
+        name = '_Winnie'
+
+    link = Link()
+    panel = TwitchPanel.__new__(TwitchPanel)
+    panel._link = link
+    panel._sender = None
+
+    original, tank_button.open_url = tank_button.open_url, opened.append
+    try:
+        panel._act({'item': 'accountProfile', 'text': ''})
+        check('the card opens the page of the account it names',
+              len(opened) == 1 and '/eu/players/_Winnie' in opened[0])
+        # Told apart from the garage menu's own link, which the site reads to
+        # know where a visit came from.
+        check('and says it came from the card',
+              'utm_content=account-card' in opened[0])
+
+        # A nickname is not always a URL: the site is addressed by the client's
+        # own word for a player, so it has to survive the round trip.
+        link.name = u'Sgt. Pepper'
+        panel._act({'item': 'accountProfile', 'text': ''})
+        check('a nickname that needs escaping still addresses the right page',
+              'Sgt.%20Pepper' in opened[1] or 'Sgt.+Pepper' in opened[1])
+
+        # Before the site has answered there is no name, and a page built on
+        # nothing is a 404 served to someone who clicked a card that worked a
+        # moment ago.
+        link.name = None
+        panel._act({'item': 'accountProfile', 'text': ''})
+        check('with no name yet, nothing is opened', len(opened) == 2)
+    finally:
+        tank_button.open_url = original
