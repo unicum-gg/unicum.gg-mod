@@ -46,12 +46,12 @@ finds the buttons already on screen and gives them the current code.
 from __future__ import absolute_import
 
 from unicum.tank_button.button import FEATURE, LAYOUT, TankButton
-from unicum.tank_button.button import (panel_code, panel_sources,
-                                        set_twitch)
-from unicum.tank_button.sharing import compose, on_item
+from unicum.tank_button.button import (live_models, panel_code,
+                                       panel_sources, set_twitch)
+from unicum.tank_button.sharing import compose, on_item, open_url
 from unicum.tank_button.urls import (SITE_BASE, TABS, item_url,
-                                     markdown_url, player_url,
-                                     support_url, tank_url)
+                                     markdown_url, player_ai_url, player_url,
+                                     support_url, tank_ai_url, tank_url)
 
 
 def install(session, settings):

@@ -177,7 +177,7 @@ class TwitchWindowHost(Watching, Gestures):
 
     def _state_text(self):
         from unicum import twitch_panel
-        from unicum.twitch import ICON_RES_PATH
+        from unicum.twitch.protocol import ICON_RES_PATH
         from unicum.twitch_badges import drawable
         icon = 'img://%s' % ICON_RES_PATH if drawable(ICON_RES_PATH) else None
         state = twitch_panel.state(self._settings, self._chat, self._link, icon)

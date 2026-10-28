@@ -91,7 +91,7 @@ class TwitchPanel(object):
         models = tank_button.live_models()
         if not models:
             return
-        from unicum.twitch import ICON_RES_PATH
+        from unicum.twitch.protocol import ICON_RES_PATH
         from unicum.twitch_badges import drawable
         icon = 'img://%s' % ICON_RES_PATH if drawable(ICON_RES_PATH) else None
         text = json.dumps(state(self._settings, self._chat, self._link, icon))
@@ -125,10 +125,10 @@ class TwitchPanel(object):
             self._link.hide_card()
             _card_hidden_notice()
         elif item == 'accountConnect':
-            from unicum.settings_window import linked_notice
+            from unicum.settings_window.labels import linked_notice
             self._link.connect(linked_notice, twitch=False)
         elif item == 'twitchConnect':
-            from unicum.settings_window import linked_notice
+            from unicum.settings_window.labels import linked_notice
             self._link.connect(linked_notice)
         elif item == 'twitchCollapse':
             self._settings.update({'twitch': {'garageCollapsed': args.get('text') == '1'}})
@@ -155,7 +155,7 @@ def _notice(text):
 
 
 def _closed_notice():
-    from unicum.settings_window import GARAGE_CHAT_LABEL
+    from unicum.settings_window.labels import GARAGE_CHAT_LABEL
     _notice(u'unicum.gg: the Twitch chat panel is off. Turn it back on with "%s" in the unicum.gg '
             u'settings.' % GARAGE_CHAT_LABEL)
 
@@ -163,7 +163,7 @@ def _closed_notice():
 def _card_hidden_notice():
     """Where the card went, as the Twitch panel says where it went: closing
     something with no word on how to get it back reads as losing it."""
-    from unicum.settings_window import CARD_LABEL
+    from unicum.settings_window.labels import CARD_LABEL
     _notice(u'unicum.gg: the account card is hidden. Bring it back with "%s" in the unicum.gg '
             u'settings.' % CARD_LABEL)
 
