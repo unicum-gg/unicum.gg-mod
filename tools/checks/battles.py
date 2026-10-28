@@ -54,7 +54,8 @@ ARENA = ('59_asia_great_wall', 'ctf')
 
 
 def check_battles():
-    from unicum.battles import SURVIVED, client_version, cluster, payload
+    from unicum.battles.extract import SURVIVED, payload
+    from unicum.battles.naming import client_version, cluster
 
     check('the cluster comes out of the results\' own replayURL',
           cluster(RESULTS['personal']['avatar']['replayURL']) == 'EU-202')
@@ -138,7 +139,7 @@ def check_battles():
 
 def check_battle_lives():
     """A vehicle that respawned did all of it, and died once."""
-    from unicum.battles import payload
+    from unicum.battles.extract import payload
 
     results = dict(RESULTS)
     first = RESULTS['vehicles']['13089212'][0]
@@ -213,7 +214,8 @@ def check_battle_claims():
     way in one afternoon. The arena id is therefore written down when the battle
     starts and the results are asked for at the garage.
     """
-    from unicum.battles import (_CLAIM_DEADLINE, _MAX_CLAIMS, claimable, spent)
+    from unicum.battles.store import (_CLAIM_DEADLINE, _MAX_CLAIMS, claimable,
+                                      spent)
 
     now = 1000000.0
     played = {
@@ -258,7 +260,7 @@ def check_battle_answer():
     stored" and the whole queue -- the only copy of those battles -- was
     deleted in one flush.
     """
-    from unicum.battles import read_answer, settled
+    from unicum.battles.store import read_answer, settled
 
     check('an answer naming what it did is read',
           read_answer('{"stored": ["1", "2"], "known": ["3"], "rejected":'
@@ -292,8 +294,8 @@ def check_battle_answer():
 
 def check_battle_queue():
     """The file on disk: appended a line at a time, never rewritten on the event."""
-    from unicum.battles import (QUEUE, _MAX_QUEUED, append_queued, load_queue,
-                                queued, save_queue)
+    from unicum.battles.store import (QUEUE, _MAX_QUEUED, append_queued,
+                                      load_queue, queued, save_queue)
 
     workdir = tempfile.mkdtemp(prefix='unicum-battles-')
     original = os.getcwd()
@@ -448,7 +450,8 @@ def check_announced_battles():
     screen (issue #5), and the announcement lands about when that screen opens
     by itself.
     """
-    from unicum.battles import _ANNOUNCED_DELAY, _is_battle_results, Reporter
+    from unicum.battles.claiming import _ANNOUNCED_DELAY, _is_battle_results
+    from unicum.battles.reporter import Reporter
 
     # Random is 2; every other mode registers past the base enum while the
     # client starts, so 157 is as real a battle result type as 2 is.
@@ -491,7 +494,7 @@ def check_announced_battles():
         # `_client_has` because the real one needs the client's dependency
         # container, and what is under test is what the reporter does with
         # the answer rather than how it is obtained.
-        import unicum.battles as module
+        import unicum.battles.claiming as module
         held = module._client_has
         module._client_has = lambda arena_id: True
         try:
@@ -523,7 +526,8 @@ def check_announced_battles():
 
 def check_battle_reporter():
     """The patch on the client's own results, and the in-flight guard."""
-    from unicum.battles import _BUSY_DEADLINE, Reporter, _seconds
+    from unicum.battles.reporter import Reporter
+    from unicum.battles.sending import _BUSY_DEADLINE, _seconds
 
     workdir = tempfile.mkdtemp(prefix='unicum-reporter-')
     original = os.getcwd()

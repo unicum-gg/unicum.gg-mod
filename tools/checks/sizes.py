@@ -23,7 +23,8 @@ LIMIT = 400
 #: Written down on 2026-10-28, when 11 of 49 modules were over. The number
 #: beside each is a ceiling: it may go down and never up.
 ALLOWED = {
-    'battles.py': 1498,
+    # battles.py came off this list on 2026-10-28: 1498 lines became the
+    # seven modules of battles/, the largest 333.
     'loadouts.py': 972,
     'replays.py': 950,
     'settings_window.py': 770,

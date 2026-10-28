@@ -19,9 +19,9 @@ encrypted stream:
     block 1   [{personal, players, vehicles, common, arenaUniqueID, avatars}]
 
 Block 1 is the shape `postResult` hands the mod at the end of a battle, and
-block 0 holds the two things `battles.payload` needs that are not in the
+block 0 holds the two things `payload` needs that are not in the
 results. So a battle from months ago can be declared from its file alone, and
-`battles.payload` builds the body here rather than a copy of it living in
+`battles.extract.payload` builds the body here rather than a copy of it living in
 this file. About one replay in twenty carries no results at all, a battle
 left before it ended, and there is nothing to be done with those.
 
@@ -129,26 +129,44 @@ _MAX_IN_A_ROW = 3
 
 
 def mod_module(name: str):
-    """`unicum.<name>` on its own, without the package pulling in the game.
+    """`unicum.<dotted name>` on its own, without the package pulling in the game.
 
     `src/unicum/__init__.py` imports the whole mod, which imports `gui` and
     `BigWorld`, so the ordinary import fails outside the client. Loading the
-    one file by path gives the real `battles.payload` and the real answer
-    readers, which is the point: the body this sends is built by the code that
-    builds it in the game, so the two cannot drift apart.
+    files by path gives the real `payload` and the real answer readers, which
+    is the point: the body this sends is built by the code that builds it in
+    the game, so the two cannot drift apart.
+
+    Every package along the way is created first, and given a `__path__`, so
+    that a module's own `from unicum.battles.naming import cluster` resolves
+    the same way it does in the client.
     """
-    if "unicum" not in sys.modules:
-        package = types.ModuleType("unicum")
-        package.__path__ = [str(SRC)]
-        sys.modules["unicum"] = package
-    full = "unicum." + name
-    if full in sys.modules:
-        return sys.modules[full]
-    spec = importlib.util.spec_from_file_location(full, SRC / (name + ".py"))
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[full] = module
-    spec.loader.exec_module(module)
-    return module
+    parts = name.split(".")
+    here = SRC
+    dotted = "unicum"
+    if dotted not in sys.modules:
+        package = types.ModuleType(dotted)
+        package.__path__ = [str(here)]
+        sys.modules[dotted] = package
+    for depth, part in enumerate(parts):
+        dotted += "." + part
+        last = depth == len(parts) - 1
+        if dotted in sys.modules:
+            here = here / part
+            continue
+        folder = here / part
+        if folder.is_dir() and not last:
+            package = types.ModuleType(dotted)
+            package.__path__ = [str(folder)]
+            sys.modules[dotted] = package
+            here = folder
+            continue
+        spec = importlib.util.spec_from_file_location(dotted, here / (part + ".py"))
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[dotted] = module
+        spec.loader.exec_module(module)
+        here = folder
+    return sys.modules[dotted]
 
 
 def blocks(path: Path) -> list:
@@ -184,7 +202,7 @@ def blocks(path: Path) -> list:
         return []
 
 
-def battle_of(path: Path, battles) -> tuple:
+def battle_of(path: Path, extract) -> tuple:
     """(body, owning account id) for this replay; body None if it says too little."""
     parts = blocks(path)
     meta = parts[0] if parts and isinstance(parts[0], dict) else {}
@@ -199,7 +217,7 @@ def battle_of(path: Path, battles) -> tuple:
         return None, owner
     arena = (meta.get("mapName"), meta.get("gameplayID"))
     version = meta.get("clientVersionFromXml") or meta.get("clientVersionFromExe")
-    return battles.payload(results, arena, version), owner
+    return extract.payload(results, arena, version), owner
 
 
 def links(game: Path) -> dict:
@@ -439,7 +457,7 @@ def stamped(name: str) -> bool:
             and name[9:13].isdigit() and name[13] == "_")
 
 
-def declare(battles, bodies: dict, secret: str, api: str, quota: Quota) -> dict:
+def declare(store, bodies: dict, secret: str, api: str, quota: Quota) -> dict:
     """{arena id: 'stored'|'known'|reason} for one batch of battles.
 
     Read with the mod's own `read_answer`, which answers None for a body that
@@ -463,7 +481,7 @@ def declare(battles, bodies: dict, secret: str, api: str, quota: Quota) -> dict:
         print("  the server answered %s to a declaration: %s"
               % (status, text.strip()[:160] or "no body"))
         return {}
-    answer = battles.read_answer(text)
+    answer = store.read_answer(text)
     if answer is None:
         print("  a declaration answer could not be read; batch kept")
         return {}
@@ -559,10 +577,12 @@ def selfcheck() -> int:
 
     # The mod's own code has to load, or everything above is beside the point.
     try:
-        battles = mod_module("battles")
+        extract = mod_module("battles.extract")
+        store = mod_module("battles.store")
         replays = mod_module("replays")
-        want(callable(battles.payload) and callable(replays.read_answer), True,
-             "the mod's payload builder and answer reader load")
+        want(callable(extract.payload) and callable(store.read_answer)
+             and callable(replays.read_answer), True,
+             "the mod's payload builder and answer readers load")
     except Exception as err:
         want("could not load: %s" % err, True, "the mod's own modules load")
 
@@ -599,7 +619,8 @@ def main() -> int:
         print("no linked account in %s" % (game / "mods/configs/unicum/account.json"))
         return 1
 
-    battles = mod_module("battles")
+    extract = mod_module("battles.extract")
+    store = mod_module("battles.store")
     replays = mod_module("replays")
     state = State(game / STATE)
     replay_quota = Quota(REPLAYS_PER_HOUR, state.replay_stamps, "upload")
@@ -637,7 +658,7 @@ def main() -> int:
                 state.put(name, "too_old")
                 counts["too_old"] = counts.get("too_old", 0) + 1
                 continue
-            body, owner = battle_of(folder / name, battles)
+            body, owner = battle_of(folder / name, extract)
             if body is None:
                 state.put(name, "no_results")
                 counts["no_results"] = counts.get("no_results", 0) + 1
@@ -676,7 +697,7 @@ def main() -> int:
         verdicts: dict = {}
         for account, arenas in by_account.items():
             verdicts.update(declare(
-                battles, {a: bodies[a] for a in arenas},
+                store, {a: bodies[a] for a in arenas},
                 secrets[account], args.api, battle_quota))
         if not verdicts:
             failures += 1
