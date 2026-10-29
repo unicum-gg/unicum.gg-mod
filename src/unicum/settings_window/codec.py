@@ -9,9 +9,9 @@ from __future__ import absolute_import
 
 import logging
 
-from unicum.settings import (AVERAGED, EXTRAS, METRICS,
-                             MINIMAP_NAME_CHOICES, MODES, RELOAD_CHOICES,
-                             SURFACES, WINDOWS)
+from unicum.settings import (AVERAGED, BATTLE_CHAT_CHOICES, EXTRAS,
+                             METRICS, MINIMAP_NAME_CHOICES, MODES,
+                             RELOAD_CHOICES, SURFACES, WINDOWS)
 from unicum.settings_window.labels import (_ALT_KEYS, _ALT_SCREENS,
                                            _MENU_KEYS, _SURFACE_LABELS,
                                            CARD_VAR, HIDE_VAR,
@@ -75,7 +75,8 @@ def to_window(values, card_shown=True, loadouts_hidden=False):
               'measurePerformance': values['measurePerformance'],
               'autoReload': RELOAD_CHOICES.index(values['autoReload']),
               'minimapNames': MINIMAP_NAME_CHOICES.index(values['minimapNames']),
-              'twitchChannel': values['twitch']['channel'], 'twitchBattleChat': values['twitch']['battleChat'],
+              'twitchChannel': values['twitch']['channel'],
+              'twitchBattle': BATTLE_CHAT_CHOICES.index(values['twitch']['battle']),
               'twitchGarage': values['twitch']['garage'],
               'metric': METRICS.index(values['metric']), 'window': WINDOWS.index(values['window']),
               'winrate': EXTRAS.index(values['winrate']), 'battles': EXTRAS.index(values['battles']),
@@ -115,8 +116,9 @@ def from_window(raw):
     twitch = {}
     if isinstance(raw.get('twitchChannel'), basestring):
         twitch['channel'] = raw['twitchChannel']
-    if isinstance(raw.get('twitchBattleChat'), bool):
-        twitch['battleChat'] = raw['twitchBattleChat']
+    battle = _index(raw.get('twitchBattle'), BATTLE_CHAT_CHOICES)
+    if battle is not None:
+        twitch['battle'] = BATTLE_CHAT_CHOICES[battle]
     if isinstance(raw.get('twitchGarage'), bool):
         twitch['garage'] = raw['twitchGarage']
     if twitch:

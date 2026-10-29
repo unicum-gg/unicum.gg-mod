@@ -7,7 +7,7 @@ required. When izeberg's modsSettingsApi is installed, settings_window/
 also shows these settings in its window, and writes back here.
 
     {"enabled": true, "metric": "wnx", "window": "recent", "maxFlags": 3, "tankButton": true,
-     "autoReload": false, "twitch": {"channel": "", "battleChat": true},
+     "autoReload": false, "twitch": {"channel": "", "battle": "chat"},
      "contacts": {"flags": true, "rating": false},
      "battle": {"flags": true, "rating": true, "average": true}, ...,
      "modes": {"random": {"allies": true, "enemies": true}, "ranked": {...}, ...}}
@@ -30,7 +30,8 @@ redraws what it has on screen, so nothing needs a restart.
 
 from __future__ import absolute_import
 
-from unicum.settings.defaults import (AVERAGED, DEFAULTS, EXTRAS,
+from unicum.settings.defaults import (AVERAGED, BATTLE_CHAT_CHOICES,
+                                      DEFAULTS, EXTRAS,
                                       MAX_FLAGS, MAX_PANEL, METRICS,
                                       MIN_PANEL, MINIMAP_NAME_CHOICES,
                                       MODES, RELOAD_CHOICES, STORE,

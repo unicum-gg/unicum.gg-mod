@@ -14,7 +14,8 @@ from unicum import resources
 from unicum.layouts import layout_id
 from unicum.twitch_window.client import (_main_window, _model_class,
                                          _window_class)
-from unicum.twitch_window.placing import Gestures, window_place, window_state
+from unicum.twitch_window.placing import (Gestures, battle_place,
+                                          window_place, window_state)
 from unicum.twitch_window.where import Watching, _in_battle, _language
 
 _logger = logging.getLogger('unicum.twitch_window.window')
@@ -110,7 +111,9 @@ class TwitchWindowHost(Watching, Gestures):
         self._size = None
         self._placed = None
         self._window.load()
-        _logger.info('Twitch window opened over the %s', 'battle loading screen' if battle else 'battle queue')
+        _logger.info('Twitch window opened over the %s',
+                     ('battle loading screen' if self._loading else 'battle') if battle
+                     else 'battle queue')
 
     @staticmethod
     def _cover(covered):
@@ -151,7 +154,15 @@ class TwitchWindowHost(Watching, Gestures):
         width, height = self._window.size
         if width <= 0 or height <= 0:
             return
-        place = window_place(rect, main.size, (width, height))
+        if self._own_place():
+            # On a loading screen the window is still standing in for the
+            # garage panel, so it stays where that panel was. Once the
+            # battle itself is up it moves to the place of its own, out of
+            # the corner the minimap wants.
+            place = battle_place(self._settings['twitch']['battlePosition'], rect,
+                                 main.size, (width, height))
+        else:
+            place = window_place(rect, main.size, (width, height))
         if place == self._placed:
             return
         if self._placed is None:
@@ -181,7 +192,10 @@ class TwitchWindowHost(Watching, Gestures):
         from unicum.twitch_badges import drawable
         icon = 'img://%s' % ICON_RES_PATH if drawable(ICON_RES_PATH) else None
         state = twitch_panel.state(self._settings, self._chat, self._link, icon)
-        return json.dumps(window_state(state, twitch_panel.panel_rect(), _language()))
+        battle = self._own_place()
+        return json.dumps(window_state(
+            state, twitch_panel.panel_rect(), _language(), battle=battle,
+            battle_position=self._settings['twitch']['battlePosition'] if battle else None))
 
     def _check_code(self):
         """The panel's code, again when its files change on disk."""

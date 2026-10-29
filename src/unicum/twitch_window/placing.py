@@ -13,6 +13,7 @@ from __future__ import absolute_import
 import logging
 
 from unicum.twitch_window.client import _main_window
+from unicum.twitch_window.where import _in_battle
 
 _logger = logging.getLogger('unicum.twitch_window.placing')
 
@@ -33,15 +34,20 @@ _OWN_SIZE = (322, 220)
 # where that puts it, so this is the fallback's fallback.
 _RIGHT_GAP = 46 / 1920.0
 
-def window_state(state, rect, lang='en'):
+def window_state(state, rect, lang='en', battle=False, battle_position=None):
     """The garage panel's state, for the window: in its corner, at the garage panel's size.
 
     With the client's language, which the page puts on its <html> as the
     game's pages have it, for the game's own fonts to apply, and whether the
-    player has a place or a size of their own, for the reset arrow.
+    player has a place or a size of their own, for the reset arrow. Over a
+    battle the place the arrow answers for is this window's own
+    (`battle_position`), since the garage's is not the one it is sitting at.
     """
     state = dict(state)
-    state['moved'] = bool(state.get('position') or state.get('size'))
+    if battle:
+        state['moved'] = bool(battle_position or state.get('size'))
+    else:
+        state['moved'] = bool(state.get('position') or state.get('size'))
     state['position'] = None
     state['covered'] = False
     state['lang'] = lang
@@ -67,6 +73,21 @@ def window_place(rect, main_size, window_size):
     y = min(max(0, y), max(0, main_height - height))
     return int(round(x)), int(round(y))
 
+def battle_place(position, rect, main_size, window_size):
+    """The window's corner over a battle, from the place the player dragged it to there, in rem.
+
+    The garage's place is no help here: the panel sits under the mission
+    column, and in battle that corner is the minimap's. Without a place of
+    its own the window goes where window_place puts one it knows nothing
+    about, the right of the screen halfway down, which is clear of the
+    minimap below it and the team panels above.
+    """
+    if not position or rect is None or not rect.rem_width:
+        return window_place(None, main_size, window_size)
+    per_rem = rect.width / float(rect.rem_width)
+    return window_place(rect._replace(left=position[0] * per_rem, top=position[1] * per_rem),
+                        main_size, window_size)
+
 def resized(start, delta, room):
     """The panel's size in rem, dragged by `delta` rem from `start`, within its bounds and `room`."""
     return tuple(int(round(min(max(start[i] + delta[i], _MIN_SIZE[i]), max(_MIN_SIZE[i], min(_MAX_SIZE[i], room[i])))))
@@ -83,6 +104,17 @@ def parse_size(text):
 
 class Gestures(object):
     """Dragging and resizing it with the mouse."""
+
+    def _own_place(self):
+        """Whether the window is sitting at its own battle place, not the garage panel's.
+
+        _in_battle() alone is true on the loading screen as well, where the
+        window is still standing in for the garage panel and still at that
+        panel's place. Every site that reads or writes a place has to give
+        the same answer, so they all ask here: a drag on a loading screen
+        saved as the battle place would snap back on the next tick.
+        """
+        return _in_battle() and not self._loading
 
     @staticmethod
     def _cursor():
@@ -168,9 +200,15 @@ class Gestures(object):
         elif gesture['kind'] == 'move':
             left, top = self._window.position
             left, top = left / units * hangar, top / units * hangar
-            twitch_panel.update_rect(left=int(round(left)), top=int(round(top)))
-            twitch_panel.on_item({'item': 'twitchMove',
-                                  'text': '%d,%d' % (round(left / per_rem), round(top / per_rem))})
+            if self._own_place():
+                # Its own place over a battle, and the garage panel's left
+                # exactly where the player put it there.
+                self._settings.update({'twitch': {'battlePosition': [int(round(left / per_rem)),
+                                                                     int(round(top / per_rem))]}})
+            else:
+                twitch_panel.update_rect(left=int(round(left)), top=int(round(top)))
+                twitch_panel.on_item({'item': 'twitchMove',
+                                      'text': '%d,%d' % (round(left / per_rem), round(top / per_rem))})
         elif 'wanted' in gesture:
             twitch_panel.on_item({'item': 'twitchResize', 'text': '%d,%d' % gesture['wanted']})
         self._publish()
@@ -182,9 +220,17 @@ class Gestures(object):
         if rect is None:
             return
         per_rem = rect.width / float(rect.rem_width)
-        twitch_panel.update_rect(left=rect.own_left, top=rect.own_top, rem_width=_OWN_SIZE[0],
-                                 rem_height=_OWN_SIZE[1], width=int(round(_OWN_SIZE[0] * per_rem)),
-                                 height=int(round(_OWN_SIZE[1] * per_rem)))
+        if self._own_place():
+            # Over a battle only the size is shared with the garage: the
+            # place is this window's own, and the arrow cleared it on its way
+            # through _on_item.
+            twitch_panel.update_rect(rem_width=_OWN_SIZE[0], rem_height=_OWN_SIZE[1],
+                                     width=int(round(_OWN_SIZE[0] * per_rem)),
+                                     height=int(round(_OWN_SIZE[1] * per_rem)))
+        else:
+            twitch_panel.update_rect(left=rect.own_left, top=rect.own_top, rem_width=_OWN_SIZE[0],
+                                     rem_height=_OWN_SIZE[1], width=int(round(_OWN_SIZE[0] * per_rem)),
+                                     height=int(round(_OWN_SIZE[1] * per_rem)))
         self._placed = None
         self._publish()
         self._place()
@@ -206,6 +252,14 @@ class Gestures(object):
                     self._cover(True)
             elif item in ('twitchWindowDrag', 'twitchWindowResize'):
                 self._start_gesture('move' if item == 'twitchWindowDrag' else 'resize')
+            elif item == 'twitchMove' and self._own_place():
+                # The window has a place of its own over a battle, so neither
+                # a drag nor the reset arrow may move the garage panel's.
+                from unicum.twitch_panel import parse_position
+                self._settings.update({'twitch': {'battlePosition': parse_position(text)}})
+                self._placed = None
+                self._publish()
+                self._place()
             elif item in _PANEL_ITEMS:
                 from unicum import twitch_panel
                 twitch_panel.on_item({'item': item, 'text': text})

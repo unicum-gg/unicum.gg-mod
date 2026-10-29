@@ -9,13 +9,27 @@ state, at the same place and the same size, folded if it is.
 
 The battle's loading screen is the same story, in the battle app: the window
 opens as soon as the player is in the battle (onAvatarBecomePlayer), the
-battle's main window loaded, and closes when the game moves from the
-loading screen to the battle page (GameEvent.BATTLE_LOADING, whose isShown
-says which), after which the battle chat carries the Twitch messages as
-before. Opening before the screen shows matters: while the map loads, the
-page takes seconds to be drawn, and a loading screen can last only four.
-In battle the window sits on the OVERLAY layer, the one that stays above the
-battle's interface.
+battle's main window loaded. Opening before the screen shows matters: while
+the map loads, the page takes seconds to be drawn, and a loading screen can
+last only four. In battle the window sits on the OVERLAY layer, the one that
+stays above the battle's interface.
+
+What happens when the loading screen gives way to the battle page
+(GameEvent.BATTLE_LOADING, whose isShown says which) is the player's choice,
+the twitch.battle setting: the battle chat carries the messages, this window
+stays up over the battle, both, or neither. On the loading screen the window
+is still standing in for the garage panel and keeps that panel's place and
+the garage's setting; over the battle it is the battle setting that asks for
+it, and it moves to a place of its own (twitch.battlePosition), because the
+garage panel's corner, under the mission column, is the minimap's in battle.
+
+Only its place is its own: the size is the one the player gave the panel.
+And a battle keeps the mouse for aiming, which the client attaches and
+detaches itself (AvatarInputHandler.setForcedGuiControlMode): a window on the
+OVERLAY layer never takes it, so this one cannot spoil a shot, and for the
+same reason it cannot be clicked, dragged or typed in while the player is
+aiming. Over a battle it is a chat to read, and _cursor() returning None is
+what keeps a gesture from starting.
 
 The window is a Gameface view of our own, UnicumTwitchWindow
 (res/gui/gameface/mods/unicum/TwitchWindow/, declared in

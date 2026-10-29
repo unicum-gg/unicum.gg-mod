@@ -106,7 +106,17 @@ class Settings(object):
         return self._values['twitch']['channel'] or twitch_channel(linked)
 
     def shows_twitch_in_battle(self):
-        return self._values['enabled'] and self._values['twitch']['battleChat']
+        """Whether the battle chat carries the Twitch messages."""
+        return self._values['enabled'] and self._values['twitch']['battle'] in ('chat', 'both')
+
+    def shows_twitch_window_in_battle(self):
+        """Whether the chat window stays up over the battle itself.
+
+        Not the battle's loading screen, which the window covers whenever the
+        garage panel is on: there it stands in for the panel the queue screen
+        took away, and it is the garage's setting that asks for it.
+        """
+        return self._values['enabled'] and self._values['twitch']['battle'] in ('window', 'both')
 
     def shows_twitch_in_garage(self):
         return self._values['enabled'] and self._values['twitch']['garage']

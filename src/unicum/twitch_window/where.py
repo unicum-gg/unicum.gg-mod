@@ -1,9 +1,15 @@
 """Whether the chat window is wanted, and what the client is doing.
 
-The window follows the player rather than a setting: it belongs in the garage
-and in the queue, not in a battle and not on a loading screen. The client says
-where the player is in half a dozen ways, none of them a single flag, so this
-is the file that turns those into one question with one answer.
+The window mostly follows the player rather than a setting: it belongs in the
+garage and in the queue, and on the loading screen that follows them, because
+there it stands in for the garage panel the queue screen took away. Whether it
+also stays over the battle itself is the one part the player chooses
+(settings twitch.battle, 'window' or 'both'), and it is a separate question
+from the garage panel, so the two gates are asked separately below.
+
+The client says where the player is in half a dozen ways, none of them a
+single flag, so this is the file that turns those into one question with one
+answer.
 
 A mixin, for the reason the battles package gives: the window handle and the
 last state are shared with the half that draws it.
@@ -116,7 +122,10 @@ class Watching(object):
     def _tick(self):
         try:
             self._follow(_state_machine())
-            wanted = self._settings.shows_twitch_in_garage() and self._wanted()
+            # _wanted asks the setting that goes with where the player is:
+            # the garage panel's in the lobby and on a loading screen, the
+            # battle one over a battle.
+            wanted = self._wanted()
         except Exception:
             _logger.exception('could not tell whether a battle queue is up')
             wanted = False
@@ -138,15 +147,26 @@ class Watching(object):
             _logger.exception('could not keep the Twitch window up to date')
 
     def _wanted(self):
-        """Whether the window should be up: in a queue, about to be, or just out of one."""
+        """Whether the window should be up: over a battle, in a queue, about to be, or just out of one."""
         from unicum.twitch_panel import panel_reports
         now = time.time()
         if not _in_lobby():
             self._entering_until = 0
             self._leaving = None
             self._to_battle = False
-            return self._loading and _in_battle()
+            if not _in_battle():
+                return False
+            # The loading screen is the garage panel's own continuity: it
+            # stands in for the panel the queue screen took away, so the
+            # garage's setting is the one that asks for it, as it always
+            # has. The battle itself is the player's separate choice, and
+            # they may well want one without the other.
+            if self._loading:
+                return self._settings.shows_twitch_in_garage()
+            return self._settings.shows_twitch_window_in_battle()
         self._loading = False
+        if not self._settings.shows_twitch_in_garage():
+            return False
         if queue_open():
             self._entering_until = 0
             self._leaving = None

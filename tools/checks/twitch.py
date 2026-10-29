@@ -46,16 +46,30 @@ def check_twitch():
     check('messages outside a battle are kept but not queued', queue.history[-1].text == 'garage')
 
     check_battle_opening()
+    check_battle_choice()
 
     check('a channel is read from a name, "#Name" or its link',
           [validate({'twitch': {'channel': value}})['twitch']['channel'] for value in
            ('Unicum_GG', '#unicum_gg', 'https://www.twitch.tv/unicum_gg/', 'no spaces!', 42)] ==
           ['unicum_gg', 'unicum_gg', 'unicum_gg', '', ''])
-    values = validate({'twitch': {'channel': 'unicum_gg', 'battleChat': False}})
+    from unicum.settings import BATTLE_CHAT_CHOICES
+    values = validate({'twitch': {'channel': 'unicum_gg', 'battle': 'window'}})
     window = to_window(values)
-    check('the channel and its switch go to the window and back',
-          window['twitchChannel'] == 'unicum_gg' and window['twitchBattleChat'] is False
+    check('the channel and the battle choice go to the window and back',
+          window['twitchChannel'] == 'unicum_gg'
+          and window['twitchBattle'] == BATTLE_CHAT_CHOICES.index('window')
           and validate(dict(values, **from_window(window))) == values)
+    # The tick box this choice replaces. A player who had it on keeps the battle
+    # chat and one who had it off keeps nothing, rather than both being handed
+    # whatever the new default happens to be.
+    check('the battle chat tick box becomes the choice it stood for',
+          [validate({'twitch': twitch})['twitch']['battle'] for twitch in
+           ({'battleChat': True}, {'battleChat': False}, {}, {'battle': 'nonsense'})]
+          == ['chat', 'off', 'chat', 'chat'])
+    check('a place of its own over a battle is kept, and a bad one dropped',
+          [validate({'twitch': {'battlePosition': value}})['twitch']['battlePosition']
+           for value in ([40, 500], [-5, 99999], 'x', None)]
+          == [[40, 500], [0, 10000], None, None])
 
     check('the linked channel is read from the player answer',
           linked_channel({'twitchLogin': 'Unicum_GG'}) == 'unicum_gg' and linked_channel({'twitchLogin': None}) == ''
@@ -74,6 +88,70 @@ def check_twitch():
     check('the mod off follows no channel', settings.twitch_channel('linked') == ''
           and not settings.shows_twitch_in_battle())
 
+
+def check_battle_choice():
+    """Where the Twitch chat shows in battle, and the window's own place over one."""
+    import os
+    import tempfile
+    from checks.common import REPO
+    from unicum.runtime.session import Session
+    from unicum.settings import BATTLE_CHAT_CHOICES, Settings
+    from unicum.settings_window.labels import BATTLE_CHAT_LABELS
+    from unicum.twitch_panel import PanelRect
+    from unicum.twitch_window.placing import battle_place, window_place
+
+    check('every battle choice has a label of its own',
+          len(BATTLE_CHAT_LABELS) == len(BATTLE_CHAT_CHOICES) == 4)
+
+    settings = Settings(Session(generation=0), store=os.path.join(tempfile.mkdtemp(), 'settings.json'))
+
+    def shows(choice):
+        settings.update({'twitch': {'battle': choice}})
+        return (settings.shows_twitch_in_battle(), settings.shows_twitch_window_in_battle())
+
+    check('each battle choice turns on only what it names',
+          [shows(choice) for choice in BATTLE_CHAT_CHOICES]
+          == [(False, False), (True, False), (False, True), (True, True)])
+    settings.update({'twitch': {'battle': 'both'}, 'enabled': False})
+    check('the mod off shows the chat neither way',
+          not settings.shows_twitch_in_battle() and not settings.shows_twitch_window_in_battle())
+
+    # 644 hangar pixels for 322 rem: two pixels to the rem.
+    rect = PanelRect(left=0, top=0, width=644, height=440, screen_width=1920, screen_height=1080,
+                     folded=False, rem_width=322, rem_height=220, own_left=0, own_top=0)
+    check('over a battle the window goes where the player dragged it to there',
+          battle_place([50, 60], rect, (1920, 1080), (322, 220)) == (100, 120))
+    # The garage panel's own corner is the minimap's in battle, so a window with
+    # no place of its own takes the one window_place gives an unknown window:
+    # the right of the screen halfway down, clear of the minimap and the ears.
+    check('and without one, to the right of the screen halfway down',
+          battle_place(None, rect, (1920, 1080), (322, 220))
+          == window_place(None, (1920, 1080), (322, 220)) == (1552, 430))
+
+    def read(name):
+        with open(os.path.join(REPO, 'src', 'unicum', 'twitch_window', name)) as handle:
+            return handle.read()
+
+    where, placing, window = read('where.py'), read('placing.py'), read('window.py')
+    # The garage panel's setting used to gate the window everywhere, a battle
+    # included, so the choice could not have been asked for there.
+    check('the window asks the setting that goes with where the player is',
+          'shows_twitch_in_garage() and self._wanted()' not in where
+          and 'return self._settings.shows_twitch_window_in_battle()' in where
+          and 'if self._loading:' in where)
+    # Taken after _PANEL_ITEMS, a move over a battle would carry the garage
+    # panel along with it and lose the place the player chose there.
+    check('a move over a battle is taken before the garage panel sees it',
+          placing.index("item == 'twitchMove' and self._own_place()")
+          < placing.index('elif item in _PANEL_ITEMS:'))
+    # _in_battle() is true on a loading screen as well, and there the window
+    # still stands at the garage panel's place: a drag taken for the battle's
+    # own place would be saved and then snap back on the next tick. So every
+    # site that reads or writes a place asks the one predicate.
+    check('every place over a battle asks the one predicate',
+          'def _own_place(self):' in placing
+          and placing.count('self._own_place()') == 3
+          and window.count('self._own_place()') == 2)
 
 def check_battle_opening():
     """The chat a battle opens on: what was said before it, not an empty screen."""

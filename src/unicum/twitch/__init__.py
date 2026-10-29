@@ -16,7 +16,9 @@ A battle opens with the last of them rather than with an empty chat, so what
 was said while the player sat in the garage or waited out the loading screen
 is still there to read (`ChatQueue.open_battle`).
 
-settings.json: {"twitch": {"channel": "", "battleChat": true}}. With no
+settings.json: {"twitch": {"channel": "", "battle": "chat"}}, where `battle`
+says where the chat shows once a battle starts: in the battle chat, in the
+window over the battle (twitch_window/), in both, or nowhere. With no
 channel typed there, the one the player linked to their account on unicum.gg
 (`twitchLogin` of GET /api/{region}/players/{nickname}) is followed. No
 channel either way, no connection.

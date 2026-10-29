@@ -16,7 +16,8 @@ from unicum.settings_window.labels import (_ALT_SCREENS, _CHOICE_WIDTH,
                                            _MODES_TOOLTIP, _RESET_TOOLTIP,
                                            _RULE, _SURFACE_LABELS,
                                            _TAB_TOOLTIP, _WINDOW_LABELS,
-                                           BATTLES_LABEL, CARD_LABEL,
+                                           BATTLES_LABEL, BATTLE_CHAT_LABEL,
+                                           BATTLE_CHAT_LABELS, CARD_LABEL,
                                            CARD_VAR, CONNECT_VAR,
                                            DISCORD_VAR, HIDE_VAR, LINKS,
                                            MEASURE_LABEL, MINIMAP_NAME_LABELS,
@@ -158,7 +159,8 @@ def template(values, channel=u'', linked=False, card_shown=True,
                   for key, label in _ALT_SCREENS)
     battle.extend([
         templates.createEmpty(_SPACER),
-        checkbox('Twitch chat in battle', 'twitchBattleChat'),
+        choice(BATTLE_CHAT_LABEL, 'twitchBattle', BATTLE_CHAT_LABELS,
+               tooltip='{HEADER}' + BATTLE_CHAT_LABEL + '{/HEADER}{BODY}Where your Twitch chat shows once the battle has started. In the battle chat puts each message in the game\'s own chat, which is what this setting did when it was a tick box. In a window keeps the chat window of the queue screen up over the battle, drawn like the panel in the garage and draggable to a place of its own, which is remembered apart from the garage\'s. While you are aiming the game keeps the mouse to itself, so that window is there to read, not to type in.{/BODY}'),
         choice('Announce reloading', 'autoReload', RELOAD_LABELS,
                tooltip='{HEADER}Announce reloading{/HEADER}{BODY}Sends the "Reloading!" message to your team '
                        'by itself, as F8 does. Every gun announces after each shot; autoloaders only, once a '
@@ -259,5 +261,5 @@ def native_page(values, channel=u'', linked=False, card_shown=True,
     else:
         lines.append(u'button\t%s\t%s\tConnect' % (CONNECT_VAR, channel_label(channel, linked)))
     checkbox(GARAGE_CHAT_LABEL, 'twitchGarage')
-    checkbox(u'Chat in battle', 'twitchBattleChat')
+    dropdown(BATTLE_CHAT_LABEL, 'twitchBattle', BATTLE_CHAT_LABELS)
     return u'\n'.join(line.replace(u'\n', u' ') for line in lines)

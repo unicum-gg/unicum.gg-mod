@@ -116,8 +116,13 @@ DEFAULTS = dict({
     # ones, and the skirmish room, which is the one outside a battle.
     'altOnly': {'markers': False, 'panel': False, 'tab': False, 'loading': False, 'results': False,
                 'skirmishRoom': False, 'stronghold': False, 'minimap': False},
-    'twitch': {'channel': '', 'battleChat': True, 'garage': True, 'garageCollapsed': False,
-               'garagePosition': None, 'garageSize': None},
+    # `battle` is where the Twitch chat shows in battle, a checkbox before it
+    # was a choice: 'chat' is the True it used to be. `battlePosition` is
+    # where the player dragged the chat window in battle, which is its own
+    # place: the garage's is under the mission column, and in battle that
+    # corner is the minimap's.
+    'twitch': {'channel': '', 'battle': 'chat', 'garage': True, 'garageCollapsed': False,
+               'garagePosition': None, 'garageSize': None, 'battlePosition': None},
     'modes': dict((mode, {'allies': True, 'enemies': True}) for mode in MODES),
     # What the minimap writes beside a vehicle: the client's own choice (the
     # vehicle), the player, or both. 'vehicle' leaves the client alone.
@@ -134,6 +139,12 @@ RELOAD_CHOICES = ('off', 'all', 'magazine')
 # or add to it, and only where the client was already going to write something,
 # so turning the game's labels off still turns ours off.
 MINIMAP_NAME_CHOICES = ('vehicle', 'player', 'both')
+
+# Where the Twitch chat shows in battle. 'chat' is the battle chat carrying
+# the messages, which is what the checkbox this replaces did; 'window' is the
+# chat window of the queue screen, kept up over the battle; 'both' puts every
+# message in both places.
+BATTLE_CHAT_CHOICES = ('off', 'chat', 'window', 'both')
 
 # What the panel can be dragged to, in rem: wide enough for a name and a line
 # of chat, and never larger than a big screen, whatever a hand-edited file says.

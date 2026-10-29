@@ -12,9 +12,9 @@ from __future__ import absolute_import
 import logging
 
 from unicum.settings.defaults import (_RATED_BY_DEFAULT, _TWITCH_CHANNEL,
-                                      AVERAGED, DEFAULTS, EXTRAS, MAX_FLAGS,
-                                      MAX_PANEL, METRICS, MIN_PANEL,
-                                      MINIMAP_NAME_CHOICES, MODES,
+                                      AVERAGED, BATTLE_CHAT_CHOICES, DEFAULTS,
+                                      EXTRAS, MAX_FLAGS, MAX_PANEL, METRICS,
+                                      MIN_PANEL, MINIMAP_NAME_CHOICES, MODES,
                                       RELOAD_CHOICES, SURFACES, WINDOWS)
 
 _logger = logging.getLogger('unicum.settings.validating')
@@ -30,6 +30,21 @@ def _reload_choice(raw):
 def _minimap_names(raw):
     """The minimap label choice, falling back to the client's own."""
     return raw if raw in MINIMAP_NAME_CHOICES else DEFAULTS['minimapNames']
+
+def _battle_chat(twitch):
+    """Where the Twitch chat shows in battle.
+
+    True and False are what this was before it was a choice: a checkbox for
+    the battle chat, which is why True reads as 'chat' rather than as the
+    window that was not on offer then.
+    """
+    raw = twitch.get('battle')
+    if raw in BATTLE_CHAT_CHOICES:
+        return raw
+    legacy = twitch.get('battleChat')
+    if isinstance(legacy, bool):
+        return 'chat' if legacy else 'off'
+    return DEFAULTS['twitch']['battle']
 
 def validate(raw):
     """A complete, valid settings dict: defaults for anything missing or wrong."""
@@ -61,12 +76,13 @@ def validate(raw):
                                          DEFAULTS['measurePerformance'])
     twitch = raw.get('twitch') if isinstance(raw.get('twitch'), dict) else {}
     values['twitch'] = {'channel': twitch_channel(twitch.get('channel')),
-                        'battleChat': _bool(twitch.get('battleChat'), DEFAULTS['twitch']['battleChat']),
+                        'battle': _battle_chat(twitch),
                         'garage': _bool(twitch.get('garage'), DEFAULTS['twitch']['garage']),
                         'garageCollapsed': _bool(twitch.get('garageCollapsed'),
                                                  DEFAULTS['twitch']['garageCollapsed']),
                         'garagePosition': _position(twitch.get('garagePosition')),
-                        'garageSize': panel_size(twitch.get('garageSize'))}
+                        'garageSize': panel_size(twitch.get('garageSize')),
+                        'battlePosition': _position(twitch.get('battlePosition'))}
     modes = raw.get('modes') if isinstance(raw.get('modes'), dict) else {}
     values['modes'] = {}
     for mode in MODES:

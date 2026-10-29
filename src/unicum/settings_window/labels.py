@@ -70,6 +70,11 @@ RELOAD_LABELS = ('Never', 'Every gun', 'Autoloaders only')
 # What the minimap writes beside a vehicle. "Vehicle" is the client untouched.
 MINIMAP_NAME_LABELS = ('Vehicle', 'Player', 'Vehicle and player')
 
+# Where the Twitch chat shows in battle, in the order of BATTLE_CHAT_CHOICES.
+# "In a window" is the chat window of the queue screen, kept up over the
+# battle; "In both" shows every message twice, which some players want.
+BATTLE_CHAT_LABELS = ('Off', 'In the battle chat', 'In a window', 'In both')
+
 _SURFACE_LABELS = {
     'contacts': 'Contacts list',
     'profile': 'Profile',
@@ -155,6 +160,7 @@ CARD_VAR = 'accountCard'
 # pointed at "Twitch chat in the garage", a box that never existed.
 CARD_LABEL = 'unicum.gg account card'
 GARAGE_CHAT_LABEL = 'Chat panel in the garage'
+BATTLE_CHAT_LABEL = 'Twitch chat in battle'
 
 # Not a settings.json value either: the site owns this row, and the box is
 # only drawn for the accounts allowed to move it.
