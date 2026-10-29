@@ -593,6 +593,70 @@ def check_links_per_account(workdir):
           '&account=2002' in connect_url('https://unicum.gg', 'eu', secret_b, '2002', 't').split('#')[0])
 
 
+def check_account_in_battle():
+    """Which account the client is logged in with, in a battle it started in.
+
+    databaseID lives on the lobby's player entity and the avatar carries
+    none, so a client that reconnects straight into a battle, after a crash
+    or a restart, has had no lobby to ask: the account read as unknown for
+    the whole battle, which left no name, no card, and a Twitch chat it
+    could read but not write in. The arena knows, the server having named
+    the account on the player's own vehicle.
+    """
+    import sys
+    import types
+    from checks.fakes import FakeVInfo
+    from unicum.game_link import proof
+
+    class FakeArenaDP(object):
+        def getVehicleInfo(self, vID=None):
+            """The player's own vehicle, which is what no vID means (arena_dp.py)."""
+            return FakeVInfo(4242)
+
+    class FakeProvider(object):
+        def getArenaDP(self):
+            return FakeArenaDP()
+
+    class FakeAccount(object):
+        """The lobby's player entity, which carries the id itself."""
+        databaseID = 1001
+
+    bigworld, dependency = sys.modules['BigWorld'], sys.modules['helpers.dependency']
+    held, instance = sys.modules.get('skeletons.gui.battle_session'), dependency.instance
+    try:
+        session = types.ModuleType('skeletons.gui.battle_session')
+        session.IBattleSessionProvider = type('IBattleSessionProvider', (object,), {})
+        sys.modules['skeletons.gui.battle_session'] = session
+        sys.modules['skeletons.gui'].battle_session = session
+        replay = types.ModuleType('BattleReplay')
+        replay.g_replayCtrl = type('ReplayCtrl', (object,), {'isPlaying': False})()
+        sys.modules['BattleReplay'] = replay
+        provider = FakeProvider()
+        # Still keyed by interface: asking for the wrong service has to fail
+        # here as loudly as it does in the rest of the suite.
+        dependency.instance = lambda interface: (provider
+                                                 if interface is session.IBattleSessionProvider
+                                                 else instance(interface))
+
+        check('in a battle the arena says which account the player is',
+              proof.current_account_id() == '4242')
+        bigworld.player = lambda: FakeAccount()
+        check('and a lobby still answers for itself', proof.current_account_id() == '1001')
+        del bigworld.player
+        replay.g_replayCtrl.isPlaying = True
+        check('a replay is never read as an account, being whoever recorded it',
+              proof.current_account_id() is None)
+    finally:
+        dependency.instance = instance
+        sys.modules.pop('BattleReplay', None)
+        if held is None:
+            sys.modules.pop('skeletons.gui.battle_session', None)
+            delattr(sys.modules['skeletons.gui'], 'battle_session')
+        else:
+            sys.modules['skeletons.gui.battle_session'] = held
+        if 'player' in bigworld.__dict__:
+            del bigworld.player
+
 def check_error_reporting():
     """The mod hands its logged exceptions to an error reporter, when one is installed."""
     import logging

@@ -90,10 +90,36 @@ def read_privacy(response):
     return bool(payload.get('supporter')), bool(payload.get('loadoutsHidden'))
 
 def current_account_id():
-    """The Wargaming account id the client is logged in with, or None (a battle, the login screen)."""
+    """The Wargaming account id the client is logged in with, or None (the login screen).
+
+    The lobby answers for itself. In a battle the avatar carries no
+    database id, so the arena answers instead, with the account the
+    server named on the player's own vehicle. A client that starts in a
+    battle, which is a reconnect after a crash or a restart, has had no
+    lobby to ask and would otherwise hold no link at all until the battle
+    ended: no name, no card, and a chat it could read but not write in.
+    """
     try:
         import BigWorld
         account_id = getattr(BigWorld.player(), 'databaseID', None)
+    except Exception:
+        return None
+    return str(account_id) if account_id else _arena_account_id()
+
+def _arena_account_id():
+    """The account id the arena gives the player's own vehicle, or None.
+
+    Never a replay's: there the player's own vehicle is whoever recorded
+    it, and watching one is no reason to read another account's link.
+    """
+    try:
+        import BattleReplay
+        if BattleReplay.g_replayCtrl.isPlaying:
+            return None
+        from helpers import dependency
+        from skeletons.gui.battle_session import IBattleSessionProvider
+        arena_dp = dependency.instance(IBattleSessionProvider).getArenaDP()
+        account_id = arena_dp.getVehicleInfo().player.accountDBID
     except Exception:
         return None
     return str(account_id) if account_id else None
