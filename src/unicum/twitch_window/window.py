@@ -159,8 +159,8 @@ class TwitchWindowHost(Watching, Gestures):
             # garage panel, so it stays where that panel was. Once the
             # battle itself is up it moves to the place of its own, out of
             # the corner the minimap wants.
-            place = battle_place(self._settings['twitch']['battlePosition'], rect,
-                                 main.size, (width, height))
+            place = battle_place(self._settings['twitch']['battlePosition'],
+                                 main.size, (width, height), self._per_rem())
         else:
             place = window_place(rect, main.size, (width, height))
         if place == self._placed:

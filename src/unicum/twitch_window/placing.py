@@ -69,24 +69,49 @@ def window_place(rect, main_size, window_size):
     else:
         x = main_width * (1 - _RIGHT_GAP) - width
         y = (main_height - height) / 2.0
+    return _on_screen(x, y, main_size, window_size)
+
+def _on_screen(x, y, main_size, window_size):
+    """A corner in the window system's units, brought in until the window fits the screen."""
+    main_width, main_height = main_size
+    width, height = window_size
     x = min(max(0, x), max(0, main_width - width))
     y = min(max(0, y), max(0, main_height - height))
     return int(round(x)), int(round(y))
 
-def battle_place(position, rect, main_size, window_size):
+def units_per_rem(rect, main_size, window_size, rem_size):
+    """What a rem is worth in the window system's units, or None when nothing can say.
+
+    The garage panel is the measure once it has reported: a rem is so
+    many hangar pixels, and window_place carries hangar pixels into the
+    window system with the main window's width over the hangar's.
+    Without it the window's own page answers the same question, because
+    the page is laid out at the size in rem the state gives it and the
+    window is then sized from what that came to: its width in units over
+    that width in rem. A client that starts in a battle, which is a
+    reconnect after a crash or a restart, has never drawn a hangar and
+    has nothing else to go on. The width, because folding the panel
+    leaves it alone.
+    """
+    if rect is not None and rect.rem_width and rect.screen_width:
+        return rect.width / float(rect.rem_width) * main_size[0] / float(rect.screen_width)
+    if rem_size and rem_size[0] and window_size and window_size[0]:
+        return window_size[0] / float(rem_size[0])
+    return None
+
+def battle_place(position, main_size, window_size, per_rem):
     """The window's corner over a battle, from the place the player dragged it to there, in rem.
 
     The garage's place is no help here: the panel sits under the mission
     column, and in battle that corner is the minimap's. Without a place of
-    its own the window goes where window_place puts one it knows nothing
-    about, the right of the screen halfway down, which is clear of the
-    minimap below it and the team panels above.
+    its own, or anything to say what a rem is worth, the window goes where
+    window_place puts one it knows nothing about, the right of the screen
+    halfway down, which is clear of the minimap below it and the team
+    panels above.
     """
-    if not position or rect is None or not rect.rem_width:
+    if not position or not per_rem:
         return window_place(None, main_size, window_size)
-    per_rem = rect.width / float(rect.rem_width)
-    return window_place(rect._replace(left=position[0] * per_rem, top=position[1] * per_rem),
-                        main_size, window_size)
+    return _on_screen(position[0] * per_rem, position[1] * per_rem, main_size, window_size)
 
 def resized(start, delta, room):
     """The panel's size in rem, dragged by `delta` rem from `start`, within its bounds and `room`."""
@@ -115,6 +140,22 @@ class Gestures(object):
         saved as the battle place would snap back on the next tick.
         """
         return _in_battle() and not self._loading
+
+    def _rem_size(self):
+        """The panel's size in rem, as the window's page was told to draw it (window_state)."""
+        from unicum.twitch_panel import panel_rect
+        rect = panel_rect()
+        if rect is not None:
+            return [rect.rem_width, rect.rem_height]
+        return self._settings['twitch']['garageSize'] or list(_OWN_SIZE)
+
+    def _per_rem(self):
+        """What a rem is worth in this window's units, or None."""
+        main = _main_window()
+        if main is None or self._window is None:
+            return None
+        from unicum.twitch_panel import panel_rect
+        return units_per_rem(panel_rect(), main.size, self._window.size, self._rem_size())
 
     @staticmethod
     def _cursor():
@@ -199,13 +240,17 @@ class Gestures(object):
             twitch_panel.on_item({'item': 'twitchCollapse', 'text': '0' if collapsed else '1'})
         elif gesture['kind'] == 'move':
             left, top = self._window.position
-            left, top = left / units * hangar, top / units * hangar
             if self._own_place():
                 # Its own place over a battle, and the garage panel's left
-                # exactly where the player put it there.
-                self._settings.update({'twitch': {'battlePosition': [int(round(left / per_rem)),
-                                                                     int(round(top / per_rem))]}})
+                # exactly where the player put it there. Taken in this
+                # window's own units, the one measure a battle the client
+                # started in can still take: there is no hangar to ask.
+                own_per_rem = self._per_rem()
+                if own_per_rem:
+                    self._settings.update({'twitch': {'battlePosition': [int(round(left / own_per_rem)),
+                                                                         int(round(top / own_per_rem))]}})
             else:
+                left, top = left / units * hangar, top / units * hangar
                 twitch_panel.update_rect(left=int(round(left)), top=int(round(top)))
                 twitch_panel.on_item({'item': 'twitchMove',
                                       'text': '%d,%d' % (round(left / per_rem), round(top / per_rem))})

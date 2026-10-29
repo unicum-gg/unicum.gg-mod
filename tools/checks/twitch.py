@@ -98,7 +98,8 @@ def check_battle_choice():
     from unicum.settings import BATTLE_CHAT_CHOICES, Settings
     from unicum.settings_window.labels import BATTLE_CHAT_LABELS
     from unicum.twitch_panel import PanelRect
-    from unicum.twitch_window.placing import battle_place, window_place
+    from unicum.twitch_window.placing import (battle_place, units_per_rem,
+                                              window_place)
 
     check('every battle choice has a label of its own',
           len(BATTLE_CHAT_LABELS) == len(BATTLE_CHAT_CHOICES) == 4)
@@ -117,17 +118,39 @@ def check_battle_choice():
     check('the mod off shows the chat neither way',
           not settings.shows_twitch_in_battle() and not settings.shows_twitch_window_in_battle())
 
-    # 644 hangar pixels for 322 rem: two pixels to the rem.
+    # 644 hangar pixels for 322 rem: two pixels to the rem, and the hangar is
+    # as wide as the main window, so a rem is worth two of its units as well.
     rect = PanelRect(left=0, top=0, width=644, height=440, screen_width=1920, screen_height=1080,
                      folded=False, rem_width=322, rem_height=220, own_left=0, own_top=0)
+    panel = units_per_rem(rect, (1920, 1080), (322, 220), None)
+    check('a rem is measured on the garage panel, once it has reported', panel == 2.0)
     check('over a battle the window goes where the player dragged it to there',
-          battle_place([50, 60], rect, (1920, 1080), (322, 220)) == (100, 120))
+          battle_place([50, 60], (1920, 1080), (322, 220), panel) == (100, 120))
     # The garage panel's own corner is the minimap's in battle, so a window with
     # no place of its own takes the one window_place gives an unknown window:
     # the right of the screen halfway down, clear of the minimap and the ears.
     check('and without one, to the right of the screen halfway down',
-          battle_place(None, rect, (1920, 1080), (322, 220))
+          battle_place(None, (1920, 1080), (322, 220), panel)
           == window_place(None, (1920, 1080), (322, 220)) == (1552, 430))
+
+    # A client that starts in a battle, which is what a reconnect after a crash
+    # or a restart is, has never drawn a hangar. Nothing could say what a rem
+    # was worth, so the place the player chose was thrown away and the window
+    # sprang back to the fallback on the next tick. Its own page is the measure
+    # left: it is laid out at the size in rem the state gives it.
+    page = units_per_rem(None, (1920, 1080), (644, 440), [322, 220])
+    check('without a garage the window measures a rem on its own page', page == 2.0)
+    check('so the place the player chose survives a battle the client started in',
+          battle_place([50, 60], (1920, 1080), (322, 220), page) == (100, 120))
+    # _end_gesture writes the place by this same division, so a drag comes back
+    # to the pixel it was let go at, whichever of the two did the measuring.
+    check('the place it writes and the place it reads are the same place',
+          battle_place([int(round(900 / page)), int(round(500 / page))],
+                       (1920, 1080), (322, 220), page) == (900, 500))
+    check('and with nothing to measure at all it falls back rather than guess',
+          units_per_rem(None, (1920, 1080), (322, 220), None) is None
+          and battle_place([50, 60], (1920, 1080), (322, 220), None)
+          == window_place(None, (1920, 1080), (322, 220)))
 
     def read(name):
         with open(os.path.join(REPO, 'src', 'unicum', 'twitch_window', name)) as handle:
@@ -153,6 +176,17 @@ def check_battle_choice():
           'def _own_place(self):' in placing
           and placing.count('self._own_place()') == 3
           and window.count('self._own_place()') == 2)
+    # battle_place used to take the garage panel's rect and throw the place
+    # away when there was none, which is every battle a reconnected client
+    # starts in: the window has to be able to place itself without a hangar.
+    own = placing.split('def battle_place')[1].split('\ndef ')[0]
+    check('the battle place no longer waits on a garage that may never come',
+          'def battle_place(position, main_size, window_size, per_rem)' in placing
+          and 'rect' not in own)
+    check('and the place written and the place read take the one measure',
+          'def units_per_rem(' in placing and 'def _per_rem(self):' in placing
+          and 'own_per_rem = self._per_rem()' in placing
+          and 'self._per_rem()' in window)
 
 def check_battle_opening():
     """The chat a battle opens on: what was said before it, not an empty screen."""
