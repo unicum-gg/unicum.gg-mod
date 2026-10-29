@@ -576,6 +576,17 @@ function renderFrame(data) {
     root.className = "UnicumTwitchPanel" + (compact ? " UnicumTwitchPanel__compact" : "") +
         (data.collapsed && !compact ? " UnicumTwitchPanel__collapsed" : "") +
         (windowed ? " UnicumTwitchPanel__windowed" : "") +
+        // What draws the panel's edge, and it has to be composed here rather
+        // than only added when it is found: this line rewrites className
+        // outright, so a class merely added to the node is dropped by the
+        // next render, and the next chat message to arrive is a render. Either
+        // the hangar's own class, which its noise layer is styled under, or
+        // the fallback that paints an edge where there is nothing to borrow.
+        // account_card.js composes its borrowed class the same way.
+        (state.decor ? " " + state.decor.base : " UnicumTwitchPanel__plain") +
+        // Over a live battle an edge is not enough to find the panel by, let
+        // alone read chat on: see the stylesheet.
+        (data.overBattle ? " UnicumTwitchPanel__overBattle" : "") +
         (state.drag && state.drag.moved ? " UnicumTwitchPanel__dragging" : "");
     if (!state.resize) {
         size(data.size);

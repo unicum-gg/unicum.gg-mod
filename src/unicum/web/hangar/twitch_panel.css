@@ -98,6 +98,24 @@ body.UnicumPanelResizing, body.UnicumPanelResizing * {
     border-color: rgba(255, 255, 255, 0.12);
 }
 
+/* Over a live battle, where the window stays when the player asks for it
+   (twitch.battle). The fallback above was measured against the garage behind
+   it, dark and still; a battle moves and is bright, and a fill that faint
+   leaves the panel neither findable nor readable.
+
+   The client answers this for its own panels over a battle, and its answer is
+   not a stronger edge: it is no edge at all and a black fill at half opacity.
+   PostmortemPanelView.css gives HintBar_container and HintBar_rating
+   rgba(0, 0, 0, .5), and BattleRateWidget_base .65, and not one of the three
+   declares a border. Half opacity is taken from the two that hold text, which
+   is what this panel holds. The faint edge above stays and reads against it.
+
+   Written after the fallback it overrides: both selectors are one class deep,
+   so the order in this file is what decides. */
+.UnicumTwitchPanel__overBattle {
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
 .UnicumTwitchPanel__collapsed {
     height: 34rem;
 }

@@ -98,10 +98,17 @@ def check_battle_choice():
     from unicum.settings import BATTLE_CHAT_CHOICES, Settings
     from unicum.settings_window.labels import BATTLE_CHAT_LABELS
     from unicum.twitch_panel import PanelRect
-    from unicum.twitch_window.placing import battle_place, window_place
+    from unicum.twitch_window.placing import (battle_place, window_place,
+                                              window_state)
 
     check('every battle choice has a label of its own',
           len(BATTLE_CHAT_LABELS) == len(BATTLE_CHAT_CHOICES) == 4)
+
+    # The page cannot tell a battle from a queue screen, and over a battle it
+    # needs a fill rather than an edge to be found and read at all.
+    check('the page is told when it is over a battle, and only then',
+          window_state({}, None, 'en', battle=True)['overBattle'] is True
+          and window_state({}, None, 'en')['overBattle'] is False)
 
     settings = Settings(Session(generation=0), store=os.path.join(tempfile.mkdtemp(), 'settings.json'))
 
@@ -645,7 +652,7 @@ def check_twitch_window():
     state = window_state({'position': [10, 20], 'size': [400, 300], 'collapsed': True}, rect, 'fr')
     check('the window holds the panel in its corner at the garage panel\'s size, folded as it is',
           state == {'position': None, 'size': [322, 220], 'collapsed': True, 'lang': 'fr', 'covered': False,
-                    'moved': True})
+                    'moved': True, 'overBattle': False})
     check('the reset arrow shows only for a place or a size of the player\'s',
           window_state({'position': None, 'size': None}, rect)['moved'] is False)
     check('a resize keeps to the panel\'s bounds and to the room on screen',
@@ -789,6 +796,26 @@ def check_borrowed_decor():
           'border: 1rem solid rgba(255, 255, 255, 0)' in panel_css)
     check('and the fallback colours it rather than adding one',
           'border-color:' in panel_css.split('__plain')[-1])
+
+    # render rewrites className outright, so a class merely added to the node
+    # is dropped by the next render, and the next chat message to arrive is a
+    # render. That is what left the chat window with no edge at all: its
+    # fallback class was wiped on the first draw, and the border underneath is
+    # declared transparent, so nothing was left to see.
+    composed = panel_js.split('root.className = "UnicumTwitchPanel"')[-1].split(';')[0]
+    check('the panel composes its edge class into every render',
+          'state.decor.base' in composed
+          and 'UnicumTwitchPanel__plain' in composed
+          and 'UnicumTwitchPanel__overBattle' in composed)
+
+    # Measured in the client: its own panels over a battle carry no border at
+    # all, and a black fill at half opacity (PostmortemPanelView.css).
+    check('over a battle the panel takes the fill the client gives its own',
+          'background-color: rgba(0, 0, 0, 0.5)' in panel_css.split('__overBattle')[-1])
+    # One class deep each, so the file order is the whole of the cascade here.
+    check('and that rule is written after the fallback it overrides',
+          panel_css.index('.UnicumTwitchPanel__plain {')
+          < panel_css.index('.UnicumTwitchPanel__overBattle {'))
 
     # Nothing to borrow from: a hangar showing no mission, and the Twitch
     # window of the battle queue, which is a window of the client's own.
