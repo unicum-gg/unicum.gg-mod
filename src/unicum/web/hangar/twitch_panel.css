@@ -98,22 +98,32 @@ body.UnicumPanelResizing, body.UnicumPanelResizing * {
     border-color: rgba(255, 255, 255, 0.12);
 }
 
-/* Over a live battle, where the window stays when the player asks for it
-   (twitch.battle). The fallback above was measured against the garage behind
-   it, dark and still; a battle moves and is bright, and a fill that faint
-   leaves the panel neither findable nor readable.
+/* The edge the window draws for itself, grafted by twitch_panel.js, which
+   also gives it the texture. The window shows no fill for the same reason the
+   garage panel shows none: this liseré is what delimits it.
 
-   The client answers this for its own panels over a battle, and its answer is
-   not a stronger edge: it is no edge at all and a black fill at half opacity.
-   PostmortemPanelView.css gives HintBar_container and HintBar_rating
-   rgba(0, 0, 0, .5), and BattleRateWidget_base .65, and not one of the three
-   declares a border. Half opacity is taken from the two that hold text, which
-   is what this panel holds. The faint edge above stays and reads against it.
+   Every value here is the client's, copied from the rule the garage panel
+   borrows instead (`.Card_82475c .Card_borderHelper_<hash>` in the hangar's
+   main.css): a 1rem transparent border carrying the ui_kit's card noise
+   sliced at 1 and repeated, at a quarter opacity, over the content at
+   z-index 1. This is the one place the values have to be written down rather
+   than taken, because the rule holding them is not in this document:
+   TwitchWindow.html links no stylesheet, so there is nothing to inherit and
+   no class to borrow. Pinned at -1rem for the reason given above.
 
-   Written after the fallback it overrides: both selectors are one class deep,
-   so the order in this file is what decides. */
-.UnicumTwitchPanel__overBattle {
-    background-color: rgba(0, 0, 0, 0.5);
+   Only the texture's outer one-pixel ring ships (panel_icons/card_noise.png,
+   from gui-part2.pkg gui/maps/icons/ui_kit/card/noise_center.png), since a
+   slice of 1 samples nothing else: 2 KB carried rather than 66. */
+.UnicumTwitchPanel_noise {
+    position: absolute;
+    top: -1rem;
+    right: -1rem;
+    bottom: -1rem;
+    left: -1rem;
+    border: 1rem solid transparent;
+    opacity: 0.25;
+    z-index: 1;
+    pointer-events: none;
 }
 
 .UnicumTwitchPanel__collapsed {

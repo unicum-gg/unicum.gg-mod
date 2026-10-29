@@ -98,17 +98,11 @@ def check_battle_choice():
     from unicum.settings import BATTLE_CHAT_CHOICES, Settings
     from unicum.settings_window.labels import BATTLE_CHAT_LABELS
     from unicum.twitch_panel import PanelRect
-    from unicum.twitch_window.placing import (battle_place, window_place,
-                                              window_state)
+    from unicum.twitch_window.placing import battle_place, window_place
 
     check('every battle choice has a label of its own',
           len(BATTLE_CHAT_LABELS) == len(BATTLE_CHAT_CHOICES) == 4)
 
-    # The page cannot tell a battle from a queue screen, and over a battle it
-    # needs a fill rather than an edge to be found and read at all.
-    check('the page is told when it is over a battle, and only then',
-          window_state({}, None, 'en', battle=True)['overBattle'] is True
-          and window_state({}, None, 'en')['overBattle'] is False)
 
     settings = Settings(Session(generation=0), store=os.path.join(tempfile.mkdtemp(), 'settings.json'))
 
@@ -652,7 +646,7 @@ def check_twitch_window():
     state = window_state({'position': [10, 20], 'size': [400, 300], 'collapsed': True}, rect, 'fr')
     check('the window holds the panel in its corner at the garage panel\'s size, folded as it is',
           state == {'position': None, 'size': [322, 220], 'collapsed': True, 'lang': 'fr', 'covered': False,
-                    'moved': True, 'overBattle': False})
+                    'moved': True})
     check('the reset arrow shows only for a place or a size of the player\'s',
           window_state({'position': None, 'size': None}, rect)['moved'] is False)
     check('a resize keeps to the panel\'s bounds and to the room on screen',
@@ -804,18 +798,27 @@ def check_borrowed_decor():
     # declared transparent, so nothing was left to see.
     composed = panel_js.split('root.className = "UnicumTwitchPanel"')[-1].split(';')[0]
     check('the panel composes its edge class into every render',
-          'state.decor.base' in composed
-          and 'UnicumTwitchPanel__plain' in composed
-          and 'UnicumTwitchPanel__overBattle' in composed)
+          'state.decor.base' in composed and 'UnicumTwitchPanel__plain' in composed)
+    # The window has an edge of its own and needs no fallback fill behind it.
+    check('and leaves the fallback to the garage, which is the only place it fits',
+          'windowed ? ""' in composed)
 
-    # Measured in the client: its own panels over a battle carry no border at
-    # all, and a black fill at half opacity (PostmortemPanelView.css).
-    check('over a battle the panel takes the fill the client gives its own',
-          'background-color: rgba(0, 0, 0, 0.5)' in panel_css.split('__overBattle')[-1])
-    # One class deep each, so the file order is the whole of the cascade here.
-    check('and that rule is written after the fallback it overrides',
-          panel_css.index('.UnicumTwitchPanel__plain {')
-          < panel_css.index('.UnicumTwitchPanel__overBattle {'))
+    # The window can borrow nothing: no card to read a class off, and
+    # TwitchWindow.html links no stylesheet to hold the rule. So it grafts the
+    # layer and carries the texture, and these are the only values in the mod
+    # copied from the hangar's sheet rather than taken from it.
+    noise_rule = panel_css.split('.UnicumTwitchPanel_noise {')[-1].split('}')[0]
+    check('the window grafts its own noise layer, at the client values',
+          'UnicumTwitchPanel_noise' in panel_js and 'PANEL_ICONS.card_noise' in panel_js
+          and '1/1rem repeat' in panel_js
+          and 'opacity: 0.25' in noise_rule and 'z-index: 1' in noise_rule
+          and '-1rem' in noise_rule)
+    check('and only in the window, the garage having the hangar to borrow from',
+          'windowed && PANEL_ICONS.card_noise' in panel_js)
+    # Only the ring a slice of 1 samples: the whole texture is 66 KB.
+    ring = os.path.join(hangar, 'panel_icons', 'card_noise.png')
+    check('the texture it carries is the ring alone',
+          os.path.exists(ring) and os.path.getsize(ring) < 8000)
 
     # Nothing to borrow from: a hangar showing no mission, and the Twitch
     # window of the battle queue, which is a window of the client's own.

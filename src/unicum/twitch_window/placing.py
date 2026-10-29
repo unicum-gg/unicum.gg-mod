@@ -44,10 +44,6 @@ def window_state(state, rect, lang='en', battle=False, battle_position=None):
     (`battle_position`), since the garage's is not the one it is sitting at.
     """
     state = dict(state)
-    # The page cannot tell a battle from a queue screen, and over a battle it
-    # needs a fill rather than an edge to be read at all (twitch_panel.css,
-    # __overBattle). This is the only side that knows.
-    state['overBattle'] = bool(battle)
     if battle:
         state['moved'] = bool(battle_position or state.get('size'))
     else:

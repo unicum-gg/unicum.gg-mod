@@ -120,6 +120,17 @@ footer.appendChild(connect);
 const grip = document.createElement("div");
 grip.className = "UnicumTwitchPanel_grip";
 
+// The edge, where there is nobody to borrow one from. In the garage the panel
+// takes the hangar's own noise layer by class (`syncDecor`); the window has no
+// card to read a class off and no hangar stylesheet to hold the rule anyway,
+// so it grafts the layer itself and hands it the client's texture, carried
+// with the panel's icons as a data URI. The stylesheet says what is in it.
+if (windowed && PANEL_ICONS.card_noise) {
+    const noise = document.createElement("div");
+    noise.className = "UnicumTwitchPanel_noise";
+    noise.style.borderImage = `url(${PANEL_ICONS.card_noise}) 1/1rem repeat`;
+    root.appendChild(noise);
+}
 root.appendChild(header);
 root.appendChild(cardConnect);
 root.appendChild(list);
@@ -579,14 +590,14 @@ function renderFrame(data) {
         // What draws the panel's edge, and it has to be composed here rather
         // than only added when it is found: this line rewrites className
         // outright, so a class merely added to the node is dropped by the
-        // next render, and the next chat message to arrive is a render. Either
-        // the hangar's own class, which its noise layer is styled under, or
-        // the fallback that paints an edge where there is nothing to borrow.
+        // next render, and the next chat message to arrive is a render.
         // account_card.js composes its borrowed class the same way.
-        (state.decor ? " " + state.decor.base : " UnicumTwitchPanel__plain") +
-        // Over a live battle an edge is not enough to find the panel by, let
-        // alone read chat on: see the stylesheet.
-        (data.overBattle ? " UnicumTwitchPanel__overBattle" : "") +
+        //
+        // The hangar's own class, which its noise layer is styled under. The
+        // window needs none: it carries its own layer, grafted above. What is
+        // left is the garage before the hangar has lent anything, where the
+        // fallback stands in for the moment it takes.
+        (state.decor ? " " + state.decor.base : (windowed ? "" : " UnicumTwitchPanel__plain")) +
         (state.drag && state.drag.moved ? " UnicumTwitchPanel__dragging" : "");
     if (!state.resize) {
         size(data.size);
