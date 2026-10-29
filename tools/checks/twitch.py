@@ -690,12 +690,14 @@ def check_borrowed_decor():
     # card opens something.
     check('and not the hover a card has', 'Card_card__enabled_' not in panel_js)
 
-    # At a card's quarter opacity that layer left a 220rem panel with no edge
-    # over the carousel. The client's own widgets draw the same noise at full
-    # strength (IntroOverlay_borderNoise, Banner_borderNoise set no opacity).
+    # The client gives that layer .25 around a card at rest and .45 around the
+    # one under the pointer, and nothing else. A quarter left a 220rem panel
+    # with no edge over the carousel, and the full strength its widgets use drew
+    # one too hard, so the panel takes the strength the client itself reaches
+    # for when an edge has to read.
     layer_rule = panel_css.split('[class*="Card_borderHelper_"]')[-1].split('}')[0]
-    check('the panel draws that layer at a widget\'s strength, not a card\'s quarter',
-          'opacity: 1' in layer_rule)
+    check('the panel draws that layer at the strength a card that must read gets',
+          'opacity: 0.45' in layer_rule)
     check('and pins it over its border rather than inside it', '-1rem' in layer_rule)
 
     # The panel's border holds its box: the list's height is the panel's less

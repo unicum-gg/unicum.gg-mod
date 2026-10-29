@@ -60,14 +60,15 @@ body.UnicumPanelResizing, body.UnicumPanelResizing * {
     right: -1rem;
     bottom: -1rem;
     left: -1rem;
-    /* A quarter is what the client gives the noise around a card, and it is
-       enough for one 56rem high on an even stretch of hangar. This panel is
-       220rem and runs down over the tank carousel, where a quarter of a rem of
-       noise left it with no edge at all. The client draws a widget's noise at
-       full strength for the same reason: IntroOverlay_borderNoise and
-       Banner_borderNoise set no opacity, and both are pinned at -1rem exactly
-       as above. Same layer, a widget's weight rather than a card's. */
-    opacity: 1;
+    /* The client gives this layer two strengths and no others: .25 around a
+       card at rest, .45 around the one under the pointer. A quarter carries a
+       card 56rem high on an even stretch of hangar, and left this panel, 220rem
+       tall and running down over the tank carousel, with no edge at all; the
+       full strength its widgets use drew one too hard. So .45, which is the
+       client's own answer to "this edge has to read" -- what it reaches for
+       when a card has to stand out from the hangar behind it, and what a panel
+       over the carousel needs for as long as it is open. */
+    opacity: 0.45;
     pointer-events: none;
 }
 
