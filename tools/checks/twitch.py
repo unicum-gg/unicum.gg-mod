@@ -690,14 +690,18 @@ def check_borrowed_decor():
     # card opens something.
     check('and not the hover a card has', 'Card_card__enabled_' not in panel_js)
 
-    # The client gives that layer .25 around a card at rest and .45 around the
-    # one under the pointer, and nothing else. A quarter left a 220rem panel
-    # with no edge over the carousel, and the full strength its widgets use drew
-    # one too hard, so the panel takes the strength the client itself reaches
-    # for when an edge has to read.
+    # A mission card's edge at rest is this one layer: the Card_border_ beside
+    # it is transparent until the pointer arrives and the veil is at 0. So the
+    # panel wears the same border as the card only by writing no strength of
+    # its own and taking the client's, whatever a build changes it to. Every
+    # value tried here instead -- a widget's full strength, the .45 the client
+    # gives a card under the pointer -- read as a lighter edge than the card's,
+    # because that is exactly what it was.
     layer_rule = panel_css.split('[class*="Card_borderHelper_"]')[-1].split('}')[0]
-    check('the panel draws that layer at the strength a card that must read gets',
-          'opacity: 0.45' in layer_rule)
+    # Without the comments: the one above says the word out loud.
+    layer_decls = re.sub(r'/\*.*?\*/', '', layer_rule, flags=re.S)
+    check("the panel writes no strength of its own, so its border is the card's",
+          'opacity' not in layer_decls)
     check('and pins it over its border rather than inside it', '-1rem' in layer_rule)
 
     # The panel's border holds its box: the list's height is the panel's less

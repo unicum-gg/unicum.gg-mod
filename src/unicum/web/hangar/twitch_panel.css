@@ -60,15 +60,21 @@ body.UnicumPanelResizing, body.UnicumPanelResizing * {
     right: -1rem;
     bottom: -1rem;
     left: -1rem;
-    /* The client gives this layer two strengths and no others: .25 around a
-       card at rest, .45 around the one under the pointer. A quarter carries a
-       card 56rem high on an even stretch of hangar, and left this panel, 220rem
-       tall and running down over the tank carousel, with no edge at all; the
-       full strength its widgets use drew one too hard. So .45, which is the
-       client's own answer to "this edge has to read" -- what it reaches for
-       when a card has to stand out from the hangar behind it, and what a panel
-       over the carousel needs for as long as it is open. */
-    opacity: 0.45;
+    /* No opacity here, deliberately. A mission card's edge at rest is this one
+       layer and nothing else: the Card_border_ layer beside it is
+       rgba(255, 255, 255, 0) until the pointer arrives, and the white veil is
+       at 0. So the card's border IS this noise at whatever strength the client
+       gives it, and the only way for the panel to wear the same border as the
+       card is to write no strength of its own and take the client's. A value
+       copied here, however carefully chosen, is a value that drifts away from
+       the card the day a client build changes theirs.
+
+       The one override left is the pinning. The card declares no border and
+       lets this layer sit at its inset 0; the panel declares its own 1rem
+       border because its box arithmetic hangs off it (see the list below), and
+       an absolutely positioned child is offset from the padding box, which is
+       inside that border. At -1rem the band lands back on the panel's outer
+       edge, so it is the same ring in the same place as the card's. */
     pointer-events: none;
 }
 
