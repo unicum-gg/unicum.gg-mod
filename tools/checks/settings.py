@@ -111,6 +111,16 @@ def check_settings_window():
           len(hiding) == 1 and hiding[0][3] == u'1')
     check('right after the box that shares them',
           boxes.index(HIDE_LABEL) == boxes.index(u'Share my loadouts') + 1)
+    from unicum.settings_window.labels import HIDE_BATTLES_LABEL
+    check('the battle-hiding box is left out when no account is linked',
+          HIDE_BATTLES_LABEL not in [line[2] for line in lines if line[0] == u'checkbox'])
+    linked = [line.split(u'\t') for line
+              in native_page(values, u'license__', True, True, False, False, True).split(u'\n')]
+    battles = [line for line in linked if line[0] == u'checkbox' and line[2] == HIDE_BATTLES_LABEL]
+    check('and offered, ticked, to any linked account that has hidden its battles',
+          len(battles) == 1 and battles[0][3] == u'1')
+    check('there is no box that stops sending battles',
+          not any(line[1] == u'sendBattles' for line in linked if line[0] == u'checkbox'))
     check('the settings tab has the Garage, Battle and Twitch sub-tabs',
           [line[1] for line in lines if line[0] == u'tab'] == [u'Garage', u'Battle', u'Twitch'])
     flags = [line for line in lines if line[0] == u'dropdown' and line[1] == u'maxFlags'][0]

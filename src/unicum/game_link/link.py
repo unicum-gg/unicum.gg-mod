@@ -52,11 +52,12 @@ class GameLink(object):
         self.twitch = None
         self.twitch_login = None
         # Whether this account supports the site, and whether it has taken its
-        # loadouts off its public page. Both are the site's answer rather than
-        # a local setting: the first is a subscription and the second is a row
-        # the site owns, so neither belongs in settings.json.
+        # loadouts and its battles off its public page. All the site's answer
+        # rather than a local setting: the first is a subscription and the
+        # others a row the site owns, so none belongs in settings.json.
         self.supporter = False
         self.loadouts_hidden = False
+        self.battles_hidden = False
         self._retrying = False
         self._listeners = []
 
@@ -110,7 +111,7 @@ class GameLink(object):
             self._links.setdefault(account, self._links.pop(None))
             self._save()
         self.name = self.twitch = self.twitch_login = None
-        self.supporter = self.loadouts_hidden = False
+        self.supporter = self.loadouts_hidden = self.battles_hidden = False
         _logger.info('account %s, %s', account, 'linked' if self.secret else 'not linked')
         self._changed()
         self.refresh()
@@ -170,9 +171,10 @@ class GameLink(object):
             self.name, self.twitch, self.twitch_login = name, twitch, twitch_login
             self._changed()
 
-    def _set_privacy(self, supporter, loadouts_hidden):
-        if (supporter, loadouts_hidden) != (self.supporter, self.loadouts_hidden):
-            self.supporter, self.loadouts_hidden = supporter, loadouts_hidden
+    def _set_privacy(self, supporter, loadouts_hidden, battles_hidden):
+        privacy = (supporter, loadouts_hidden, battles_hidden)
+        if privacy != (self.supporter, self.loadouts_hidden, self.battles_hidden):
+            self.supporter, self.loadouts_hidden, self.battles_hidden = privacy
             self._changed()
 
     def hide_loadouts(self, hidden, done=None):
@@ -196,7 +198,7 @@ class GameLink(object):
                 if done:
                     done(False)
                 return
-            self._set_privacy(self.supporter, bool(hidden))
+            self._set_privacy(self.supporter, bool(hidden), self.battles_hidden)
             if done:
                 done(True)
 
@@ -205,10 +207,39 @@ class GameLink(object):
                             method='PATCH',
                             post_data=json.dumps({'loadoutsHidden': bool(hidden)}))
 
+    def hide_battles(self, hidden, done=None):
+        """Take this player's battle list off their page, or put it back.
+
+        The same exchange as `hide_loadouts`, for every linked account rather
+        than supporters alone. It hides the list and nothing else: the battles
+        keep being sent, which is not a choice this mod offers.
+        """
+        secret = self.secret
+        if not secret:
+            if done:
+                done(False)
+            return
+
+        def answered(response):
+            if getattr(response, 'responseCode', None) != 200:
+                _logger.warning('the site would not change the battle privacy (HTTP %s)',
+                                getattr(response, 'responseCode', None))
+                if done:
+                    done(False)
+                return
+            self._set_privacy(self.supporter, self.loadouts_hidden, bool(hidden))
+            if done:
+                done(True)
+
+        self._session.fetch(ME_PATH % config.API_BASE.rstrip('/'), answered,
+                            headers=bearer(secret), timeout=config.API_TIMEOUT,
+                            method='PATCH',
+                            post_data=json.dumps({'battlesHidden': bool(hidden)}))
+
     def _forget(self):
         self._links.pop(self._account, None)
         self.name = self.twitch = self.twitch_login = None
-        self.supporter = self.loadouts_hidden = False
+        self.supporter = self.loadouts_hidden = self.battles_hidden = False
         self._save()
         self._changed()
 

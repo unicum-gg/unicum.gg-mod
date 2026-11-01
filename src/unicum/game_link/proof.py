@@ -68,26 +68,27 @@ def read_me(response):
     return payload.get('name'), payload.get('twitch'), login
 
 def read_privacy(response):
-    """(supports the site, loadouts hidden) from the same answer as `read_me`.
+    """(supports the site, loadouts hidden, battles hidden) from the same answer as `read_me`.
 
     Read apart from the identity rather than widened into it: the identity
     tuple is unpacked at four call sites, and growing it to carry two more
     fields would have meant changing every one of them for a switch only the
     settings window looks at.
 
-    Both default to false, which is the safe way round. A client that cannot
+    All default to false, which is the safe way round. A client that cannot
     read the answer draws no switch rather than an inert one, and treats the
-    loadouts as shown rather than claiming they are hidden.
+    loadouts and battles as shown rather than claiming they are hidden.
     """
     if getattr(response, 'responseCode', None) != 200:
-        return False, False
+        return False, False, False
     try:
         payload = json.loads(response.body)
     except (TypeError, ValueError):
-        return False, False
+        return False, False, False
     if not isinstance(payload, dict):
-        return False, False
-    return bool(payload.get('supporter')), bool(payload.get('loadoutsHidden'))
+        return False, False, False
+    return (bool(payload.get('supporter')), bool(payload.get('loadoutsHidden')),
+            bool(payload.get('battlesHidden')))
 
 def current_account_id():
     """The Wargaming account id the client is logged in with, or None (the login screen).

@@ -74,32 +74,25 @@ DEFAULTS = dict({
     # of this, so nothing is here that the player's own client did not send,
     # and the pages are the poorer for every client that stays quiet.
     'sendLoadouts': True,
-    # Whether this client tells unicum.gg about the battles it played: the
-    # map, the mode, and what each of the thirty vehicles did. On by default
-    # and stated in the mod's description, for the reason the loadouts above
-    # are: Wargaming publishes none of this, so a battle on the site exists
-    # only because somebody who was in it shared it.
-    #
-    # This was off at first, on the grounds that a loadout describes the
-    # player's own garage while a battle describes twenty-nine other people
-    # too. That argument is real but it loses to two others. A box nobody
-    # ticks collects nothing, so off is not a cautious version of this
-    # feature, it is the absence of it. And a battle names all thirty players,
-    # so each client that speaks covers thirty: off never lets that
-    # multiplier start. What is sent is also the thinner half of the two --
-    # numbers every one of those thirty already read on their own results
-    # screen, no chat, no replay, nothing about what anyone owns. The replay
-    # file is `sendReplays`, below, and not this.
-    'sendBattles': True,
+    # The battles this client played are always sent, while the mod is on:
+    # there is no box for them. They are what the site is built on (Wargaming
+    # publishes none of them, and a battle exists on unicum.gg only because
+    # somebody who was in it sent it), and a player who wants them out of
+    # sight has a switch that does that without taking them away from
+    # everybody else: hiding the battle list on their own page, which the
+    # site owns (`hideBattles` in the settings window, not a value here).
+    # It was a ticked box first, and a box that turns the uploads off is a
+    # box that empties the site one cautious player at a time.
+
     # The `.wotreplay` the client already writes, on top of the result.
     #
-    # Kept apart from `sendBattles` because it is not the same promise: a
+    # Kept apart from the battles because it is not the same promise: a
     # result is numbers those thirty players each read on their own results
     # screen, while the file is everything this client saw, the battle chat
-    # included. Folding it into the existing box would have contradicted that
-    # box's own tooltip, which says "no chat, no replay" in as many words.
+    # included. Folding it into the battles would break what they carry: the
+    # numbers alone, no chat and no replay.
     #
-    # On, for the reason `sendBattles` is on: a box nobody ticks collects
+    # On, for the reason the battles are sent: a box nobody ticks collects
     # nothing, and one client sending is enough for all thirty. What that
     # costs in candour is paid in the tooltip, which says plainly that the
     # chat goes too.

@@ -50,7 +50,8 @@ class SettingsTab(object):
         return page.native_page(
             self._settings.values(), channel, linked and link.twitch == 'ready', card_shown,
             supporter=bool(link is not None and link.supporter),
-            loadouts_hidden=bool(link is not None and link.loadouts_hidden))
+            loadouts_hidden=bool(link is not None and link.loadouts_hidden),
+            battles_hidden=link.battles_hidden if linked else None)
 
     def _tick(self):
         try:
