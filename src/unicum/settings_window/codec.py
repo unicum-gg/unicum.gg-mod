@@ -14,7 +14,8 @@ from unicum.settings import (AVERAGED, BATTLE_CHAT_CHOICES, EXTRAS,
                              RELOAD_CHOICES, SURFACES, WINDOWS)
 from unicum.settings_window.labels import (_ALT_KEYS, _ALT_SCREENS,
                                            _MENU_KEYS, _SURFACE_LABELS,
-                                           CARD_VAR, HIDE_VAR,
+                                           CARD_VAR, HIDE_BATTLES_VAR,
+                                           HIDE_VAR,
                                            MINIMAP_NAME_LABELS,
                                            RELOAD_LABELS, SHOW_CHOICES,
                                            TEAM_CHOICES, WHEN_CHOICES)
@@ -45,10 +46,10 @@ def read_native(text):
     return raw, buttons
 
 def apply_window(raw, settings, link):
-    """A page's values into settings.json, and the two site-owned boxes into the link.
+    """A page's values into settings.json, and the site-owned boxes into the link.
 
-    The card's box and the loadout-hiding box are not settings: one lives in
-    account.json and the other is a row on the site, so neither can go through
+    The card's box and the two hiding boxes are not settings: one lives in
+    account.json and the others are a row on the site, so none can go through
     `settings.update`. They are read off the same page all the same, because
     to the player they are boxes in the same list.
     """
@@ -63,14 +64,19 @@ def apply_window(raw, settings, link):
     # same thing as leaving it alone.
     if isinstance(hidden, bool) and link is not None and hidden != link.loadouts_hidden:
         link.hide_loadouts(hidden)
+    battles_hidden = raw.get(HIDE_BATTLES_VAR)
+    # Absent from the page for a game not linked to an account.
+    if (isinstance(battles_hidden, bool) and link is not None
+            and battles_hidden != link.battles_hidden):
+        link.hide_battles(battles_hidden)
     settings.update(from_window(raw))
 
-def to_window(values, card_shown=True, loadouts_hidden=False):
+def to_window(values, card_shown=True, loadouts_hidden=False, battles_hidden=False):
     """What the window stores for these settings: flat, choices by index."""
     window = {CARD_VAR: card_shown, HIDE_VAR: loadouts_hidden,
+              HIDE_BATTLES_VAR: bool(battles_hidden),
               'enabled': values['enabled'], 'maxFlags': values['maxFlags'], 'tankButton': values['tankButton'],
               'sendLoadouts': values['sendLoadouts'],
-              'sendBattles': values['sendBattles'],
               'sendReplays': values['sendReplays'],
               'measurePerformance': values['measurePerformance'],
               'autoReload': RELOAD_CHOICES.index(values['autoReload']),
@@ -95,8 +101,8 @@ def to_window(values, card_shown=True, loadouts_hidden=False):
 def from_window(raw):
     """settings.json changes from what the window sends back."""
     changes = {}
-    for key in ('enabled', 'tankButton', 'sendLoadouts', 'sendBattles',
-                'sendReplays', 'measurePerformance', 'winrateDecimal'):
+    for key in ('enabled', 'tankButton', 'sendLoadouts', 'sendReplays',
+                'measurePerformance', 'winrateDecimal'):
         if isinstance(raw.get(key), bool):
             changes[key] = raw[key]
     announced = _index(raw.get('autoReload'), RELOAD_CHOICES)

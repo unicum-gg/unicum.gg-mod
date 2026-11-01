@@ -52,18 +52,21 @@ class Settings(object):
         return self._values['enabled'] and self._values['sendLoadouts']
 
     def sends_battles(self):
-        """Whether this client sends the battles it played."""
-        return self._values['enabled'] and self._values['sendBattles']
+        """Whether this client sends the battles it played: whenever the mod is on.
+
+        Not a setting: the defaults say why there is no box, and what a
+        player who wants privacy gets instead (`hideBattles`).
+        """
+        return self._values['enabled']
 
     def sends_replays(self):
         """Whether this client also sends the replay file of those battles.
 
-        Gated on `sendBattles` as well as on its own box: the file is attached
-        to a battle the server already has, so sending one without the other
-        would be offering a file for a battle nobody reported.
+        Gated on the battles being sent as well as on its own box: the file is
+        attached to a battle the server already has, so sending one without
+        the other would be offering a file for a battle nobody reported.
         """
-        return (self._values['enabled'] and self._values['sendBattles']
-                and self._values['sendReplays'])
+        return self.sends_battles() and self._values['sendReplays']
 
     def measures_performance(self):
         """Whether the mod is timing itself. Not gated on `enabled`: a mod

@@ -666,31 +666,34 @@ def check_battle_blame():
 
 
 def check_battle_setting():
-    """The box that turns this on, and what it is wired to."""
+    """There is no box that stops the uploads, and the hiding box stops nothing."""
     from unicum.settings import DEFAULTS, validate
     from unicum.settings_window.codec import from_window, to_window
+    from unicum.settings_window.labels import HIDE_BATTLES_VAR
 
-    # On by default, like the loadouts: a box nobody ticks collects nothing,
-    # and a battle names all thirty players, so each client that speaks covers
-    # thirty.
-    check('sharing battles is on by default', DEFAULTS['sendBattles'] is True)
-    check('a settings.json that has never heard of it gets the default',
-          validate({})['sendBattles'] is True)
-    # The half that matters most now that it is on by default: a player who
-    # turns it off must stay off, including across the update that flipped it.
-    check('a player who turned it off stays off',
-          validate({'sendBattles': False})['sendBattles'] is False)
-    check('what the player chose is kept', validate({'sendBattles': True})['sendBattles'] is True)
-    check('nonsense in the file falls back to the default',
-          validate({'sendBattles': 'yes'})['sendBattles'] is True)
-
-    values = validate({'sendBattles': True})
-    check('the window is told the state of the box', to_window(values)['sendBattles'] is True)
-    check('the box comes back from the window',
-          from_window({'sendBattles': False}) == {'sendBattles': False})
+    # The battles are what the site is built on, so the mod offers no way to
+    # stop sending them short of turning it off. A player who turned the old
+    # box off, before it was removed, is sending again: the value left in
+    # their settings.json is ignored rather than honoured.
+    check('there is no setting that stops sending battles', 'sendBattles' not in DEFAULTS)
+    check('an old settings.json that turned them off is not honoured',
+          'sendBattles' not in validate({'sendBattles': False})
+          and _sends(validate({'sendBattles': False})) is True)
+    check('the window has no such box either',
+          'sendBattles' not in to_window(validate({}))
+          and 'sendBattles' not in from_window({'sendBattles': False}))
     check('the mod being off takes the uploads with it',
-          _sends(validate({'sendBattles': True, 'enabled': False})) is False
-          and _sends(validate({'sendBattles': True})) is True)
+          _sends(validate({'enabled': False})) is False and _sends(validate({})) is True)
+
+    # What a player gets instead: their own list out of sight, owned by the
+    # site, so it never lands in settings.json.
+    values = validate({})
+    check('the battle-hiding box follows the site rather than settings.json',
+          to_window(values)[HIDE_BATTLES_VAR] is False
+          and to_window(values, True, False, True)[HIDE_BATTLES_VAR] is True
+          and HIDE_BATTLES_VAR not in from_window({HIDE_BATTLES_VAR: True}))
+    check('hiding the battles leaves them being sent',
+          _sends(validate({})) is True)
 
 
 def _sends(values):

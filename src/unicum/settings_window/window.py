@@ -96,7 +96,8 @@ class SettingsWindow(object):
         linked = bool(link is not None and link.secret)
         state = (self._chat.channel if self._chat is not None else u'',
                  linked and link.twitch == 'ready', linked, link.name if linked else None,
-                 self._card_shown(), self._supporter(), self._hidden())
+                 self._card_shown(), self._supporter(), self._hidden(),
+                 self._link.battles_hidden if linked else None)
         if state == self._state:
             return
         self._state = state
@@ -115,9 +116,10 @@ class SettingsWindow(object):
         return bool(self._link is not None and self._link.loadouts_hidden)
 
     def _register(self):
-        channel, writable, linked, name, card_shown, supporter, hidden = self._state
+        (channel, writable, linked, name, card_shown, supporter, hidden,
+         battles_hidden) = self._state
         self._api.setModTemplate(LINKAGE, template(self._settings.values(), channel, writable, card_shown,
-                                                   supporter, hidden),
+                                                   supporter, hidden, battles_hidden),
                                  self._on_window, self._on_button)
         # The API keeps its own copy of every value and sends it back as the
         # player's choice. For the card that copy can be stale (the card's

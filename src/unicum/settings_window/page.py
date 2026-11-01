@@ -16,10 +16,11 @@ from unicum.settings_window.labels import (_ALT_SCREENS, _CHOICE_WIDTH,
                                            _MODES_TOOLTIP, _RESET_TOOLTIP,
                                            _RULE, _SURFACE_LABELS,
                                            _TAB_TOOLTIP, _WINDOW_LABELS,
-                                           BATTLES_LABEL, BATTLE_CHAT_LABEL,
+                                           HIDE_BATTLES_LABEL, BATTLE_CHAT_LABEL,
                                            BATTLE_CHAT_LABELS, CARD_LABEL,
                                            CARD_VAR, CONNECT_VAR,
-                                           DISCORD_VAR, HIDE_VAR, LINKS,
+                                           DISCORD_VAR, HIDE_BATTLES_VAR,
+                                           HIDE_VAR, LINKS,
                                            MEASURE_LABEL, MINIMAP_NAME_LABELS,
                                            RELOAD_LABELS, REPLAYS_LABEL,
                                            RESET_BUTTON, RESET_LABEL,
@@ -27,7 +28,7 @@ from unicum.settings_window.labels import (_ALT_SCREENS, _CHOICE_WIDTH,
                                            SOURCE_VAR, SUPPORT_VAR,
                                            TEAM_CHOICES, WHEN_CHOICES,
                                            _GARAGE_SURFACES, _MODE_LABELS,
-                                           _SPACER, BATTLES_TOOLTIP,
+                                           _SPACER, HIDE_BATTLES_TOOLTIP,
                                            GARAGE_CHAT_LABEL, HIDE_LABEL,
                                            REPLAYS_TOOLTIP)
 from unicum.settings_window.codec import (_alt_key, _menu_key, _mode_key,
@@ -51,15 +52,17 @@ def _button_line(templates, text, var, button, tooltip=None):
                 button=templates.createButton(width=90, height=24, text=button))
 
 def template(values, channel=u'', linked=False, card_shown=True,
-             supporter=False, loadouts_hidden=False):
+             supporter=False, loadouts_hidden=False, battles_hidden=None):
     """The API's page for these settings, showing `values` and the Twitch channel followed.
 
     `linked` is whether the Twitch chat can be written to, `card_shown` whether
     the account card shows for the account logged in. `supporter` decides
     whether the hiding box is drawn at all, and `loadouts_hidden` where it sits.
+    `battles_hidden` is None when the game is linked to no account, which is
+    the one case the battle-hiding box is left out: the site keys it there.
     """
     from gui.modsSettingsApi import templates
-    window = to_window(values, card_shown, loadouts_hidden)
+    window = to_window(values, card_shown, loadouts_hidden, battles_hidden)
 
     def checkbox(label, var, tooltip=None):
         return templates.createCheckbox(label, var, window[var], tooltip=tooltip)
@@ -124,8 +127,9 @@ def template(values, channel=u'', linked=False, card_shown=True,
                     'towards what the site can say about a tank, but takes them off your own public page. To '
                     'stop sending them altogether, and delete the ones already sent, untick Share my loadouts '
                     'instead.{/BODY}'))
+    if battles_hidden is not None:
+        garage.append(checkbox(HIDE_BATTLES_LABEL, HIDE_BATTLES_VAR, tooltip=HIDE_BATTLES_TOOLTIP))
     garage.extend([
-        checkbox(BATTLES_LABEL, 'sendBattles', tooltip=BATTLES_TOOLTIP),
         checkbox(REPLAYS_LABEL, 'sendReplays', tooltip=REPLAYS_TOOLTIP),
         checkbox(CARD_LABEL, CARD_VAR,
                  tooltip='{HEADER}' + CARD_LABEL + '{/HEADER}{BODY}The card under the mission cards that '
@@ -176,7 +180,7 @@ def template(values, channel=u'', linked=False, card_shown=True,
             'column1': garage, 'column2': battle}
 
 def native_page(values, channel=u'', linked=False, card_shown=True,
-                supporter=False, loadouts_hidden=False):
+                supporter=False, loadouts_hidden=False, battles_hidden=None):
     """The same settings for the unicum.gg tab of the game's settings window (settings_tab.py).
 
     The same variables and the same choices as template(), laid out for a
@@ -193,7 +197,7 @@ def native_page(values, channel=u'', linked=False, card_shown=True,
 
     A dropdown sends back its index plus its offset: maxFlags counts from 1.
     """
-    window = to_window(values, card_shown, loadouts_hidden)
+    window = to_window(values, card_shown, loadouts_hidden, battles_hidden)
     lines = []
 
     def tab(label):
@@ -227,7 +231,8 @@ def native_page(values, channel=u'', linked=False, card_shown=True,
     checkbox(u'Share my loadouts', 'sendLoadouts')
     if supporter:
         checkbox(HIDE_LABEL, HIDE_VAR)
-    checkbox(BATTLES_LABEL, 'sendBattles')
+    if battles_hidden is not None:
+        checkbox(HIDE_BATTLES_LABEL, HIDE_BATTLES_VAR)
     checkbox(REPLAYS_LABEL, 'sendReplays')
     checkbox(CARD_LABEL, CARD_VAR)
     checkbox(MEASURE_LABEL, 'measurePerformance')

@@ -70,7 +70,6 @@ def validate(raw):
     values['contextMenu'] = dict((key, _bool(context_menu.get(key), default))
                                  for key, default in DEFAULTS['contextMenu'].items())
     values['sendLoadouts'] = _bool(raw.get('sendLoadouts'), DEFAULTS['sendLoadouts'])
-    values['sendBattles'] = _bool(raw.get('sendBattles'), DEFAULTS['sendBattles'])
     values['sendReplays'] = _bool(raw.get('sendReplays'), DEFAULTS['sendReplays'])
     values['measurePerformance'] = _bool(raw.get('measurePerformance'),
                                          DEFAULTS['measurePerformance'])

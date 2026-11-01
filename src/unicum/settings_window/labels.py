@@ -167,24 +167,20 @@ BATTLE_CHAT_LABEL = 'Twitch chat in battle'
 HIDE_VAR = 'hideLoadouts'
 HIDE_LABEL = 'Hide my loadouts from my page'
 
-# DRAFT WORDING, pending approval: this is public text a player reads before
-# deciding, the box is ticked when they first see it, and the decision it asks
-# for is about other people's battles as much as their own.
+# Not a settings.json value either, for the same reason as the loadouts box:
+# the site owns this row. Drawn for every linked account, supporter or not,
+# since a player whose team practice would be readable by whoever they face
+# next should not have to pay to keep it quiet.
 #
-# The last sentence is the one that has to be there. The loadout box above
-# promises that unticking deletes what was already sent, and this one cannot
-# promise the same: a battle is thirty players' data and one of them cannot
-# withdraw it for the others. A ticked-by-default box whose words let a player
-# assume otherwise would be the dishonest version of this feature.
-BATTLES_LABEL = 'Share the battles I play'
-BATTLES_TOOLTIP = (
-    '{HEADER}' + BATTLES_LABEL + '{/HEADER}{BODY}Sends the result of each battle you finish: the map, '
-    'the mode, and what every vehicle in it did. Wargaming publishes none of this, so a battle exists '
-    'on unicum.gg only because somebody who was in it shared it. A battle names all thirty players, so '
-    'sharing yours shares theirs too, and theirs shares yours. The result alone: no chat, no replay, '
-    'nothing about what you own; the replay file is the separate setting below. Untick it to stop '
-    'sending; battles already shared stay, because they are thirty '
-    "players' results and not one account's to take back.{/BODY}")
+# This is the only battle switch there is. The battles themselves are always
+# sent while the mod is on (see the defaults), so the words must not suggest
+# that ticking this stops anything: it hides the list, nothing more.
+HIDE_BATTLES_VAR = 'hideBattles'
+HIDE_BATTLES_LABEL = 'Hide my battles from my page'
+HIDE_BATTLES_TOOLTIP = (
+    '{HEADER}' + HIDE_BATTLES_LABEL + '{/HEADER}{BODY}Only you see the Battles tab of your unicum.gg '
+    'page. Your battles are still sent and still count in the site\'s statistics, and the players you '
+    'met still see you among their encounters.{/BODY}')
 
 REPLAYS_LABEL = 'Share the replay file too'
 REPLAYS_TOOLTIP = (
