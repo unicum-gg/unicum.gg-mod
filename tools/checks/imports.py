@@ -117,6 +117,33 @@ def _modules():
                        ast.parse(handle.read(), path))
 
 
+def _catches_import_error(handler):
+    """Whether an except clause catches ImportError, alone or in a tuple."""
+    caught = handler.type
+    names = caught.elts if isinstance(caught, ast.Tuple) else [caught]
+    return any(isinstance(name, ast.Name) and name.id == 'ImportError' for name in names)
+
+
+def _optional(tree):
+    """Every import the module expects may fail: inside a try that catches ImportError.
+
+    `config.py` reaches for a gitignored `local_settings` this way, which is
+    present on a developer's machine and absent everywhere else, the CI
+    included. Its absence is the case the code is written for, not a break.
+    """
+    optional = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, _TRY):
+            continue
+        if not any(_catches_import_error(h) for h in getattr(node, 'handlers', [])):
+            continue
+        for statement in node.body:
+            for inner in ast.walk(statement):
+                if isinstance(inner, ast.ImportFrom):
+                    optional.add(id(inner))
+    return optional
+
+
 def _bindings(tree):
     """local name -> the dotted mod module it was bound to."""
     modules = {}
@@ -151,11 +178,12 @@ def check_imports():
     for rel, tree in _modules():
         # What the module header imports, so the rest are the deferred ones.
         header = set(id(node) for node in tree.body)
+        optional = _optional(tree)
         modules = _bindings(tree)
 
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom):
-                if not _ours(node):
+                if not _ours(node) or id(node) in optional:
                     continue
                 if _module_file(node.module) is None:
                     broken.append('%s:%d imports from %s, which does not exist'
