@@ -173,14 +173,15 @@ HIDE_LABEL = 'Hide my loadouts from my page'
 # next should not have to pay to keep it quiet.
 #
 # This is the only battle switch there is. The battles themselves are always
-# sent while the mod is on (see the defaults), so the words must not suggest
+# sent while the mod is installed (see the defaults), so the words must not suggest
 # that ticking this stops anything: it hides the list, nothing more.
 HIDE_BATTLES_VAR = 'hideBattles'
 HIDE_BATTLES_LABEL = 'Hide my battles from my page'
 HIDE_BATTLES_TOOLTIP = (
     '{HEADER}' + HIDE_BATTLES_LABEL + '{/HEADER}{BODY}Only you see the Battles tab of your unicum.gg '
-    'page. Your battles are still sent and still count in the site\'s statistics, and the players you '
-    'met still see you among their encounters.{/BODY}')
+    'page. Your battles are still sent, as they are whenever this mod is installed, turned off '
+    'included, and still count in the site\'s statistics; the players you met still see you among '
+    'their encounters.{/BODY}')
 
 REPLAYS_LABEL = 'Share the replay file too'
 REPLAYS_TOOLTIP = (

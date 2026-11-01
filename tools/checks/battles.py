@@ -672,7 +672,7 @@ def check_battle_setting():
     from unicum.settings_window.labels import HIDE_BATTLES_VAR
 
     # The battles are what the site is built on, so the mod offers no way to
-    # stop sending them short of turning it off. A player who turned the old
+    # stop sending them, its own master switch included. A player who turned the old
     # box off, before it was removed, is sending again: the value left in
     # their settings.json is ignored rather than honoured.
     check('there is no setting that stops sending battles', 'sendBattles' not in DEFAULTS)
@@ -682,8 +682,8 @@ def check_battle_setting():
     check('the window has no such box either',
           'sendBattles' not in to_window(validate({}))
           and 'sendBattles' not in from_window({'sendBattles': False}))
-    check('the mod being off takes the uploads with it',
-          _sends(validate({'enabled': False})) is False and _sends(validate({})) is True)
+    check('the mod being off still sends them',
+          _sends(validate({'enabled': False})) is True and _sends(validate({})) is True)
 
     # What a player gets instead: their own list out of sight, owned by the
     # site, so it never lands in settings.json.

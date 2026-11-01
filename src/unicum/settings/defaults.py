@@ -74,8 +74,9 @@ DEFAULTS = dict({
     # of this, so nothing is here that the player's own client did not send,
     # and the pages are the poorer for every client that stays quiet.
     'sendLoadouts': True,
-    # The battles this client played are always sent, while the mod is on:
-    # there is no box for them. They are what the site is built on (Wargaming
+    # The battles this client played are always sent, whether the mod is on
+    # or off: there is no box for them, and `enabled` turns off what the mod
+    # draws, not this. They are what the site is built on (Wargaming
     # publishes none of them, and a battle exists on unicum.gg only because
     # somebody who was in it sent it), and a player who wants them out of
     # sight has a switch that does that without taking them away from
