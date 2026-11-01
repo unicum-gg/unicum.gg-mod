@@ -53,13 +53,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
       - name: Compare the live client with the one we published for
         id: compare
         env:
           GH_TOKEN: ${{ github.token }}
-          # No checkout here: this job reads two URLs and one release, and
-          # needs no source. Without a repository on disk `gh` has nothing to
-          # infer from and fails with "not a git repository", so it is named.
+          # Name the repository explicitly for every gh command.
           GH_REPO: ${{ github.repository }}
         run: |
           set -eu
@@ -137,30 +139,7 @@ jobs:
         # The values go through the environment, never interpolated into the
         # script: a workflow that pastes an input into bash runs whatever that
         # input happens to contain.
-        run: |
-          set -eu
-          title="Client $LIVE is live; the published package targets $SHIPPED"
-          # One issue per client version, reopened rather than duplicated daily.
-          existing=$(gh issue list --state all --search "$title in:title" \
-            --limit 1 --json number --jq '.[0].number // ""')
-          body=$(printf '%s\n' \
-            "The live client reads \`mods/$LIVE\`. The newest published release, \`$TAG\`, unpacks into \`mods/$SHIPPED\`, so it installs and does nothing." \
-            "" \
-            "Sources read: upstream mirror \`${UPSTREAM:-no answer}\`, hub page \`${HUB:-no answer}\`." \
-            "" \
-            "This has to be cut on a machine with the game installed, because the client .swc and \`battleVehicleMarkersApp.swf\` have to come off that install: the mirror carries a different build of both, and the markers app ships inside the package and replaces the client's own." \
-            "" \
-            '```' \
-            "python tools/release.py" \
-            '```')
-          if [ -n "$existing" ]; then
-            gh issue reopen "$existing" 2>/dev/null || true
-            gh issue comment "$existing" --body "$body"
-            echo "commented on #$existing"
-          else
-            gh issue create --title "$title" --body "$body" --label client-update 2>/dev/null \
-              || gh issue create --title "$title" --body "$body"
-          fi
+        run: python3 tools/client_issue.py
 
       - name: Say so in the summary
         if: always()

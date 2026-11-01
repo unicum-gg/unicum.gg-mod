@@ -14,6 +14,10 @@ python2.7 tools/selftest.py
 
 Run it before every commit, and look at `game.log` after the change has reloaded in the client.
 
+Client-watch issue synchronization runs outside the game with Python 3. Its
+offline regressions also run in the build workflow:
+`python3 -B -m unittest discover -s tools -p 'test_client_issue.py'`.
+
 ## Commit and PR Titles
 
 Use the onRuntime gitmoji commit convention for every commit and PR title:
