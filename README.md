@@ -111,7 +111,9 @@ Releasing is merging a pull request. `.github/workflows/release-pr.yml` keeps
 one open, `🔖 release x.y.z`, whenever main has commits since the last tag or
 the live client's files have moved; merging it runs `release.yml`, which builds
 the package on the live client's files read off the update CDN, checks it, tags
-it and publishes the GitHub release. No game install is involved.
+it and publishes the GitHub release, then hands it to the wgmods publisher
+(`apps/wgmods` in unicum-gg/unicum.gg), which uploads it to the hub. No game
+install and no command are involved.
 
 By hand, from an installed client, which is the fallback:
 
