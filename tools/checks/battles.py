@@ -205,6 +205,50 @@ def check_battle_lives():
               ARENA, 'v')['vehicles'][0])
 
 
+def check_battle_tanks():
+    """A Frontline vehicle names every tank it fought in, and earns for all of them."""
+    from unicum.battles.extract import SURVIVED, payload
+
+    # The shape the client hands over for a player who respawned in two other
+    # tanks: one record per tank under the same vehicle id.
+    base = RESULTS['vehicles']['13089208'][0]
+    progetto = dict(base, typeCompDescr=56097, damageDealt=6817, kills=2,
+                    lifeTime=600, deathReason=0, xp=900)
+    second = dict(base, typeCompDescr=7169, damageDealt=4000, kills=1,
+                  lifeTime=400, deathReason=1, xp=500)
+    third = dict(base, typeCompDescr=4929, damageDealt=2158, kills=0,
+                 lifeTime=164, deathReason=SURVIVED, xp=300)
+    results = dict(RESULTS, vehicles={'13089208': [progetto, second, third]})
+    vehicle = payload(results, ARENA, 'v')['vehicles'][0]
+    check('every tank of a respawning vehicle is named, in the order received',
+          [one['tank'] for one in vehicle['tanks']] == [56097, 7169, 4929])
+    check('each tank carries its own share of the battle',
+          [one['damage'] for one in vehicle['tanks']] == [6817, 4000, 2158]
+          and [one['deathReason'] for one in vehicle['tanks']] == [0, 1, SURVIVED])
+    check('the totals are still the whole battle',
+          vehicle['damage'] == 12975 and vehicle['kills'] == 3)
+    check('a vehicle that fought in one tank carries no breakdown',
+          all('tanks' not in one for one in payload(RESULTS, ARENA, 'v')['vehicles']))
+
+    one = {'originalCredits': 10000, 'credits': 20000, 'xp': 900,
+           'autoLoadCost': (3000, 0), 'damageRating': 64, 'dailyXPFactor10': 20}
+    two = {'originalCredits': 5000, 'credits': 8000, 'xp': 500,
+           'autoLoadCost': (1000, 0), 'damageRating': 80, 'dailyXPFactor10': 10}
+    earned = payload(dict(results, personal={
+        'avatar': {}, 56097: one, 7169: two}), ARENA, 'v')['personal']
+    check('the economy of every tank played is added up, as the game does',
+          (earned['creditsBase'], earned['credits'], earned['xp'],
+           earned['ammoCost']) == (15000, 28000, 1400, 4000))
+    check('a factor is not added up',
+          earned['xpDailyFactor'] == 20)
+    check('a mark of excellence is not sent when there is no saying whose gun it is',
+          'markPercent' not in earned)
+    single = payload(dict(results, personal={'avatar': {}, 56097: one}),
+                     ARENA, 'v')['personal']
+    check('a battle in one tank still sends its mark',
+          single['markPercent'] == 64)
+
+
 def check_battle_claims():
     """Which battles are still worth asking the client about, and which are spent.
 
