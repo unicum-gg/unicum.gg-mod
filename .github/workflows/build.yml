@@ -20,15 +20,12 @@ name: build
 # the tag push that followed a hand-cut release replaced the verified files
 # with those. Both happened today, one of them caught in flight.
 #
-# So a release is cut on a machine with the game installed:
-#
-#     python tools/release.py
-#
-# and what remains here is the half a runner can honestly do: compile
+# So a release is built by release.yml, on the live client's own files read
+# off the update CDN at release time (see that file and release-pr.yml), and
+# what remains here is the check on every push and pull request: compile
 # everything, build the package from the mirror's copies, and run the checks
 # that read it back the way the client does. If that passes, the code is
-# sound; whether the package is installable is a question only the install can
-# answer, which is why nothing is attached to a release.
+# sound; nothing built here is ever attached to a release.
 on:
   push:
     branches: [main]

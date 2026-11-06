@@ -1,0 +1,132 @@
+name: release
+
+# Publishes the version at the top of CHANGELOG.md once it reaches main with no
+# tag, which is what merging release-pr.yml's pull request does.
+#
+# The package is built on the LIVE client's files, read off the update CDN by
+# the client-files action, and that is what makes this safe where build.yml's
+# package is not. Two of the build's inputs come out of the client, the .swc it
+# links against and battleVehicleMarkersApp.swf, which is patched and REPLACES
+# the client's own; a package built on any other build hands every player the
+# markers of a client they are not running. The wot.assets mirror cannot be
+# trusted for that (it is refreshed once a day and does not name the mods
+# folder), a CDN read at release time can: it is the install's own bytes.
+#
+# What the package was built against is attached to the release as
+# client.json, which is how release-pr.yml knows when the client has moved on.
+#
+# Idempotent: a version that already has its tag is skipped, so a re-run after
+# a failure is the way to retry, and a push that changed nothing is free.
+on:
+  push:
+    branches: [main]
+    paths: [CHANGELOG.md]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.repository == 'unicum-gg/unicum.gg-mod'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: The version to release
+        id: version
+        run: |
+          set -eu
+          version=$(grep -m1 -oE '^## [0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | cut -c4-)
+          if [ -n "$(git tag -l "v$version")" ]; then
+            echo "v$version is already released"
+            echo "due=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "due=yes" >> "$GITHUB_OUTPUT"
+          # The section under the version, without its heading, is the release
+          # notes; the HTML comment listing the commits players never see stays
+          # in the file and out of the notes.
+          awk '/^## /{ if (found) exit; found = 1; next } found' CHANGELOG.md \
+            | perl -0pe 's/<!--.*?-->//gs' > build-notes.md
+
+      - uses: ./.github/actions/client-files
+        id: client
+        if: steps.version.outputs.due == 'yes'
+
+      - uses: actions/setup-python@v5
+        if: steps.version.outputs.due == 'yes'
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-java@v4
+        if: steps.version.outputs.due == 'yes'
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Cache Apache Royale
+        if: steps.version.outputs.due == 'yes'
+        uses: actions/cache@v4
+        with:
+          path: build/as3/royale
+          key: royale-0.9.12
+
+      - name: Build the flag images and the icons
+        if: steps.version.outputs.due == 'yes'
+        run: |
+          (cd tools/flags && npm ci --no-audit --no-fund && npm run build)
+          (cd tools/badges && npm ci --no-audit --no-fund && npm run icon)
+
+      - name: Build the package on the live client's files
+        if: steps.version.outputs.due == 'yes'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          MODS: ${{ steps.client.outputs.mods }}
+        run: |
+          set -eu
+          chmod +x tools/ci/python27
+          python tools/build_as3.py --client-files build/client-files
+          python tools/build_release.py --version "$VERSION" \
+            --python27 tools/ci/python27 --game-version "$MODS"
+
+      - name: Check the package
+        if: steps.version.outputs.due == 'yes'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          tools/ci/python27 tools/selftest.py
+          tools/ci/python27 tools/release_check.py "dist/gg.unicum_$VERSION.wotmod"
+
+      - name: Tag and publish
+        if: steps.version.outputs.due == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -eu
+          cp build/client-files/manifest.json dist/client.json
+          gh release create "v$VERSION" \
+            "dist/gg.unicum_$VERSION.wotmod" "dist/unicum.gg_$VERSION.zip" dist/client.json \
+            --target "$GITHUB_SHA" --title "$VERSION" --notes-file build-notes.md
+
+      - name: Say so in the summary
+        if: always() && steps.version.outputs.due == 'yes'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          MODS: ${{ steps.client.outputs.mods }}
+          BUILD: ${{ steps.client.outputs.build }}
+        run: |
+          {
+            echo "### $VERSION"
+            echo
+            echo "Built for \`mods/$MODS\`, client build \`$BUILD\`."
+          } >> "$GITHUB_STEP_SUMMARY"

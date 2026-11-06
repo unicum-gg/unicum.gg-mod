@@ -14,6 +14,12 @@ before anything is built.
 
 Runs on Python 3. The checks it calls run on the client's Python 2.7, which it
 finds the way `build_release.py` does.
+
+**This is the fallback, not the way a release is made any more.** Merging the
+pull request .github/workflows/release-pr.yml keeps open releases, on the live
+client's files read off the update CDN (release.yml). This stays for the day
+that path is down; a release cut here carries no client.json, so release-pr.yml
+reads it as built against an unknown client and proposes a rebuild.
 """
 import argparse
 import os

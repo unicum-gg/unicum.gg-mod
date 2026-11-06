@@ -1,0 +1,144 @@
+name: release-pr
+
+# Keeps ONE pull request open that is the next release: the version, and the
+# changelog written from the commits. Merging it is the whole of releasing
+# (release.yml takes it from there), so nothing has to be run by hand.
+#
+# Two things open or refresh it:
+#
+#   * a push to main, whose commits are what the release is made of;
+#   * the live client moving, checked every six hours, which is what replaced
+#     the issue client.yml used to open. "Moving" is the client's FILES and
+#     not only its mods folder: Wargaming republished the vehicle markers app
+#     around 2026-10-29 under the same mods/2.4.1.1, and the package ships that
+#     file in place of the client's own (see tools/release_pr.py).
+#
+# The branch is regenerated from main every time, so an edit made to the
+# changelog on the pull request lasts until the next commit lands on main. Edit
+# it last, just before merging.
+#
+# A pull request opened with the workflow token does not trigger other
+# workflows, so build.yml does not run on it; release.yml builds and checks the
+# package anyway before anything is published. It also needs "Allow GitHub
+# Actions to create and approve pull requests" in the repository settings.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "15 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-pr
+  cancel-in-progress: true
+
+env:
+  BRANCH: release/next
+
+jobs:
+  propose:
+    if: github.repository == 'unicum-gg/unicum.gg-mod'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # A merged release whose tag release.yml has not written yet: proposing
+      # now would count the release commit itself as work. A release that
+      # FAILED stays here too, which is deliberate: it is fixed by re-running
+      # release.yml, not by stacking a second version on top of it.
+      - name: Wait for a pending release
+        id: pending
+        run: |
+          set -eu
+          top=$(grep -m1 -oE '^## [0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | cut -c4- || true)
+          if [ -n "$top" ] && [ -z "$(git tag -l "v$top")" ]; then
+            echo "$top is merged and not released yet; release.yml owns it"
+            echo "pending=yes" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: ./.github/actions/client-files
+        if: steps.pending.outputs.pending != 'yes'
+
+      - name: What the last release was built against
+        if: steps.pending.outputs.pending != 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          mkdir -p build/published
+          tag=$(gh release list --limit 1 --exclude-drafts --json tagName --jq '.[0].tagName // ""')
+          # Releases cut before this workflow carry no client.json, which
+          # release_pr.py reads as "built against something else".
+          if [ -n "$tag" ]; then
+            gh release download "$tag" --pattern client.json --dir build/published 2>/dev/null \
+              || echo "$tag records no client.json"
+          fi
+
+      - name: Decide
+        id: decide
+        if: steps.pending.outputs.pending != 'yes'
+        run: python3 -B tools/release_pr.py --client build/client-files --published build/published/client.json
+
+      - name: Open or refresh the pull request
+        if: steps.decide.outputs.due == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.decide.outputs.version }}
+          MODS: ${{ steps.decide.outputs.mods }}
+          BUILD: ${{ steps.decide.outputs.build }}
+          MOVED: ${{ steps.decide.outputs.moved }}
+        run: |
+          set -eu
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "$BRANCH"
+          git add CHANGELOG.md
+          git commit -q -m "🔖 release $VERSION"
+
+          # Pushed only when the release it proposes changed, so a client check
+          # that finds nothing new leaves the pull request (and its edits) alone.
+          if git ls-remote --exit-code origin "refs/heads/$BRANCH" >/dev/null; then
+            git fetch -q origin "$BRANCH"
+            if git diff --quiet "origin/$BRANCH" HEAD -- CHANGELOG.md \
+              && [ "$(git merge-base "origin/$BRANCH" origin/main)" = "$(git rev-parse origin/main)" ]; then
+              echo "release/next already proposes this"
+              exit 0
+            fi
+          fi
+          git push -q --force origin "$BRANCH"
+
+          title="🔖 release $VERSION"
+          moved=""
+          if [ "$MOVED" = "yes" ]; then
+            moved="The live client moved: this release is rebuilt on its files."
+          fi
+          body=$(printf '%s\n' \
+            "Merging this publishes **$VERSION**: release.yml builds it on the live client's files, checks it, tags it and attaches the package to a GitHub release." \
+            "" \
+            "Built for \`mods/$MODS\` (client build \`$BUILD\`). $moved" \
+            "" \
+            "The changelog is written from the commits. Edit it here if a line should read differently for players, but do it last: a new commit on main regenerates this branch.")
+          number=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // ""')
+          if [ -n "$number" ]; then
+            gh pr edit "$number" --title "$title" --body "$body"
+            echo "refreshed #$number"
+          else
+            gh pr create --base main --head "$BRANCH" --title "$title" --body "$body"
+          fi
+
+      - name: Nothing to release
+        if: steps.decide.outputs.due == 'no'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          number=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // ""')
+          if [ -n "$number" ]; then
+            gh pr close "$number" --delete-branch --comment "Nothing left to release."
+          fi

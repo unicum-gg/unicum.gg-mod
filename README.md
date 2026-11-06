@@ -107,6 +107,14 @@ Without the SWF in the resource tree, titles fall back to the language code.
 
 ## Release
 
+Releasing is merging a pull request. `.github/workflows/release-pr.yml` keeps
+one open, `🔖 release x.y.z`, whenever main has commits since the last tag or
+the live client's files have moved; merging it runs `release.yml`, which builds
+the package on the live client's files read off the update CDN, checks it, tags
+it and publishes the GitHub release. No game install is involved.
+
+By hand, from an installed client, which is the fallback:
+
 ```
 cd tools/flags && npm install && npm run build && cd ../..
 cd tools/badges && npm install && npm run icon && cd ../..
