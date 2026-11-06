@@ -237,12 +237,14 @@ def _tank(record):
     out['deathReason'] = _int(record.get('deathReason'), SURVIVED)
     return out
 
-def payload(results, arena, version):
+def payload(results, arena, version, squads=None):
     """What one battle is sent as, or None when these results do not describe one.
 
     `arena` is (map name, gameplay id) for the battle's arenaTypeID, and
     `version` the client's own: neither is in the results, both are in the
-    client. Everything else is read from what the server sent.
+    client. `squads` is {battle vehicle id: platoon number}, which only the
+    client's own squad finder can say (see `battles.squads`); absent, no
+    vehicle is marked. Everything else is read from what the server sent.
     """
     if not isinstance(results, dict):
         return None
@@ -258,7 +260,14 @@ def payload(results, arena, version):
         records = [record for record in (entry if isinstance(entry, list) else [entry])
                    if isinstance(record, dict)]
         if records:
-            rows.append(_vehicle(key, records))
+            row = _vehicle(key, records)
+            # Only on the vehicles that were in one, like the medals: most
+            # players go in alone, and a platoon number of 0 on each of them
+            # would say nothing.
+            squad = (squads or {}).get(row['id'])
+            if squad:
+                row['squad'] = squad
+            rows.append(row)
     if not rows:
         return None
     avatar = (results.get('personal') or {}).get('avatar') or {}

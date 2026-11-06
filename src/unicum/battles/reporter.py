@@ -14,6 +14,7 @@ from unicum.battles.claiming import Claiming
 from unicum.battles.extract import _int, payload
 from unicum.battles.naming import arena_names, full_version
 from unicum.battles.sending import _BATCH, Sending
+from unicum.battles.squads import finder_for, squads
 from unicum.battles.store import (_MAX_QUEUED, append_queued, load_played,
                                   load_queue, load_settled, queued,
                                   save_played, save_settled)
@@ -172,7 +173,8 @@ class Reporter(Sending, Claiming):
         common = (results or {}).get('common') or {}
         battle = payload(results,
                          arena_names(_int(common.get('arenaTypeID'), -1)),
-                         full_version())
+                         full_version(),
+                         squads(results, finder_for(_int(common.get('guiType')))))
         if battle is None:
             _logger.info('battle %s carried nothing we could describe', arena_id or '?')
             return

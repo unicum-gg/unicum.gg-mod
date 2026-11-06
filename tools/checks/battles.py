@@ -746,3 +746,73 @@ def _sends(values):
     settings = Settings.__new__(Settings)
     settings._values = values
     return settings.sends_battles()
+
+
+class _TeamScopeFinder(object):
+    """The client's own random-battle finder, cut to what `squads` calls.
+
+    `gui.battle_control.arena_info.squad_finder.TeamScopeNumberingFinder`:
+    a group counts when its size is in 2..3, numbered from 1 per team in
+    prebattle id order.
+    """
+
+    def __init__(self, teams):
+        self.groups = dict((team, {}) for team in teams)
+
+    def addVehicleInfo(self, team, prebattleID, vehicleID):
+        self.groups[team].setdefault(prebattleID, set()).add(vehicleID)
+
+    def findSquads(self):
+        for team in self.groups.values():
+            index = 0
+            for prebattle in sorted(team):
+                if len(team[prebattle]) in range(2, 4):
+                    index += 1
+                    for vehicle in team[prebattle]:
+                        yield vehicle, index
+
+
+def check_battle_squads():
+    """Platoons are numbered by the client's own finder, and never guessed."""
+    from unicum.battles.extract import payload
+    from unicum.battles.squads import finder_for, squads
+
+    def vehicle(account, team):
+        return [dict(RESULTS['vehicles']['13089208'][0], accountDBID=account,
+                     team=team)]
+
+    # Team 1: a platoon of two and a player alone. Team 2: a platoon of two,
+    # and four players sharing one id, which is what a training room looks
+    # like and is too many to be a platoon.
+    results = dict(RESULTS, vehicles={
+        '1': vehicle(11, 1), '2': vehicle(12, 1), '3': vehicle(13, 1),
+        '4': vehicle(21, 2), '5': vehicle(22, 2), '6': vehicle(23, 2),
+        '7': vehicle(24, 2), '8': vehicle(25, 2), '9': vehicle(26, 2),
+    }, players={
+        '11': {'team': 1, 'prebattleID': 500}, '12': {'team': 1, 'prebattleID': 500},
+        '13': {'team': 1, 'prebattleID': 0},
+        '21': {'team': 2, 'prebattleID': 700}, '22': {'team': 2, 'prebattleID': 700},
+        '23': {'team': 2, 'prebattleID': 900}, '24': {'team': 2, 'prebattleID': 900},
+        '25': {'team': 2, 'prebattleID': 900}, '26': {'team': 2, 'prebattleID': 900},
+    })
+    numbered = squads(results, _TeamScopeFinder)
+    check('a platoon is numbered from one in each team',
+          numbered == {1: 1, 2: 1, 4: 1, 5: 1})
+    check('a group too large to be a platoon is not one',
+          not any(vehicle in numbered for vehicle in (6, 7, 8, 9)))
+    # A training room has no finder in the client: the whole room shares one
+    # prebattle id, and three players in it would otherwise read as a platoon.
+    check('a mode without a finder has no platoons at all',
+          squads(results, None) == {})
+    check('outside the client there is no finder to ask',
+          finder_for(1) is None)
+
+    rows = dict((row['id'], row) for row in
+                payload(results, ARENA, 'v', numbered)['vehicles'])
+    check('the platoon number rides on the vehicles that were in one',
+          rows[1]['squad'] == 1 and rows[4]['squad'] == 1)
+    check('a vehicle that went in alone carries no squad key',
+          'squad' not in rows[3] and 'squad' not in rows[6])
+    check('a battle sent without platoons marks no vehicle',
+          not any('squad' in row for row in
+                  payload(results, ARENA, 'v')['vehicles']))

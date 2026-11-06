@@ -50,7 +50,7 @@ from checks.loadouts import (check_crew_away, check_crew_from_last_battle, check
                              check_loadout_setting, check_loadout_store, check_loadouts,
                              check_withdrawal)
 from checks.battles import (check_announced_battles, check_battle_answer, check_battle_blame, check_battle_claims, check_battle_lives, check_battle_tanks,
-                            check_battle_queue, check_battle_reporter,
+                            check_battle_queue, check_battle_reporter, check_battle_squads,
                             check_battle_setting, check_battles)
 from checks.replays import (check_replay_answers, check_replay_confirmation,
                            check_replay_deadlines, check_replay_disowning,
@@ -153,6 +153,7 @@ def main():
         check_loadout_setting()
         check_battles()
         check_battle_lives()
+        check_battle_squads()
         check_battle_tanks()
         check_battle_answer()
         check_battle_queue()
