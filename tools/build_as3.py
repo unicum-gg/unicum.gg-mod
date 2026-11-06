@@ -1,6 +1,7 @@
 """Build the AS3 half of the mod into build/as3.
 
     python tools/build_as3.py --game "C:/Games/World_of_Tanks_EU" [--install]
+    python tools/build_as3.py --client-files DIR   the live client's, off the CDN
     python tools/build_as3.py --from-mirror   no game installed: see below
 
 Fetches what the compile needs into build/as3 on first run, then compiles:
@@ -12,7 +13,12 @@ Fetches what the compile needs into build/as3 on first run, then compiles:
               loaded already, so the SWF carries only our code.
 
 Two things here come out of the client itself: those .swc, and the markers app
-this script patches. --game reads them from an install. --from-mirror reads
+this script patches. --game reads them from an install. --client-files reads
+them from a directory written by unicum-gg/wot.build's `npm run client-files`,
+which rebuilds the live client's gui packages off the update CDN and records a
+sha256 per file in its manifest.json: that is what the release workflow uses,
+and it is as good as an install because it IS the install's bytes, at the
+build players are running. --from-mirror reads
 them from unicum-gg/wot.assets (see MIRROR), which publishes the client's `gui`
 tree off the update CDN, and which lets this run on a machine that has never
 had World of Tanks installed.
@@ -43,7 +49,9 @@ take effect at the next client start.
 Runs on Python 3.
 """
 import argparse
+import hashlib
 import io
+import json
 import shutil
 import struct
 import subprocess
@@ -140,12 +148,36 @@ def fetch(url: str, what: str) -> bytes:
         raise SystemExit(f'{what}: {error.reason} for {url}')
 
 
-def fetch_libs(game: Path | None) -> None:
+def read_client_file(client_files: Path, name: str) -> bytes:
+    """One file of a client-files directory, refused unless its manifest vouches for it.
+
+    The manifest is written in the same run as the files, from the same chain,
+    so a file that does not match it was swapped or truncated afterwards.
+    """
+    manifest = json.loads((client_files / 'manifest.json').read_text(encoding='utf-8'))
+    expected = manifest['files'].get(name)
+    if expected is None:
+        raise SystemExit(f'{name} is not in {client_files / "manifest.json"}')
+    data = (client_files / name).read_bytes()
+    if hashlib.sha256(data).hexdigest() != expected:
+        raise SystemExit(f'{client_files / name} does not match its manifest')
+    return data
+
+
+def fetch_libs(game: Path | None, client_files: Path | None = None) -> None:
     LIBS.mkdir(parents=True, exist_ok=True)
     playerglobal = LIBS / 'playerglobal.swc'
     if not playerglobal.is_file():
         print('libs     downloading playerglobal.swc')
         playerglobal.write_bytes(fetch(PLAYERGLOBAL_URL, 'playerglobal.swc'))
+
+    if client_files is not None:
+        # Overwritten every run, unlike the mirror's: these are the build being
+        # released, and a library kept from an earlier run is another build's.
+        for name in CLIENT_LIBS:
+            (LIBS / name).write_bytes(read_client_file(client_files, SWC_DIR + name))
+        print(f'libs     {len(CLIENT_LIBS)} client .swc from {client_files}')
+        return
 
     if game is None:
         missing = [name for name in CLIENT_LIBS if not (LIBS / name).is_file()]
@@ -230,8 +262,10 @@ def _payload(body: bytes, tag_start: int, tag_end: int) -> bytes:
     return body[tag_start + (6 if header & 0x3f == 0x3f else 2):tag_end]
 
 
-def read_markers_app(game: Path | None) -> bytes:
-    """The client's own battleVehicleMarkersApp.swf, from an install or the mirror."""
+def read_markers_app(game: Path | None, client_files: Path | None = None) -> bytes:
+    """The client's own battleVehicleMarkersApp.swf, from an install, the CDN or the mirror."""
+    if client_files is not None:
+        return read_client_file(client_files, MARKERS_APP_RES)
     if game is None:
         return fetch(MIRROR + MARKERS_APP_RES, MARKERS_APP_RES)
     for package in sorted((game / 'res' / 'packages').glob('gui-part*.pkg')):
@@ -286,6 +320,9 @@ def main() -> None:
     parser.add_argument('--game', type=Path,
                         help='World of Tanks install directory, which is where the client '
                              'files this needs have to come from for a release')
+    parser.add_argument('--client-files', type=Path,
+                        help="a directory written by wot.build's `npm run client-files`: "
+                             "the live client's files off the update CDN, good for a release")
     parser.add_argument('--from-mirror', action='store_true',
                         help='read the client .swc and the markers app from the mirror '
                              'instead: for trying the compile without a game installed, '
@@ -294,6 +331,9 @@ def main() -> None:
                         help="copy the SWFs into the client's res_mods too")
     args = parser.parse_args()
     game = args.game.resolve() if args.game else None
+    client_files = args.client_files.resolve() if args.client_files else None
+    if game is not None and client_files is not None:
+        raise SystemExit('--game and --client-files both name the client; pass one')
     if args.install and game is None:
         raise SystemExit('--install writes into the client, so it needs --game')
     # The mirror is opt-in, and says so, because the difference is invisible in
@@ -303,15 +343,15 @@ def main() -> None:
     # mirror's 300743, the whole 2879-byte difference inside the DoABC tag --
     # two different builds of the same file. Shipping the mirror's copy hands
     # every player the vehicle markers of a build they are not running.
-    if game is None and not args.from_mirror:
+    if game is None and client_files is None and not args.from_mirror:
         raise SystemExit(
-            'the client .swc and battleVehicleMarkersApp.swf have to come off an\n'
-            'installed client: pass --game. The mirror holds a different build of\n'
+            'the client .swc and battleVehicleMarkersApp.swf have to come off the\n'
+            'live client: pass --game or --client-files. The mirror holds a different build of\n'
             'both, and the markers app ships inside the package and replaces the\n'
             "client's own, so a release built from it is a release that breaks the\n"
             'markers. Pass --from-mirror to compile anyway, without publishing.')
     fetch_royale()
-    fetch_libs(game)
+    fetch_libs(game, client_files)
     for entry, output in VIEWS + (MARKERS_BOOT, MARKERS_CLASSES):
         if output.exists():
             output.unlink()
@@ -322,7 +362,7 @@ def main() -> None:
         '-source-path+=stubs',
         '-external-library-path+=../build/as3/libs/gui_battle-1.0-SNAPSHOT.swc',
         '-externs', *MARKERS_EXTERNS, '--'))
-    patch_markers_app(read_markers_app(game), MARKERS_BOOT[1], MARKERS_APP)
+    patch_markers_app(read_markers_app(game, client_files), MARKERS_BOOT[1], MARKERS_APP)
     if args.install:
         # 2.10.0.0 after 2.9.0.0, which a plain string sort gets backwards.
         folders = [folder for folder in (game / 'res_mods').iterdir() if folder.is_dir()]
