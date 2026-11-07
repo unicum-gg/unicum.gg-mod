@@ -75,6 +75,11 @@ MINIMAP_NAME_LABELS = ('Vehicle', 'Player', 'Vehicle and player')
 # battle; "In both" shows every message twice, which some players want.
 BATTLE_CHAT_LABELS = ('Off', 'In the battle chat', 'In a window', 'In both')
 
+# The chat's text size, in the order of TEXT_SIZE_CHOICES. The same four
+# steps for both renderers, so a player sets one list the way they set the
+# other.
+TEXT_SIZE_LABELS = ('Small', 'Normal', 'Large', 'Larger')
+
 _SURFACE_LABELS = {
     'contacts': 'Contacts list',
     'profile': 'Profile',
@@ -161,6 +166,10 @@ CARD_VAR = 'accountCard'
 CARD_LABEL = 'unicum.gg account card'
 GARAGE_CHAT_LABEL = 'Chat panel in the garage'
 BATTLE_CHAT_LABEL = 'Twitch chat in battle'
+# Named after what draws the chat rather than where the player is: the
+# panel is the same panel in the garage and in the window over a battle.
+PANEL_TEXT_LABEL = 'Chat text size in the panel'
+BATTLE_TEXT_LABEL = 'Chat text size in the battle chat'
 
 # Not a settings.json value either: the site owns this row, and the box is
 # only drawn for the accounts allowed to move it.

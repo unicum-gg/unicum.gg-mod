@@ -47,6 +47,7 @@ def check_twitch():
 
     check_battle_opening()
     check_battle_choice()
+    check_text_size()
 
     check('a channel is read from a name, "#Name" or its link',
           [validate({'twitch': {'channel': value}})['twitch']['channel'] for value in
@@ -187,6 +188,79 @@ def check_battle_choice():
           'def units_per_rem(' in placing and 'def _per_rem(self):' in placing
           and 'own_per_rem = self._per_rem()' in placing
           and 'self._per_rem()' in window)
+
+def check_text_size():
+    """How big the chat is drawn, in the panel and in the game's own battle chat.
+
+    Two renderers, two settings, and one thing they owe each other: the step
+    called normal has to leave both exactly as they were, so a player who
+    never opens this sees nothing change.
+    """
+    import os
+    from checks.common import REPO
+    from unicum.settings import TEXT_SIZE_CHOICES, validate
+    from unicum.settings_window.codec import from_window, to_window
+    from unicum.settings_window.labels import TEXT_SIZE_LABELS
+    from unicum.twitch.protocol import Message, format_message
+
+    check('every text size step has a label of its own',
+          len(TEXT_SIZE_LABELS) == len(TEXT_SIZE_CHOICES) == 4)
+    values = validate({'twitch': {'panelText': 'larger', 'battleText': 'nonsense'}})
+    check('a step that is not one falls back to the step that changes nothing',
+          values['twitch']['panelText'] == 'larger'
+          and values['twitch']['battleText'] == 'normal')
+    bare = validate({'twitch': {'channel': 'someone'}})['twitch']
+    check('and a settings file written before the setting existed reads as normal',
+          bare['panelText'] == 'normal' and bare['battleText'] == 'normal')
+    check('both steps go to the window by index and come back',
+          to_window(values)['twitchPanelText'] == TEXT_SIZE_CHOICES.index('larger')
+          and from_window({'twitchPanelText': 0, 'twitchBattleText': 2})['twitch']
+          == {'panelText': 'small', 'battleText': 'large'})
+    check('an index out of range is ignored', 'twitch' not in from_window({'twitchPanelText': 9}))
+
+    # The battle chat asks the game for a step up or down from the size it
+    # draws with, because that size follows the player's interface scale and a
+    # number of ours would fight it. At normal it asks for nothing at all.
+    message = Message('viewer', None, 'hello', (), 'viewer')
+    plain = format_message(message)
+    check('a battle chat line carries no size at normal',
+          'font size' not in plain and format_message(message, size='normal') == plain)
+    check('and a step asks the chat for one, relative to the size the game draws',
+          "<font size='+2'>" in format_message(message, size='large')
+          and "<font size='+4'>" in format_message(message, size='larger')
+          and "<font size='-2'>" in format_message(message, size='small'))
+    wrapped = format_message(message, size='large')
+    check('with the whole line inside it, the name and the text both',
+          wrapped.startswith("<font size='+2'>") and wrapped.endswith('</font>')
+          and plain in wrapped)
+
+    def read(name):
+        with open(os.path.join(REPO, 'src', 'unicum', 'web', 'hangar', name)) as handle:
+            return handle.read()
+
+    panel_css, panel_js = read('twitch_panel.css'), read('twitch_panel.js')
+    # A class composed in the render, not a property set on the node:
+    # renderFrame rewrites className outright, and the panel has already lost
+    # a layer that way (check_borrowed_decor).
+    composed = panel_js.split('root.className = "UnicumTwitchPanel"')[-1].split(';')[0]
+    check('the panel composes its text size class into every render',
+          'TEXT_CLASSES[data.textSize]' in composed)
+    check('and the steps the script names are the steps the sheet styles',
+          all(('.UnicumTwitchPanel__text_%s {' % step) in panel_css
+              for step in TEXT_SIZE_CHOICES if step != 'normal')
+          and 'text_normal' not in panel_css + panel_js)
+    # One number per step, on the root, and the rules derive the rest from it,
+    # so a step cannot be half applied. 18 = 14 + 4 and 16 = 14 + 2 are the
+    # sheet's own figures, kept as the relation they always were.
+    check('the chat rules take their size from that one property',
+          'font-size: var(--chat-text);' in panel_css
+          and 'line-height: calc(var(--chat-text) + 4rem);' in panel_css
+          and panel_css.count('calc(var(--chat-text) + 2rem)') == 2)
+    check('and normal is the size the sheet always drew',
+          '--chat-text: 14rem;' in panel_css)
+    with open(os.path.join(REPO, 'src', 'unicum', 'twitch_panel.py')) as handle:
+        check("the panel's state carries the step, or no class is ever composed",
+              "'textSize': settings['twitch']['panelText']" in handle.read())
 
 def check_battle_opening():
     """The chat a battle opens on: what was said before it, not an empty screen."""
@@ -485,8 +559,18 @@ def check_twitch_panel():
     from unicum.twitch_panel import state
 
     class Settings(object):
+        """The twitch settings as validate() makes them, with a few set here.
+
+        Built from the defaults rather than written out, because state() reads
+        them by name: a dict written by hand went stale the first time a key
+        was added to the settings, and took the suite down with a KeyError
+        instead of failing a check.
+        """
+
         def __getitem__(self, key):
-            return {'garageCollapsed': True, 'garagePosition': None, 'garageSize': [400, 300]}
+            from unicum.settings import validate
+            return dict(validate({})['twitch'], garageCollapsed=True, garagePosition=None,
+                        garageSize=[400, 300], panelText='large')
 
         def shows_twitch_in_garage(self):
             return True
@@ -509,6 +593,8 @@ def check_twitch_panel():
           and not data['messages'][0]['own'] and data['messages'][1]['own']
           and data['collapsed'] and not data['linked'] and data['channel'] == 'license__')
     check('the panel is told whether the chat is joined', data['joined'])
+    check('and how big to draw the chat, which the panel turns into a class',
+          data['textSize'] == 'large')
     check('the panel is told how large the player made it', data['size'] == [400, 300])
 
 

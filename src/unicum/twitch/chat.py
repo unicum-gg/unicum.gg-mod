@@ -271,7 +271,8 @@ class TwitchChat(object):
             from messenger import MessengerEntry
             icon = drawable(ICON_RES_PATH)
             for message in messages:
-                html = format_message(message, icon, self._badges.markup(message.badges))
+                html = format_message(message, icon, self._badges.markup(message.badges),
+                                      self._settings['twitch']['battleText'])
                 MessengerEntry.g_instance.gui.addClientMessage(html)
         except Exception:
             _logger.exception('could not show a Twitch message in the battle chat')

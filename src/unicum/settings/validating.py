@@ -15,7 +15,8 @@ from unicum.settings.defaults import (_RATED_BY_DEFAULT, _TWITCH_CHANNEL,
                                       AVERAGED, BATTLE_CHAT_CHOICES, DEFAULTS,
                                       EXTRAS, MAX_FLAGS, MAX_PANEL, METRICS,
                                       MIN_PANEL, MINIMAP_NAME_CHOICES, MODES,
-                                      RELOAD_CHOICES, SURFACES, WINDOWS)
+                                      RELOAD_CHOICES, SURFACES,
+                                      TEXT_SIZE_CHOICES, WINDOWS)
 
 _logger = logging.getLogger('unicum.settings.validating')
 
@@ -45,6 +46,11 @@ def _battle_chat(twitch):
     if isinstance(legacy, bool):
         return 'chat' if legacy else 'off'
     return DEFAULTS['twitch']['battle']
+
+def _text_size(twitch, key):
+    """One chat text size step, falling back to the one that changes nothing."""
+    raw = twitch.get(key)
+    return raw if raw in TEXT_SIZE_CHOICES else DEFAULTS['twitch'][key]
 
 def validate(raw):
     """A complete, valid settings dict: defaults for anything missing or wrong."""
@@ -81,7 +87,9 @@ def validate(raw):
                                                  DEFAULTS['twitch']['garageCollapsed']),
                         'garagePosition': _position(twitch.get('garagePosition')),
                         'garageSize': panel_size(twitch.get('garageSize')),
-                        'battlePosition': _position(twitch.get('battlePosition'))}
+                        'battlePosition': _position(twitch.get('battlePosition')),
+                        'panelText': _text_size(twitch, 'panelText'),
+                        'battleText': _text_size(twitch, 'battleText')}
     modes = raw.get('modes') if isinstance(raw.get('modes'), dict) else {}
     values['modes'] = {}
     for mode in MODES:

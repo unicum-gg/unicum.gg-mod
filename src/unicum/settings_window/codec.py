@@ -11,7 +11,8 @@ import logging
 
 from unicum.settings import (AVERAGED, BATTLE_CHAT_CHOICES, EXTRAS,
                              METRICS, MINIMAP_NAME_CHOICES, MODES,
-                             RELOAD_CHOICES, SURFACES, WINDOWS)
+                             RELOAD_CHOICES, SURFACES,
+                             TEXT_SIZE_CHOICES, WINDOWS)
 from unicum.settings_window.labels import (_ALT_KEYS, _ALT_SCREENS,
                                            _MENU_KEYS, _SURFACE_LABELS,
                                            CARD_VAR, HIDE_BATTLES_VAR,
@@ -83,6 +84,8 @@ def to_window(values, card_shown=True, loadouts_hidden=False, battles_hidden=Fal
               'minimapNames': MINIMAP_NAME_CHOICES.index(values['minimapNames']),
               'twitchChannel': values['twitch']['channel'],
               'twitchBattle': BATTLE_CHAT_CHOICES.index(values['twitch']['battle']),
+              'twitchPanelText': TEXT_SIZE_CHOICES.index(values['twitch']['panelText']),
+              'twitchBattleText': TEXT_SIZE_CHOICES.index(values['twitch']['battleText']),
               'twitchGarage': values['twitch']['garage'],
               'metric': METRICS.index(values['metric']), 'window': WINDOWS.index(values['window']),
               'winrate': EXTRAS.index(values['winrate']), 'battles': EXTRAS.index(values['battles']),
@@ -127,6 +130,10 @@ def from_window(raw):
         twitch['battle'] = BATTLE_CHAT_CHOICES[battle]
     if isinstance(raw.get('twitchGarage'), bool):
         twitch['garage'] = raw['twitchGarage']
+    for var, key in (('twitchPanelText', 'panelText'), ('twitchBattleText', 'battleText')):
+        step = _index(raw.get(var), TEXT_SIZE_CHOICES)
+        if step is not None:
+            twitch[key] = TEXT_SIZE_CHOICES[step]
     if twitch:
         changes['twitch'] = twitch
     if _index(raw.get('metric'), METRICS) is not None:

@@ -115,8 +115,13 @@ DEFAULTS = dict({
     # where the player dragged the chat window in battle, which is its own
     # place: the garage's is under the mission column, and in battle that
     # corner is the minimap's.
+    # `panelText` and `battleText` are how big the chat is drawn where it is
+    # read. Two settings rather than one because they are two renderers, not
+    # two places: the panel is the same panel in the garage and in the window
+    # over a battle, and the battle chat is the game's own.
     'twitch': {'channel': '', 'battle': 'chat', 'garage': True, 'garageCollapsed': False,
-               'garagePosition': None, 'garageSize': None, 'battlePosition': None},
+               'garagePosition': None, 'garageSize': None, 'battlePosition': None,
+               'panelText': 'normal', 'battleText': 'normal'},
     'modes': dict((mode, {'allies': True, 'enemies': True}) for mode in MODES),
     # What the minimap writes beside a vehicle: the client's own choice (the
     # vehicle), the player, or both. 'vehicle' leaves the client alone.
@@ -139,6 +144,11 @@ MINIMAP_NAME_CHOICES = ('vehicle', 'player', 'both')
 # chat window of the queue screen, kept up over the battle; 'both' puts every
 # message in both places.
 BATTLE_CHAT_CHOICES = ('off', 'chat', 'window', 'both')
+
+# The steps the chat's text size offers. 'normal' is what both renderers have
+# always drawn, and both are written so that it changes nothing at all: the
+# panel adds no class and the battle lines carry no size of their own.
+TEXT_SIZE_CHOICES = ('small', 'normal', 'large', 'larger')
 
 # What the panel can be dragged to, in rem: wide enough for a name and a line
 # of chat, and never larger than a big screen, whatever a hand-edited file says.

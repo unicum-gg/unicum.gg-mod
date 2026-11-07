@@ -30,7 +30,8 @@ from unicum.settings_window.labels import (_ALT_SCREENS, _CHOICE_WIDTH,
                                            _GARAGE_SURFACES, _MODE_LABELS,
                                            _SPACER, HIDE_BATTLES_TOOLTIP,
                                            GARAGE_CHAT_LABEL, HIDE_LABEL,
-                                           REPLAYS_TOOLTIP)
+                                           PANEL_TEXT_LABEL, BATTLE_TEXT_LABEL,
+                                           TEXT_SIZE_LABELS, REPLAYS_TOOLTIP)
 from unicum.settings_window.codec import (_alt_key, _menu_key, _mode_key,
                                           _show_key, to_window)
 
@@ -142,6 +143,11 @@ def template(values, channel=u'', linked=False, card_shown=True,
                          'table with the report. It measures this mod alone, not the game and not the other '
                          'mods installed.{/BODY}'),
         checkbox(GARAGE_CHAT_LABEL, 'twitchGarage'),
+        choice(PANEL_TEXT_LABEL, 'twitchPanelText', TEXT_SIZE_LABELS,
+               tooltip="{HEADER}" + PANEL_TEXT_LABEL + "{/HEADER}{BODY}How big the chat lines are "
+                       "drawn in the panel, in the garage and in the window over a battle, which are "
+                       "the same panel. The panel keeps the size you gave it, so a larger text shows "
+                       "fewer lines at once: drag the panel's corner for more room.{/BODY}"),
         # Connect only while it has something to do: once the chat can be
         # written to, the line only says which channel it is.
         (templates.createLabel(channel_label(channel, linked), tooltip=_CONNECT_TOOLTIP) if linked else
@@ -165,6 +171,12 @@ def template(values, channel=u'', linked=False, card_shown=True,
         templates.createEmpty(_SPACER),
         choice(BATTLE_CHAT_LABEL, 'twitchBattle', BATTLE_CHAT_LABELS,
                tooltip='{HEADER}' + BATTLE_CHAT_LABEL + '{/HEADER}{BODY}Where your Twitch chat shows once the battle has started. In the battle chat puts each message in the game\'s own chat, which is what this setting did when it was a tick box. In a window keeps the chat window of the queue screen up over the battle, drawn like the panel in the garage and draggable to a place of its own, which is remembered apart from the garage\'s. While you are aiming the game keeps the mouse to itself, so that window is there to read, not to type in.{/BODY}'),
+        choice(BATTLE_TEXT_LABEL, 'twitchBattleText', TEXT_SIZE_LABELS,
+               tooltip="{HEADER}" + BATTLE_TEXT_LABEL + "{/HEADER}{BODY}How big the Twitch lines are "
+                       "drawn in the game's own battle chat. Asked as a step up or down from the size "
+                       "the game draws with, so it follows your interface scale instead of fighting "
+                       "it. The Glitch and the viewer badges are images and keep their own size."
+                       "{/BODY}"),
         choice('Announce reloading', 'autoReload', RELOAD_LABELS,
                tooltip='{HEADER}Announce reloading{/HEADER}{BODY}Sends the "Reloading!" message to your team '
                        'by itself, as F8 does. Every gun announces after each shot; autoloaders only, once a '
@@ -266,5 +278,7 @@ def native_page(values, channel=u'', linked=False, card_shown=True,
     else:
         lines.append(u'button\t%s\t%s\tConnect' % (CONNECT_VAR, channel_label(channel, linked)))
     checkbox(GARAGE_CHAT_LABEL, 'twitchGarage')
+    dropdown(PANEL_TEXT_LABEL, 'twitchPanelText', TEXT_SIZE_LABELS)
     dropdown(BATTLE_CHAT_LABEL, 'twitchBattle', BATTLE_CHAT_LABELS)
+    dropdown(BATTLE_TEXT_LABEL, 'twitchBattleText', TEXT_SIZE_LABELS)
     return u'\n'.join(line.replace(u'\n', u' ') for line in lines)

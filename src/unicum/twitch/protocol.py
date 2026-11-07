@@ -61,15 +61,28 @@ def parse_line(line):
     login = prefix.partition('!')[0].lower()
     return 'message', Message(name, color, text, parse_badges(tags.get('badges')), login)
 
-def format_message(message, icon=False, badges=''):
+# What a text size step asks of the battle chat, as <font size> takes it.
+# Relative, not a number of our own: the size the game draws with follows the
+# player's interface scale, and an absolute size would fight it. The client
+# writes <font size> in its own chat HTML too (messenger/formatters/
+# service_channel.py), so the field honours the attribute.
+_TEXT_STEPS = {'small': '-2', 'large': '+2', 'larger': '+4'}
+
+def format_message(message, icon=False, badges='', size='normal'):
     """The battle chat's HTML for a Twitch message, behind the Glitch or the word.
 
     `badges` is the <IMG> markup of the viewer's badges, drawn before the name.
+    `size` is one of the text size steps; 'normal' writes no size tag, so the
+    line is what it has always been for a player who never chose one. The
+    Glitch and the badges are images with their own dimensions and do not
+    follow the text.
     """
     text = message.text if len(message.text) <= _MAX_TEXT else message.text[:_MAX_TEXT - 1] + u'\u2026'
     source = _ICON if icon else u"<font color='%s'>Twitch</font>" % _TWITCH_COLOR
-    return u"%s %s<font color='%s'>%s</font>: <font color='%s'>%s</font>" % (
+    line = u"%s %s<font color='%s'>%s</font>: <font color='%s'>%s</font>" % (
         source, badges, message.color or _DEFAULT_NAME_COLOR, _escape(message.name), _TEXT_COLOR, _escape(text))
+    step = _TEXT_STEPS.get(size)
+    return line if step is None else u"<font size='%s'>%s</font>" % (step, line)
 
 def _escape(text):
     return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')

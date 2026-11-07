@@ -51,6 +51,10 @@ def state(settings, chat, link, icon=None):
         'collapsed': settings['twitch']['garageCollapsed'],
         'position': settings['twitch']['garagePosition'],
         'size': settings['twitch']['garageSize'],
+        # How big the chat lines are drawn, which twitch_panel.js turns into
+        # a class. The window over a battle draws this same panel, so one
+        # setting answers for both.
+        'textSize': settings['twitch']['panelText'],
         'channel': channel,
         # Told apart in the panel's empty chat: joining, or joined and quiet.
         'joined': chat.joined,

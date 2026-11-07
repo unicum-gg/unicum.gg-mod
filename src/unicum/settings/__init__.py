@@ -35,7 +35,8 @@ from unicum.settings.defaults import (AVERAGED, BATTLE_CHAT_CHOICES,
                                       MAX_FLAGS, MAX_PANEL, METRICS,
                                       MIN_PANEL, MINIMAP_NAME_CHOICES,
                                       MODES, RELOAD_CHOICES, STORE,
-                                      SURFACES, WINDOWS)
+                                      SURFACES, TEXT_SIZE_CHOICES,
+                                      WINDOWS)
 from unicum.settings.store import Settings
 from unicum.settings.validating import (panel_size, twitch_channel,
                                         validate)

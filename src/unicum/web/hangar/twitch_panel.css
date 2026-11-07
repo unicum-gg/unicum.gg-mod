@@ -47,6 +47,27 @@ body.UnicumPanelResizing, body.UnicumPanelResizing * {
     font-size: 14rem;
     color: #e6e2d8;
     pointer-events: auto;
+    /* The chat lines only. The 14rem above dresses the whole panel,
+       its header, its input and its buttons, and the player asked for
+       bigger chat, not a bigger panel. */
+    --chat-text: 14rem;
+}
+
+/* The steps of the text size setting, as twitch_panel.js composes them.
+   `normal` adds no class and leaves the 14rem above standing, so a panel
+   whose player never touched this is the sheet it always was. One class
+   deep each, like the rule they override, so their place in the file is
+   what makes them win. */
+.UnicumTwitchPanel__text_small {
+    --chat-text: 12rem;
+}
+
+.UnicumTwitchPanel__text_large {
+    --chat-text: 16rem;
+}
+
+.UnicumTwitchPanel__text_larger {
+    --chat-text: 18rem;
 }
 
 /* The hangar's noise layer, put here by twitch_panel.js. Its own class styles
@@ -327,13 +348,13 @@ body.UnicumPanelResizing, body.UnicumPanelResizing * {
     flex-direction: row;
     align-items: flex-start;
     padding: 3rem 0;
-    line-height: 18rem;
+    line-height: calc(var(--chat-text) + 4rem);
 }
 
 .UnicumTwitchPanel_badge {
     flex-shrink: 0;
-    width: 16rem;
-    height: 16rem;
+    width: calc(var(--chat-text) + 2rem);
+    height: calc(var(--chat-text) + 2rem);
     margin: 1rem 3rem 0 0;
     background-size: contain;
     background-repeat: no-repeat;
@@ -343,6 +364,7 @@ body.UnicumPanelResizing, body.UnicumPanelResizing * {
 .UnicumTwitchPanel_name {
     flex-shrink: 0;
     font-weight: bold;
+    font-size: var(--chat-text);
     color: #c8c8c8;
 }
 
@@ -350,6 +372,7 @@ body.UnicumPanelResizing, body.UnicumPanelResizing * {
     flex: 1 1 0;
     min-width: 0;
     padding-left: 4rem;
+    font-size: var(--chat-text);
     color: #e6e2d8;
 }
 

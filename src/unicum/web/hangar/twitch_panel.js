@@ -45,6 +45,17 @@ const state = {
 const toRem = (px) => (typeof viewEnv !== "undefined" && viewEnv.pxToRem ? viewEnv.pxToRem(px) : px);
 const DRAG_THRESHOLD = 4;
 
+// The chat text size the player chose, as a class on the root. A class
+// rather than a property set on the node, because renderFrame rewrites
+// className outright and anything put on the node outside the render is
+// dropped by the next one, which is what left the panel with no edge
+// before. `normal` adds nothing and the sheet's own size stands.
+const TEXT_CLASSES = {
+    small: " UnicumTwitchPanel__text_small",
+    large: " UnicumTwitchPanel__text_large",
+    larger: " UnicumTwitchPanel__text_larger",
+};
+
 const root = document.createElement("div");
 // Plain until the hangar lends its decor, and plain for good in the battle
 // queue window, where there is no hangar to lend it (twitch_panel.css).
@@ -598,6 +609,7 @@ function renderFrame(data) {
         // left is the garage before the hangar has lent anything, where the
         // fallback stands in for the moment it takes.
         (state.decor ? " " + state.decor.base : (windowed ? "" : " UnicumTwitchPanel__plain")) +
+        (TEXT_CLASSES[data.textSize] || "") +
         (state.drag && state.drag.moved ? " UnicumTwitchPanel__dragging" : "");
     if (!state.resize) {
         size(data.size);
