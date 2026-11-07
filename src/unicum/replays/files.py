@@ -5,8 +5,9 @@ default recording setting writes every battle to the same file name, the "all"
 setting builds one out of the map and the tank, and neither is a promise. The
 arena id in the file is.
 
-Reads the JSON blocks at the front only. They sit in the clear ahead of the
-encrypted stream, so this never touches Blowfish and never inflates anything.
+Reads the JSON blocks at the front only, each at its declared size. They sit
+in the clear ahead of the encrypted stream, so this never touches Blowfish and
+never inflates anything.
 """
 from __future__ import absolute_import
 
@@ -44,12 +45,15 @@ _CANDIDATES = 6
 #: finish after it. Eight times over is far more slack than that needs.
 _SHORTLIST = _CANDIDATES * 8
 
-#: Enough of the front of a file to hold both JSON blocks.
+#: The most a single JSON block may claim before the file is taken as damaged.
 #:
-#: The metadata and the results sit in the clear before the encrypted stream.
-#: 256 KB is far more than either needs and avoids pulling a megabyte off disk
-#: to read a number.
-_HEADER_BYTES = 262144
+#: Each block is read at the size its own header declares, not through a fixed
+#: window. The window was 256 KB and a Frontline battle overflows it: sixty
+#: players, one record per tank each, so its results block runs past the
+#: window and the battle was never recognised, which is why no Frontline
+#: replay ever reached the site. A Random battle's is a fraction of that. The
+#: ceiling only guards against a corrupt size field asking for gigabytes.
+_MAX_BLOCK_BYTES = 16 * 1024 * 1024
 
 #: Magic at the top of every replay.
 _MAGIC = b'\x12\x32\x34\x11'
@@ -57,42 +61,48 @@ _MAGIC = b'\x12\x32\x34\x11'
 def _u32(data, at):
     return struct.unpack_from('<I', data, at)[0]
 
-def battle_in(path):
-    """The arena id this replay belongs to, or None if it says nothing.
+def header_blocks(path):
+    """The JSON blocks at the front of a replay, raw, in order; [] if none.
 
-    Reads the JSON blocks only. They are not encrypted, so this never touches
-    Blowfish and never inflates anything; it is a few KB off the front of the
-    file. The id lives in the SECOND block, the one written when the battle
-    ends, so a replay of a battle still in progress answers None and is
-    correctly left alone.
+    Each one is read at the size the file declares for it, so a large results
+    block (a Frontline battle) is read whole rather than cut off. They are not
+    encrypted, so this never touches Blowfish and never inflates anything, and
+    it stops before the stream: `count` names the JSON blocks only.
     """
     try:
         with open(path, 'rb') as handle:
-            head = handle.read(_HEADER_BYTES)
-    except (IOError, OSError):
-        return None
-    if len(head) < 12 or head[:4] != _MAGIC:
-        return None
-    try:
-        count = _u32(head, 4)
-        if count > 16:
-            return None
-        at = 8
-        blocks = []
-        for _ in range(count):
-            if at + 4 > len(head):
-                return None
-            size = _u32(head, at)
-            at += 4
-            if at + size > len(head):
-                # The block runs past what we read. Only possible for the
-                # stream, which we do not want anyway.
-                break
-            blocks.append(head[at:at + size])
-            at += size
-    except Exception:
-        return None
-    for raw in blocks[1:]:
+            head = handle.read(8)
+            if len(head) < 8 or head[:4] != _MAGIC:
+                return []
+            count = _u32(head, 4)
+            if count > 16:
+                return []
+            blocks = []
+            for _ in range(count):
+                raw = handle.read(4)
+                if len(raw) < 4:
+                    break
+                size = _u32(raw, 0)
+                if size > _MAX_BLOCK_BYTES:
+                    break
+                block = handle.read(size)
+                if len(block) < size:
+                    # The file ends inside the block: a recording still being
+                    # written, or a truncated copy.
+                    break
+                blocks.append(block)
+            return blocks
+    except (IOError, OSError, struct.error):
+        return []
+
+def battle_in(path):
+    """The arena id this replay belongs to, or None if it says nothing.
+
+    The id lives in the SECOND block, the one written when the battle ends,
+    so a replay of a battle still in progress answers None and is correctly
+    left alone.
+    """
+    for raw in header_blocks(path)[1:]:
         try:
             parsed = json.loads(raw.decode('utf-8'))
         except (ValueError, UnicodeDecodeError):

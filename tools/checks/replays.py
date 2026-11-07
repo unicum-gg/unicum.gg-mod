@@ -241,3 +241,59 @@ def check_replay_disowning():
     finally:
         os.chdir(original)
         shutil.rmtree(workdir, ignore_errors=True)
+
+
+def _replay(path, blocks, stream=b'\x00' * 64):
+    """A `.wotreplay` as the client lays it out: magic, count, sized blocks, stream."""
+    import json
+    import struct
+    with open(path, 'wb') as handle:
+        handle.write(b'\x12\x32\x34\x11')
+        handle.write(struct.pack('<I', len(blocks)))
+        for block in blocks:
+            raw = json.dumps(block).encode('utf-8')
+            handle.write(struct.pack('<I', len(raw)))
+            handle.write(raw)
+        handle.write(stream)
+
+
+def check_replay_large_results():
+    """A results block past 256 KB still names its battle.
+
+    A Frontline battle's results run past the old fixed 256 KB window: sixty
+    players, one record per tank each. The window cut the block off and the
+    battle was never recognised, so not one Frontline replay was ever sent.
+    """
+    from unicum.replays.files import battle_in, header_blocks
+    workdir = tempfile.mkdtemp(prefix='unicum-replays-')
+    try:
+        meta = {'mapName': 'epic_normandy', 'gameplayID': 'epic'}
+        padding = 'x' * 600000
+        big = os.path.join(workdir, 'big.wotreplay')
+        _replay(big, [meta, [{'arenaUniqueID': 123456789, 'vehicles': {'1': padding}}]])
+        check('a results block over 256 KB is read whole',
+              battle_in(big) == '123456789')
+        check('and both blocks come back, the stream left alone',
+              len(header_blocks(big)) == 2)
+
+        small = os.path.join(workdir, 'small.wotreplay')
+        _replay(small, [meta, [{'arenaUniqueID': 42}]])
+        check('a small one still reads', battle_in(small) == '42')
+
+        running = os.path.join(workdir, 'running.wotreplay')
+        _replay(running, [meta])
+        check('a battle still in progress names nothing', battle_in(running) is None)
+
+        cut = os.path.join(workdir, 'cut.wotreplay')
+        with open(big, 'rb') as handle:
+            whole = handle.read()
+        with open(cut, 'wb') as handle:
+            handle.write(whole[:300000])
+        check('a file ending inside its results names nothing', battle_in(cut) is None)
+
+        damaged = os.path.join(workdir, 'damaged.wotreplay')
+        with open(damaged, 'wb') as handle:
+            handle.write(b'\x12\x32\x34\x11\x01\x00\x00\x00\xff\xff\xff\xff')
+        check('a size field asking for gigabytes is refused', header_blocks(damaged) == [])
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)

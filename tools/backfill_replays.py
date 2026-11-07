@@ -70,7 +70,6 @@ import hashlib
 import importlib.util
 import json
 import os
-import struct
 import sys
 import time
 import types
@@ -80,12 +79,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src" / "unicum"
-
-#: Magic at the top of every replay, from the client's own writer.
-MAGIC = b"\x12\x32\x34\x11"
-
-#: Enough of the front of a file to hold both JSON blocks.
-HEADER_BYTES = 262144
 
 #: The quotas, read off the routes that enforce them rather than guessed.
 REPLAYS_PER_HOUR = 30
@@ -172,33 +165,15 @@ def mod_module(name: str):
 def blocks(path: Path) -> list:
     """The JSON blocks at the front of a replay, parsed; [] if it has none.
 
-    Reads the header only. The blocks are not encrypted, so this never touches
-    Blowfish and never inflates anything.
+    Read by the mod's own `header_blocks`, so the tool and the client cannot
+    disagree on what a replay holds. It used to keep a copy reading a fixed
+    256 KB window, which cut a Frontline battle's results off and made every
+    one of them look like a battle left before it ended.
     """
     try:
-        with open(path, "rb") as handle:
-            head = handle.read(HEADER_BYTES)
-    except OSError:
-        return []
-    if len(head) < 12 or head[:4] != MAGIC:
-        return []
-    try:
-        count = struct.unpack_from("<I", head, 4)[0]
-        if count > 16:
-            return []
-        at, out = 8, []
-        for _ in range(count):
-            if at + 4 > len(head):
-                break
-            size = struct.unpack_from("<I", head, at)[0]
-            at += 4
-            if at + size > len(head):
-                # Runs past the header, which only the stream does.
-                break
-            out.append(json.loads(head[at:at + size].decode("utf-8")))
-            at += size
-        return out
-    except (ValueError, UnicodeDecodeError, struct.error):
+        return [json.loads(raw.decode("utf-8"))
+                for raw in mod_module("replays.files").header_blocks(str(path))]
+    except (ValueError, UnicodeDecodeError):
         return []
 
 
