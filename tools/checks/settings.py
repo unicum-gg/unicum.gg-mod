@@ -149,6 +149,103 @@ def check_settings_window():
           and from_window(raw) == {'maxFlags': 3, 'metric': 'wn8', 'tankButton': False})
 
 
+def check_settings_registration(workdir):
+    """Registering the page with the API, and what it tells it about the site's own boxes.
+
+    Nothing reached `install` before this one: modsSettingsApi is not among
+    the fake client modules, so the window returned early and the whole
+    registration path went untested. A field added to the state tuple's two
+    readers and not to its seed took the mod down at every start with the
+    suite green, and two of the three values handed to the API were left at
+    their defaults, which the API hands back as the player's choice.
+    """
+    import sys
+    import types
+    from unicum.runtime.session import Session
+    from unicum.settings import Settings
+    from unicum.settings_window import window as window_module
+    from unicum.settings_window.labels import HIDE_BATTLES_VAR, HIDE_VAR, LINKAGE
+
+    class FakeApi(object):
+        """The surface the window uses, and what it was handed."""
+
+        def __init__(self):
+            self.templates = []
+            self.pushed = []
+
+        def setModTemplate(self, linkage, template, on_window, on_button):
+            self.templates.append(template)
+
+        def updateModSettings(self, linkage, values):
+            self.pushed.append(values)
+
+    class FakeLink(object):
+        """An account that has hidden both, which is what the bugs needed to show."""
+
+        secret = 's' * 64
+        name = 'Someone'
+        twitch = 'ready'
+        supporter = True
+        card_hidden = False
+
+        def __init__(self):
+            self.loadouts_hidden = True
+            self.battles_hidden = True
+            self.asked = []
+
+        def hide_loadouts(self, hidden, done=None):
+            self.asked.append(('loadouts', hidden))
+
+        def hide_battles(self, hidden, done=None):
+            self.asked.append(('battles', hidden))
+
+    drawn = []
+
+    def fake_template(values, channel=u'', linked=False, card_shown=True,
+                      supporter=False, loadouts_hidden=False, battles_hidden=None):
+        """Stands in for `page.template`, which needs the client's own builders."""
+        drawn.append((loadouts_hidden, battles_hidden))
+        return {'linkage': LINKAGE}
+
+    api, link = FakeApi(), FakeLink()
+    module = types.ModuleType('gui.modsSettingsApi')
+    module.g_modsSettingsApi = api
+    held, held_template = sys.modules.get('gui.modsSettingsApi'), window_module.template
+    sys.modules['gui.modsSettingsApi'] = module
+    sys.modules['gui'].modsSettingsApi = module
+    window_module.template = fake_template
+    try:
+        settings = Settings(Session(generation=0), store=os.path.join(workdir, 'registration.json'))
+        page = window_module.SettingsWindow(Session(generation=0), settings, link)
+        page.install()
+        check('the window registers its page with the API',
+              len(api.templates) == 1 and len(api.pushed) == 1)
+        check('and draws it before the link has answered, as its seed says',
+              drawn[-1] == (False, None))
+
+        page._check_state()
+        check('a link that hides both draws both boxes ticked', drawn[-1] == (True, True))
+        # The API keeps its own copy of every value it is given and hands that
+        # back as the player's choice, so what is pushed has to say the same as
+        # what was drawn. Left at their defaults, the two hiding boxes went out
+        # unticked, and the answer read as a player asking for what they had
+        # hidden to be put back on their page.
+        check('and tells the API about them what it drew',
+              api.pushed[-1][HIDE_VAR] is True and api.pushed[-1][HIDE_BATTLES_VAR] is True)
+        page._on_settings()
+        check('a settings change keeps telling it the truth about them',
+              api.pushed[-1][HIDE_VAR] is True and api.pushed[-1][HIDE_BATTLES_VAR] is True)
+        # The harm itself, end to end.
+        page._on_window(LINKAGE, api.pushed[-1])
+        check('so what the API sends back unhides nothing', link.asked == [])
+    finally:
+        window_module.template = held_template
+        if held is None:
+            sys.modules.pop('gui.modsSettingsApi', None)
+            delattr(sys.modules['gui'], 'modsSettingsApi')
+        else:
+            sys.modules['gui.modsSettingsApi'] = held
+
 def check_live_settings(bigworld):
     """Editing settings.json while the mod runs reaches the surfaces.
 

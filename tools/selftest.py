@@ -44,7 +44,7 @@ from checks.surfaces import (
     check_skirmish_room)
 from checks.imports import check_imports
 from checks.sizes import check_file_sizes
-from checks.settings import check_live_settings, check_res_mods_version, check_settings, check_settings_window
+from checks.settings import check_live_settings, check_res_mods_version, check_settings, check_settings_registration, check_settings_window
 from checks.loadouts import (check_crew_away, check_crew_from_last_battle, check_demounting,
                              check_garage_statement,
                              check_loadout_setting, check_loadout_store, check_loadouts,
@@ -119,6 +119,7 @@ def main():
         check_room_sort(workdir)
         check_settings(workdir)
         check_settings_window()
+        check_settings_registration(workdir)
         check_battle_modes(workdir)
         check_reload_announcer()
         check_alt_only()

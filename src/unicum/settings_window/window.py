@@ -65,11 +65,12 @@ class SettingsWindow(object):
         self._link = link
         self._chat = None
         # (channel followed, Twitch chat writable, game linked, account name,
-        # card shown, supports the site, loadouts hidden) as the page shows
-        # them. It has to match what `_register` unpacks and what
-        # `_check_state` builds: `install` registers off this one, before the
-        # link has answered anything.
-        self._state = (u'', False, False, None, True, False, False)
+        # card shown, supports the site, loadouts hidden, battles hidden) as
+        # the page shows them. It has to match what `_register` unpacks and
+        # what `_check_state` builds: `install` registers off this one, before
+        # the link has answered anything. A field added to two of the three
+        # and not to the seed took the whole mod down at every start.
+        self._state = (u'', False, False, None, True, False, False, None)
         self._alive = True
         self._api = None
 
@@ -97,7 +98,7 @@ class SettingsWindow(object):
         state = (self._chat.channel if self._chat is not None else u'',
                  linked and link.twitch == 'ready', linked, link.name if linked else None,
                  self._card_shown(), self._supporter(), self._hidden(),
-                 self._link.battles_hidden if linked else None)
+                 self._battles_hidden())
         if state == self._state:
             return
         self._state = state
@@ -115,6 +116,12 @@ class SettingsWindow(object):
     def _hidden(self):
         return bool(self._link is not None and self._link.loadouts_hidden)
 
+    def _battles_hidden(self):
+        """None when no account is linked, the one case the box is left out."""
+        if self._link is None or not self._link.secret:
+            return None
+        return bool(self._link.battles_hidden)
+
     def _register(self):
         (channel, writable, linked, name, card_shown, supporter, hidden,
          battles_hidden) = self._state
@@ -126,7 +133,8 @@ class SettingsWindow(object):
         # cross changes the truth without going through the window), and an
         # old "shown" coming back would undo the cross: so it is set to the
         # truth first.
-        self._api.updateModSettings(LINKAGE, to_window(self._settings.values(), card_shown, hidden))
+        self._api.updateModSettings(LINKAGE, to_window(self._settings.values(), card_shown, hidden,
+                                                       battles_hidden))
 
     def _on_window(self, linkage, raw):
         if not self._alive or linkage != LINKAGE or not isinstance(raw, dict):
@@ -144,8 +152,12 @@ class SettingsWindow(object):
     def _on_settings(self):
         """Keep the window in step with a hand edit of settings.json."""
         # The API answers with onSettingsChanged, which lands in _on_window
-        # with values that change nothing.
-        self._api.updateModSettings(LINKAGE, to_window(self._settings.values(), self._card_shown()))
+        # and is read back as the player's choice, so every site-owned box
+        # goes out at its truth. Left to their defaults, the two hiding boxes
+        # went out unticked and that answer read as a player asking for what
+        # they had hidden to be shown again.
+        self._api.updateModSettings(LINKAGE, to_window(self._settings.values(), self._card_shown(),
+                                                       self._hidden(), self._battles_hidden()))
 
     def _remove(self):
         self._alive = False
