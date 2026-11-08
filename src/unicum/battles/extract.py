@@ -169,20 +169,49 @@ def _int(value, default=0):
     except (TypeError, ValueError):
         return default
 
+def _final(records):
+    """The record the battle ended on: the surviving life, or the longest death.
+
+    At most one record survives, measured over a whole Frontline battle: 44 of
+    the 53 vehicles that respawned had exactly one, the other 9 none, never
+    two. And a tank you are alive in when the battle ends is the last one you
+    took, so that record is the end of the battle for them.
+
+    Without a survivor every life ended in a death and which came last is not
+    in the data, so the longest-lived one answers for them. It is a choice,
+    and it is deterministic, which `records[-1]` was not.
+    """
+    for record in records:
+        if _int(record.get(_FROM['deathReason']), SURVIVED) == SURVIVED:
+            return record
+    return max(records, key=lambda record: (_int(record.get(_FROM['lifeTime'])),
+                                            _int(record.get(_FROM['tank']))))
+
 def _vehicle(key, records):
     """One vehicle's whole battle, however many lives it took.
 
     The identity comes from the first record and the deeds are summed, because
-    a vehicle that respawned did all of it. `health` and `deathReason` come
-    from the LAST record: they describe how the battle left them, and the first
-    life of a respawning vehicle always ends in a death.
+    a vehicle that respawned did all of it.
+
+    **The records are not an order.** The client keys its details by
+    `(vehicleID, intCD)` and hands over whatever that iteration gives.
+    Measured on one 60-player Frontline battle: the survivor, who can only be
+    the last tank taken, sat last in 20 of the 44 vehicles that had one, in
+    the middle in 16 and FIRST in 8. The `index` each record carries does not
+    recover it either (survivor last in 21 of 44), and the tank ids are
+    ascending in 7 cases of 53. So `records[-1]` was never the last life:
+    reading it as one reported a player who finished the battle alive as
+    destroyed, with the killer of a life they had already respawned out of.
+    `_final` answers for the end of the battle instead, and `tanks` is
+    ordered by what each tank did rather than by a sequence the data does
+    not carry.
 
     `tank` stays the first record's, which is what every site reader keyed on
     before `tanks` existed. It is NOT the tank that did the totals: on a
     Frontline battle played in three tanks it was the only one named, and the
     whole battle's damage was drawn under it. `tanks` is what says otherwise.
     """
-    first, last = records[0], records[-1]
+    first, final = records[0], _final(records)
     out = {'id': _int(key)}
     account = _int(first.get('accountDBID'))
     # A vehicle with no account is a bot, and has nobody to name.
@@ -192,8 +221,8 @@ def _vehicle(key, records):
         out[ours] = _int(first.get(theirs))
     for ours in _SUMMED:
         out[ours] = sum(_int(record.get(_FROM[ours])) for record in records)
-    out['health'] = _int(last.get('health'))
-    out['deathReason'] = _int(last.get('deathReason'), SURVIVED)
+    out['health'] = _int(final.get('health'))
+    out['deathReason'] = _int(final.get('deathReason'), SURVIVED)
     out['maxHealth'] = max(_int(record.get('maxHealth')) for record in records)
     # The medals the battle awarded them, by the game's own ids. Kept only when
     # there are any: they are empty on about 99 of every 100 vehicles, and an
@@ -214,19 +243,28 @@ def _vehicle(key, records):
     # just ours: the results carry it in the public half, so a battle names the
     # marks of all thirty.
     #
-    # From the last record and never summed. It is a state the vehicle arrived
-    # with, so adding a respawn's together would give six marks on a gun that
-    # has three. Kept only when there are any, like the medals above: thirty
-    # vehicles carrying an explicit zero would be a third of the payload
-    # saying nothing, and an absent mark reads as no mark.
-    marks = _int(last.get('marksOnGun'))
+    # From the record that `tank` names and never summed. It is a state of ONE
+    # gun, so adding a respawn's together would give six marks on a gun that
+    # has three, and taking another tank's would draw a mark beside a gun that
+    # does not wear it. Kept only when there are any, like the medals above:
+    # thirty vehicles carrying an explicit zero would be a third of the
+    # payload saying nothing, and an absent mark reads as no mark.
+    marks = _int(first.get('marksOnGun'))
     if marks:
         out['marks'] = marks
-    killer = _int(last.get(_KILLER))
+    # From the same record as the death it goes with, so a vehicle that ended
+    # the battle alive carries no killer.
+    killer = _int(final.get(_KILLER))
     if killer:
         out['killer'] = killer
     if len(records) > 1:
-        out['tanks'] = [_tank(record) for record in records]
+        # Biggest share first. Not the order the client handed them over,
+        # which is no order at all, and deliberately not a guess at the order
+        # they were played: a list read top to bottom reads as a sequence, and
+        # the only chronology the data holds is that the surviving tank was
+        # the last one, which `deathReason` already says on each entry.
+        out['tanks'] = sorted((_tank(record) for record in records),
+                              key=lambda one: (-one['damage'], -one['xp'], one['tank']))
     return out
 
 def _tank(record):

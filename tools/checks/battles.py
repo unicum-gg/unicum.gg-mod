@@ -138,21 +138,37 @@ def check_battles():
 
 
 def check_battle_lives():
-    """A vehicle that respawned did all of it, and died once."""
-    from unicum.battles.extract import payload
+    """A vehicle that respawned did all of it, and the battle ended on one life."""
+    from unicum.battles.extract import SURVIVED, payload
 
-    results = dict(RESULTS)
-    first = RESULTS['vehicles']['13089212'][0]
-    second = dict(first)
-    second.update({'damageDealt': 500, 'lifeTime': 80, 'deathReason': 2,
-                   'health': 0, 'maxHealth': 1800, 'xp': 40})
-    results['vehicles'] = {'13089212': [dict(first), second]}
+    base = RESULTS['vehicles']['13089212'][0]
+    # Two deaths, the longer of them carrying a killer.
+    longer = dict(base, killerID=13089208)
+    shorter = dict(base, damageDealt=500, lifeTime=80, deathReason=2,
+                   health=0, maxHealth=1800, xp=40)
+    results = dict(RESULTS, vehicles={'13089212': [longer, shorter]})
 
     vehicle = payload(results, ARENA, 'v')['vehicles'][0]
     check('the deeds of every life are added up',
           vehicle['damage'] == 1372 and vehicle['lifeTime'] == 190 and vehicle['xp'] == 76)
-    check('how the battle left them comes from the last life',
-          vehicle['deathReason'] == 2 and vehicle['health'] == 0)
+    # The client hands the records over in no order of its own, so what the
+    # battle left them cannot be read off the last of them.
+    check('with no life surviving, the longest one answers for how it left them',
+          vehicle['deathReason'] == 0 and vehicle['health'] == -3
+          and vehicle['killer'] == 13089208)
+    check('and the whole vehicle is the same whichever order they arrived in',
+          payload(dict(RESULTS, vehicles={'13089212': [shorter, longer]}),
+                  ARENA, 'v')['vehicles'][0] == vehicle)
+    # Measured on one Frontline battle: 8 of the 44 vehicles that had a
+    # surviving life were handed it over FIRST. Read as the last record, they
+    # were reported destroyed, by the killer of a life they had already
+    # respawned out of.
+    alive = dict(base, deathReason=SURVIVED, health=900, lifeTime=20)
+    survived = payload(dict(RESULTS, vehicles={'13089212': [alive, shorter]}),
+                       ARENA, 'v')['vehicles'][0]
+    check('a vehicle alive at the end reads as alive, wherever that life sits',
+          survived['deathReason'] == SURVIVED and survived['health'] == 900
+          and 'killer' not in survived)
     check('the biggest tank they fielded is the one reported',
           vehicle['maxHealth'] == 2500)
     # The economy exists for the reporting client alone: the results carry
@@ -218,10 +234,20 @@ def check_battle_tanks():
                   lifeTime=400, deathReason=1, xp=500)
     third = dict(base, typeCompDescr=4929, damageDealt=2158, kills=0,
                  lifeTime=164, deathReason=SURVIVED, xp=300)
-    results = dict(RESULTS, vehicles={'13089208': [progetto, second, third]})
+    # Handed over with the surviving life first, as the client really does.
+    results = dict(RESULTS, vehicles={'13089208': [third, progetto, second]})
     vehicle = payload(results, ARENA, 'v')['vehicles'][0]
-    check('every tank of a respawning vehicle is named, in the order received',
+    # Biggest share first, and deliberately not a guess at the order they were
+    # played: a list read top to bottom reads as a sequence, and the data holds
+    # no sequence. The one chronology in it, that the surviving tank was the
+    # last, is on each entry as its own deathReason.
+    check('every tank of a respawning vehicle is named, biggest share first',
           [one['tank'] for one in vehicle['tanks']] == [56097, 7169, 4929])
+    check('in that order whatever order the client handed them over in',
+          payload(dict(RESULTS, vehicles={'13089208': [second, third, progetto]}),
+                  ARENA, 'v')['vehicles'][0]['tanks'] == vehicle['tanks'])
+    check('and the vehicle reads as the surviving life left it',
+          vehicle['deathReason'] == SURVIVED)
     check('each tank carries its own share of the battle',
           [one['damage'] for one in vehicle['tanks']] == [6817, 4000, 2158]
           and [one['deathReason'] for one in vehicle['tanks']] == [0, 1, SURVIVED])
