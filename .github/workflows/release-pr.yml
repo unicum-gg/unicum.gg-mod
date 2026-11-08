@@ -104,15 +104,24 @@ jobs:
 
           # Pushed only when the release it proposes changed, so a client check
           # that finds nothing new leaves the pull request (and its edits) alone.
+          # An unchanged branch still gets its pull request if it has none, which
+          # is the state a run that failed after the push leaves behind.
+          number=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // ""')
+          current=no
           if git ls-remote --exit-code origin "refs/heads/$BRANCH" >/dev/null; then
             git fetch -q origin "$BRANCH"
             if git diff --quiet "origin/$BRANCH" HEAD -- CHANGELOG.md \
               && [ "$(git merge-base "origin/$BRANCH" origin/main)" = "$(git rev-parse origin/main)" ]; then
-              echo "release/next already proposes this"
-              exit 0
+              current=yes
             fi
           fi
-          git push -q --force origin "$BRANCH"
+          if [ "$current" = yes ] && [ -n "$number" ]; then
+            echo "release/next already proposes this in #$number"
+            exit 0
+          fi
+          if [ "$current" = no ]; then
+            git push -q --force origin "$BRANCH"
+          fi
 
           title="🔖 release $VERSION"
           moved=""
@@ -125,7 +134,6 @@ jobs:
             "Built for \`mods/$MODS\` (client build \`$BUILD\`). $moved" \
             "" \
             "The changelog is written from the commits. Edit it here if a line should read differently for players, but do it last: a new commit on main regenerates this branch.")
-          number=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // ""')
           if [ -n "$number" ]; then
             gh pr edit "$number" --title "$title" --body "$body"
             echo "refreshed #$number"
