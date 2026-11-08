@@ -62,6 +62,11 @@ SECTIONS = (
 )
 TOLD = {kind for _, kinds in SECTIONS for kind in kinds}
 
+# The one place the emoji does decide: these only ever touch the repository
+# (CI, tests, the checks behind them), so whatever their type says, nothing a
+# player runs changed. They are listed with the quiet commits and earn a patch.
+TOOLING = {'\U0001f477', '\u2705', '\U0001f49a', '\U0001f6a8', '\U0001f528'}
+
 
 def run(command, capture=False, cwd=REPO):
     """A command, failing loudly: a release that half happened is worse than none."""
@@ -93,7 +98,10 @@ def commits_since(tag):
     read = []
     for subject in subjects:
         found = SUBJECT.match(subject.strip())
-        read.append(found.groups() if found else (None, subject.strip()))
+        if found and subject.split()[0] in TOOLING:
+            read.append(('tooling', found.group(2)))
+        else:
+            read.append(found.groups() if found else (None, subject.strip()))
     return read
 
 
