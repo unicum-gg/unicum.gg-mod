@@ -1,5 +1,62 @@
 # Changelog
 
+## 0.8.0
+
+### Added
+
+- State the garage as a list, not only as loadouts
+- Open the player's own page from the account card
+- Choose where the Twitch chat shows in battle
+- Replace the battle-sharing box with one that hides the battle list
+- The platoons the client numbers to each battle sent
+- A size for the chat text, in the panel and in the battle chat
+
+### Improved
+
+- Drop the fill the hangar's own cards do not have
+- Wear the hangar's own card decor instead of copying it
+- Draw the panel and the card as the hangar draws its own
+- Soften the panel's borrowed noise to the hangar's own read strength
+- Give the chat window the garage's own edge
+- Build for the game client 2.4.1.1
+
+### Fixed
+
+- Announce the reload the C key starts
+- Point the deferred imports the package split left behind
+- Stop one refused battle from holding up every battle behind it
+- Match the hangar's own hover on the account card
+- The hover layer was three times too strong
+- Give the panel's borrowed noise a widget's strength
+- Let the panel's border take the card's own strength
+- Give the chat panel an edge that survives a render and a battle
+- Keep the window's place over a battle the client started in
+- Read the account from the arena in a battle with no lobby behind it
+- The master switch stopping the battle uploads (#10)
+- Frontline battles naming only the first tank and earning for only one
+- Frontline replays never being sent because their results ran past the header window
+- The settings window taking the mod down at every start
+- Reading an order into the lives of a vehicle that respawned
+
+<!-- 16 commit(s) not shown, being invisible to a player:
+     hold the file size convention with a ratchet
+     split battles.py into a package
+     split loadouts.py into a package
+     split replays.py into a package
+     split settings_window.py into a package
+     split twitch_window.py into a package
+     split twitch.py into a package
+     split settings.py into a package
+     split game_link.py into a package
+     split tank_button.py into a package
+     split battle.py into a package
+     split lobby.py into a package, the last one over the limit
+     check every name the mod takes from itself
+     the import check failing on the gitignored local settings (#11)
+     a release pull request that publishes the mod when merged
+     the hand-off of each release to the wgmods publisher
+-->
+
 ## 0.7.1
 
 ### Fixed
