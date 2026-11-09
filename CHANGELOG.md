@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.1
+
+<!-- 1 commit(s) not shown, being invisible to a player:
+     a failed wgmods hand-off having no way to be retried
+-->
+
 ## 0.9.0
 
 ### Added
