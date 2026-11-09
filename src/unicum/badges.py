@@ -201,6 +201,37 @@ class Badges(object):
             return ''
         return ' ' + _GAP.join(parts)
 
+    def vehicle(self, record, settings, surface):
+        """' ' + what a player does on the tank they brought, or ''.
+
+        The mode's own figures and nothing else. A record whose scope is
+        'overall' is the career record this row carries anyway, and drawing
+        the same number where a reader expects "on this tank, in this mode"
+        would be a lie about where it came from.
+
+        The rating is the same drawing as the career one -- same scale, same
+        file on disk -- because it is the same measurement over a smaller set
+        of battles. Two drawings of one number drift; one does not.
+        """
+        if record is None or not record.known or record.scope != 'mode':
+            return ''
+        parts = []
+        metric = settings.vehicle_metric(surface)
+        value = record.rating(metric) if metric else None
+        if value is not None:
+            parts.append(self.markup(metric, value) or _DIM % ('%d' % round(value)))
+        # The count rides on the choice already made for this surface: a
+        # reader who wanted no counts beside the career rating does not
+        # suddenly want one here. It earns its place all the same, because on
+        # one tank it is the number that says whether the rating beside it
+        # means anything -- seventy battles and four read the same otherwise.
+        if settings.extra('battles', surface) is not None and record.battles:
+            text = count(record.battles)
+            parts.append(self._pill(text, NEUTRAL) or _DIM % text)
+        if not parts:
+            return ''
+        return ' ' + _GAP.join(parts)
+
     def picture(self, text, color):
         """(resource path, width, height) of a badge of arbitrary text, or None.
 

@@ -51,6 +51,16 @@ def markup_width(markup):
     text = _IMG.sub('', markup)
     return images + text.count(' ') * _SPACE_WIDTH + sum(c.isdigit() for c in text) * _DIGIT_WIDTH
 
+def tank_of(vInfo):
+    """The vehicle id Wargaming keys its own per-vehicle statistics on, or None.
+
+    `compactDescr` is that id: the same number the site stores a tank
+    snapshot under, so a pair asked for here and a row stored there are the
+    same tank without a translation table in between.
+    """
+    return getattr(getattr(vInfo, 'vehicleType', None), 'compactDescr', None)
+
+
 def icon_markers(flags, badge):
     """[badge html, its width, flags html, their width], drawn as two columns."""
     badge, flags = badge.strip(), flags.strip()
@@ -109,7 +119,8 @@ class Drawing(object):
         for vInfo in arena.getVehiclesInfoIterator():
             if vInfo.isObserver() or not shows(vInfo.team):
                 continue
-            flags, badge = self._marker(vInfo.player.accountDBID)
+            flags, badge = self._marker(getattr(vInfo.player, 'accountDBID', None),
+                                        tank_of(vInfo))
             if flags or badge:
                 self._markers[vInfo.vehicleID] = icon_markers(flags, badge)
         if len(self._received) < len(self._order):
@@ -245,7 +256,8 @@ class Drawing(object):
         player = getattr(vInfoVO, 'player', None)
         if not modes.team_filter(self._settings)(getattr(vInfoVO, 'team', None)):
             return
-        flags, badge = self._marker(getattr(player, 'accountDBID', None))
+        flags, badge = self._marker(getattr(player, 'accountDBID', None),
+                                    tank_of(vInfoVO))
         if not getattr(self, '_probed_mark', False):
             self._probed_mark = True
             _logger.info('vehicle data: drawing=%s, flags=%d chars, badge=%d chars, '
@@ -265,8 +277,39 @@ class Drawing(object):
             if vehicle_id:
                 self._inline.add(vehicle_id)
 
-    def _marker(self, account_id):
-        """(flags markup, rating badge markup), each '' when not shown."""
+    def _swap_mode(self):
+        """The mode to read a tank over while Alt is held, or None for as usual.
+
+        None answers three cases with one value, and each of them wants the
+        career figures left where they are:
+
+          Alt is up            -- nothing was asked for.
+          `alt_only` is set     -- Alt already means "show this surface at
+                                  all" here, and one key cannot mean two
+                                  things on one surface without the second
+                                  one stealing the first.
+          the mode has no record -- Wargaming publishes nothing per vehicle
+                                  for Frontline, Onslaught or Steel Hunter
+                                  (`modes.current_wg_mode` says None), so
+                                  there is nothing to swap in, and blanking
+                                  every row to prove it would be a worse
+                                  answer than the number it replaced.
+        """
+        if self.alt is None or not self.alt.down:
+            return None
+        if self._settings.alt_only('battle'):
+            return None
+        return modes.current_wg_mode()
+
+    def _marker(self, account_id, tank_id=None):
+        """(flags markup, rating badge markup), each '' when not shown.
+
+        Holding Alt puts the row on the tank this player brought, in this
+        mode, instead of their career. A swap rather than a second group of
+        pills: the players panel column is the narrowest place these numbers
+        have to fit, and two ratings side by side in it read as one number
+        measured twice rather than two tanks' worth of truth.
+        """
         if not account_id or not self._settings.shows('battle'):
             return '', ''
         # An old answer is still drawn while a fresh one is fetched.
@@ -276,6 +319,15 @@ class Drawing(object):
         flags = ''
         if self._settings.shows_flags('battle'):
             flags = self._textures.markup(entry, self._settings['maxFlags'])
+        mode = self._swap_mode() if tank_id else None
+        if mode is not None:
+            # Asked for on the first press rather than when the battle opens.
+            # Thirty pairs is the heaviest question this mod puts to the site,
+            # and a player who never holds Alt should never make it answer.
+            if self._lookup.needs_vehicle(account_id, tank_id, mode):
+                self._request_vehicle(account_id, tank_id, mode)
+            record = self._lookup.vehicle(account_id, tank_id, mode)
+            return flags, self._badges.vehicle(record, self._settings, 'battle')
         # Compact: this one dict feeds the players panel, whose column is the
         # narrowest place any of these numbers has to fit.
         return flags, (self._badges.rating(entry, self._settings, 'battle')

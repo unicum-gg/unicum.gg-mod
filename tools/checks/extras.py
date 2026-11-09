@@ -60,6 +60,9 @@ class _Settings(object):
     def metric(self, surface):
         return 'wnx' if self._rated else None
 
+    def vehicle_metric(self, surface):
+        return self.metric(surface)
+
     def shows(self, surface):
         return self._rated
 
@@ -119,6 +122,121 @@ def check_extras_badges():
 
     out = badges.extras(entry, _Settings(winrate='total', battles='total', decimal=True), 'battle')
     check('the decimal setting reaches the badge', '58-7pct.4a92b7.png' in out)
+
+
+class _Record(object):
+    """Only what `vehicle` asks of a per-vehicle record."""
+
+    def __init__(self, scope='mode', battles=70, wnx=1933.6, known=True):
+        self.known, self.scope, self.battles = known, scope, battles
+        self._wnx = wnx
+
+    def rating(self, metric):
+        return self._wnx if metric == 'wnx' else None
+
+
+def check_vehicle_badges():
+    """The pills a battle row shows for the tank its player brought."""
+    import tempfile
+
+    badges = _badges(tempfile.mkdtemp(), _VehicleScales())
+    settings = _Settings(battles='total')
+
+    out = badges.vehicle(_Record(), settings, 'battle')
+    check('the rating on this tank is drawn as a badge',
+          'wnx.1934.4a92b7.png' in out and out.count('<IMG') == 2)
+    check('the count of battles on it comes with it, on the neutral band',
+          '70.4a4a4a.png' in out)
+    check('it leads with a space, like every group that follows a name',
+          out.startswith(' '))
+
+    # The same drawing as the career rating: same metric, same value, same
+    # file. A second set of files for the same number would drift from the
+    # first the day one scale changes.
+    check('and the career rating draws the very same file',
+          badges.markup('wnx', 1933.6) in out)
+
+    check('a record of every mode together draws nothing, since the row has it already',
+          badges.vehicle(_Record(scope='overall'), settings, 'battle') == '')
+    check('a pair the site has never stored draws nothing',
+          badges.vehicle(_Record(known=False), settings, 'battle') == '')
+    check('and no record at all draws nothing', badges.vehicle(None, settings, 'battle') == '')
+    check('a reader who wanted no counts gets the rating alone',
+          badges.vehicle(_Record(), _Settings(), 'battle').count('<IMG') == 1)
+    check('a mode the WN scales do not measure leaves the count to speak alone',
+          badges.vehicle(_Record(wnx=None), settings, 'battle').count('<IMG') == 1)
+    check('and a surface showing nothing draws nothing here either',
+          badges.vehicle(_Record(), _Settings(rated=False), 'battle') == '')
+
+
+class _VehicleScales(object):
+    def color(self, scale, value, unit=None):
+        if scale == 'winrate':
+            return '#4A92B7' if value >= 56 else None
+        return '#4A92B7'
+
+
+def check_alt_swaps_to_the_tank():
+    """Alt puts a battle row on the tank its player brought, where it can.
+
+    The swap is a swap, not an addition: the players panel column is the
+    narrowest place these numbers fit, and the career figure and the figure
+    on one tank cannot both be in it.
+    """
+    from unicum import modes
+    from unicum.battle.flags import BattleFlags
+
+    class Alt(object):
+        def __init__(self, down):
+            self.down = down
+
+    class Settings(object):
+        def __init__(self, alt_only=False):
+            self._alt_only = alt_only
+
+        def alt_only(self, surface):
+            return self._alt_only
+
+    drawing = BattleFlags(None, None, None, None, Settings())
+
+    check('with no Alt key at all the row stays on the career figures',
+          drawing._swap_mode() is None)
+    drawing.alt = Alt(False)
+    check('and with Alt up too', drawing._swap_mode() is None)
+
+    held, drawing.alt = modes.current_wg_mode, Alt(True)
+    try:
+        modes.current_wg_mode = lambda: 'random'
+        check('held, it reads the tank over the mode being played',
+              drawing._swap_mode() == 'random')
+        drawing._settings = Settings(alt_only=True)
+        check('unless Alt already means "show this surface at all" here, '
+              'which one key cannot mean twice',
+              drawing._swap_mode() is None)
+        drawing._settings = Settings()
+        modes.current_wg_mode = lambda: None
+        check('and a mode Wargaming publishes no per-vehicle record for '
+              'leaves the career figures where they are',
+              drawing._swap_mode() is None)
+    finally:
+        modes.current_wg_mode = held
+
+    # One request for the screen, not one per row: Alt going down redraws
+    # every row in the same pass.
+    asked = []
+
+    class Session(object):
+        def callback(self, delay, func):
+            asked.append(delay)
+
+    drawing = BattleFlags(Session(), None, None, None, Settings())
+    drawing._request_vehicle(1, 100, 'random')
+    drawing._request_vehicle(2, 200, 'random')
+    drawing._request_vehicle(3, 300, 'random')
+    check('three rows asking at once queue one flush',
+          len(asked) == 1 and drawing._pending_pairs == set([(1, 100), (2, 200), (3, 300)]))
+    check('and the mode they are read over travels with them',
+          drawing._pair_mode == 'random')
 
 
 def check_extras_fallbacks():

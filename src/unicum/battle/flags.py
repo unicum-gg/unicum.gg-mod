@@ -36,6 +36,12 @@ class BattleFlags(Drawing):
         self._settings = settings
         self._pending = set()
         self._scheduled = False
+        # The same, for (account id, vehicle id) pairs, kept apart because
+        # they travel on a different schedule: the roster is asked for as a
+        # battle loads and the pairs only once somebody holds Alt.
+        self._pending_pairs = set()
+        self._pairs_scheduled = False
+        self._pair_mode = None
         # Statistics controllers of the battle in progress, redrawn once the
         # ratings their averages need have landed.
         self._controllers = weakref.WeakSet()
@@ -182,6 +188,51 @@ class BattleFlags(Drawing):
         _logger.info('resolving %s players', len(batch))
         self._lookup.prefetch(players=batch,
                               on_ready=lambda: self._report(batch))
+
+    def _request_vehicle(self, account_id, tank_id, mode):
+        """Queue one pair, and ask for the whole screen's worth shortly after.
+
+        Alt going down redraws every row in the same pass, so the delay turns
+        thirty requests into one -- the same trade `_request` makes for the
+        roster, over the heavier of the two reads.
+        """
+        self._pending_pairs.add((account_id, tank_id))
+        # The mode cannot change inside a battle, so the last one in wins
+        # without any ordering question to answer.
+        self._pair_mode = mode
+        if self._pairs_scheduled:
+            return
+        self._pairs_scheduled = True
+        self._session.callback(_BATCH_DELAY, self._flush_pairs)
+
+    def _flush_pairs(self):
+        self._pairs_scheduled = False
+        if not self._pending_pairs:
+            return
+        pairs, self._pending_pairs = sorted(self._pending_pairs), set()
+        mode = self._pair_mode
+        _logger.info('resolving %s tank(s) in %s', len(pairs), mode)
+        self._lookup.prefetch(vehicles=pairs, mode=mode,
+                              on_ready=lambda: self._report_pairs(pairs, mode))
+
+    def _report_pairs(self, pairs, mode):
+        """Say how many of the pairs came back with the mode's own figures.
+
+        Three numbers rather than one, because they fail separately: the site
+        can answer for a pair it has never stored (known, no battles), and it
+        can answer with the career record for a mode it holds nothing about
+        (scope 'overall'), which is the one case that draws nothing.
+        """
+        answered = on_mode = 0
+        for account_id, tank_id in pairs:
+            record = self._lookup.vehicle(account_id, tank_id, mode)
+            if record is None or not record.known:
+                continue
+            answered += 1
+            if record.scope == 'mode':
+                on_mode += 1
+        _logger.info('%s of %s tank(s) answered, %s with this mode\'s own record',
+                     answered, len(pairs), on_mode)
 
     def _report(self, batch):
         resolved = []

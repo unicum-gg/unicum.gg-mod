@@ -56,9 +56,10 @@ from checks.replays import (check_replay_answers, check_replay_confirmation,
                            check_replay_deadlines, check_replay_disowning,
                            check_replay_large_results, check_replay_retries,
                            check_replay_wrong_copy)
-from checks.extras import (check_badge_glyphs, check_battle_count, check_entry_stat,
-                           check_extras_badges, check_extras_fallbacks, check_extras_setting,
-                           check_winrate_label)
+from checks.extras import (check_alt_swaps_to_the_tank, check_badge_glyphs,
+                           check_battle_count, check_entry_stat, check_extras_badges,
+                           check_extras_fallbacks, check_extras_setting,
+                           check_vehicle_badges, check_winrate_label)
 from checks.perf import check_perf_meter, check_perf_naming, check_perf_setting
 from checks.tank_menu import check_tank_menu
 from checks.twitch import check_account_in_battle, check_borrowed_decor, check_account_card_link, check_error_reporting, check_links_per_account, check_channel_label, check_echo_guard, check_panel_position, check_own_message, check_panel_size, check_twitch_window, check_twitch_panel, check_regions, check_twitch, check_linked_channel, check_twitch_badges, check_twitch_receiver, check_twitch_send
@@ -183,6 +184,8 @@ def main():
         check_extras_badges()
         check_extras_fallbacks()
         check_extras_setting()
+        check_vehicle_badges()
+        check_alt_swaps_to_the_tank()
         check_withdrawal()
 
         first_hook = target.__dict__['addVehicleInfo']
