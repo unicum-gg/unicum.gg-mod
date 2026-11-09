@@ -15,8 +15,11 @@ name: release
 # What the package was built against is attached to the release as
 # client.json, which is how release-pr.yml knows when the client has moved on.
 #
-# Idempotent: a version that already has its tag is skipped, so a re-run after
-# a failure is the way to retry, and a push that changed nothing is free.
+# Idempotent: a version that already has its tag is not built again, so a re-run
+# after a failure is the way to retry, and a push that changed nothing is free.
+# A re-run or a manual run still hands a tagged version to the wgmods publisher,
+# which leaves alone what the hub already holds. A plain push does not, or a
+# later edit of the changelog could send back a version withdrawn from the hub.
 on:
   push:
     branches: [main]
@@ -45,12 +48,12 @@ jobs:
         run: |
           set -eu
           version=$(grep -m1 -oE '^## [0-9]+\.[0-9]+\.[0-9]+' CHANGELOG.md | cut -c4-)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
           if [ -n "$(git tag -l "v$version")" ]; then
             echo "v$version is already released"
             echo "due=no" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "due=yes" >> "$GITHUB_OUTPUT"
           # The section under the version, without its heading, is the release
           # notes; the HTML comment listing the commits players never see stays
@@ -124,7 +127,7 @@ jobs:
       # the secret both sides hold. It answers 202 at once and reports to
       # Discord, including when the session has to be renewed first.
       - name: Hand the release to the wgmods publisher
-        if: steps.version.outputs.due == 'yes' && vars.WGMODS_PUBLISH_URL != ''
+        if: vars.WGMODS_PUBLISH_URL != '' && (steps.version.outputs.due == 'yes' || github.run_attempt != '1' || github.event_name == 'workflow_dispatch')
         env:
           URL: ${{ vars.WGMODS_PUBLISH_URL }}
           SECRET: ${{ secrets.WGMODS_PUBLISH_SECRET }}
@@ -133,7 +136,7 @@ jobs:
           set -eu
           body=$(printf '{"tag":"v%s"}' "$VERSION")
           signature=$(printf '%s' "$body" | openssl dgst -sha256 -hmac "$SECRET" -hex | sed 's/^.* //')
-          curl -fsS --retry 3 -X POST "$URL/publish" \
+          curl -fsS --max-time 90 --retry 5 --retry-delay 30 --retry-all-errors -X POST "$URL/publish" \
             -H "Content-Type: application/json" \
             -H "X-Signature-256: sha256=$signature" \
             --data "$body"
