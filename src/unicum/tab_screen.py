@@ -368,9 +368,20 @@ class TabScreen(object):
                         continue
                     mean = int(round(sum(found) / float(len(found))))
                     data['averages'][side] = self._badge(metric, mean)
-            if wanted or pairs:
-                self._lookup.prefetch(players=sorted(set(wanted)), vehicles=pairs,
-                                      mode=mode, on_ready=self._publish_all)
+            # Two requests, not one, and the reason is what each costs. The
+            # roster answers in milliseconds off indexed player rows; the
+            # per-vehicle read goes at two much larger tables and was measured
+            # in seconds. Sent together, the ratings every surface already
+            # draws would wait on the figures that are new, and in a battle
+            # that is the wrong way round -- worse, one timeout would lose
+            # both. The endpoint still takes them together for a caller that
+            # wants one call; this one would rather have the names painted.
+            if wanted:
+                self._lookup.prefetch(players=sorted(set(wanted)),
+                                      on_ready=self._publish_all)
+            if pairs:
+                self._lookup.prefetch(vehicles=pairs, mode=mode,
+                                      on_ready=self._publish_all)
         text = json.dumps(data, sort_keys=True)
         if self._published.get(model) == text:
             return

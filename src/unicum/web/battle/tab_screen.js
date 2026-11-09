@@ -370,6 +370,7 @@ const alive = {};
 function decorate() {
   let drawn = 0;
   let matched = 0;
+  let vehicles = 0;
   for (const [selector, side] of [
     [ALLIES, "allies"],
     [ENEMIES, "enemies"],
@@ -393,13 +394,14 @@ function decorate() {
       const name = nameOf(row);
       const player = state.shown && name ? state.players[name] : null;
       if (player) matched += 1;
+      if (player && player.vehicle) vehicles += 1;
       setValue(badge, player);
       setVehicle(badge, player ? player.vehicle : null);
       setFlags(badge, player ? player.flags : null);
       place(badge, row.getBoundingClientRect(), side, clear);
     }
   }
-  return { drawn, matched };
+  return { drawn, matched, vehicles };
 }
 
 function drawAverages() {
@@ -449,7 +451,14 @@ function readModel() {
 function told(counts) {
   if (state.told || !counts.matched) return;
   state.told = true;
-  log(`${counts.drawn} row(s), ${counts.matched} rated`);
+  // The third number is the one that was missing the first time somebody
+  // said they saw no difference: the rows are there, the ratings are there,
+  // and whether anything came back about the tank each player brought is a
+  // separate question with a separate answer.
+  log(
+    `${counts.drawn} row(s), ${counts.matched} rated, ` +
+      `${counts.vehicles} on the tank they brought`,
+  );
 }
 
 // ------------------------------------------------------------------ the loop
