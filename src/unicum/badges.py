@@ -232,6 +232,25 @@ class Badges(object):
             return ''
         return ' ' + _GAP.join(parts)
 
+    def plain(self, entry, settings, surface):
+        """' ' + the surface's rating as plain grey text, or ''.
+
+        The stand-in while a per-vehicle record is not in hand, and for a tank
+        the site holds nothing about. A pill is a figure drawn on the scale
+        its colour names; the same number in grey text beside its neighbours'
+        pills says "this is the career figure, not the one you asked for"
+        without a glyph the badge font has not got -- it draws digits, a
+        percent, a dot and a k, and nothing else.
+
+        The rating alone, without the win rate and the count that follow it
+        elsewhere: this is a row saying what it does not know yet, and the
+        less room it takes while it says so the better.
+        """
+        value = settings.rating(entry, surface)
+        if value is None:
+            return ''
+        return ' ' + _DIM % ('%d' % round(value))
+
     def picture(self, text, color):
         """(resource path, width, height) of a badge of arbitrary text, or None.
 

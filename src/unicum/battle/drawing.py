@@ -34,6 +34,11 @@ _ARENA_DESCRIPTION = '_BattleStatisticsDataController__setArenaDescription'
 
 _IMG_WIDTH = re.compile(r'<IMG[^>]*\bwidth="(\d+)"', re.IGNORECASE)
 _IMG = re.compile(r'<IMG[^>]*>', re.IGNORECASE)
+# Any tag at all. Counting the text inside one as text was close enough while
+# the only markup here was images, and stopped being close enough the day a
+# figure could arrive as `<font color="#8a8a8a">` -- whose three 8s would have
+# been measured as three digits of rating.
+_TAG = re.compile(r'<[^>]+>')
 
 # A space in markup; a bare number's digits, when a badge cannot draw.
 _SPACE_WIDTH = 4
@@ -48,8 +53,14 @@ _ORDERED = ('as_setVehiclesDataS', 'as_addVehiclesInfoS', 'as_updateVehiclesInfo
 def markup_width(markup):
     """Pixels the markup takes: its images' widths, and text by the character."""
     images = sum(int(width) for width in _IMG_WIDTH.findall(markup))
-    text = _IMG.sub('', markup)
+    text = _TAG.sub('', markup)
     return images + text.count(' ') * _SPACE_WIDTH + sum(c.isdigit() for c in text) * _DIGIT_WIDTH
+
+# "Not looked up yet", which None cannot say: None is the answer for a mode
+# with no per-vehicle record at all, and asking the client again every pass
+# because the honest answer was None would be a read per row per second.
+_UNASKED = object()
+
 
 def tank_of(vInfo):
     """The vehicle id Wargaming keys its own per-vehicle statistics on, or None.
@@ -113,6 +124,7 @@ class Drawing(object):
             self._order = {'leftItemsIDs': [], 'rightItemsIDs': []}
             self._received = set()
             self._published = None
+            self._wg_mode = _UNASKED
             return
         self._markers = {}
         shows = modes.team_filter(self._settings)
@@ -277,29 +289,31 @@ class Drawing(object):
             if vehicle_id:
                 self._inline.add(vehicle_id)
 
-    def _swap_mode(self):
-        """The mode to read a tank over while Alt is held, or None for as usual.
+    def _tank_mode(self):
+        """The mode a tank's record is read over in this battle, or None.
 
-        None answers three cases with one value, and each of them wants the
-        career figures left where they are:
+        None where Wargaming publishes nothing per vehicle -- Frontline,
+        Onslaught, Steel Hunter -- in which case no pair is ever asked for and
+        no row ever changes.
 
-          Alt is up            -- nothing was asked for.
-          `alt_only` is set     -- Alt already means "show this surface at
-                                  all" here, and one key cannot mean two
-                                  things on one surface without the second
-                                  one stealing the first.
-          the mode has no record -- Wargaming publishes nothing per vehicle
-                                  for Frontline, Onslaught or Steel Hunter
-                                  (`modes.current_wg_mode` says None), so
-                                  there is nothing to swap in, and blanking
-                                  every row to prove it would be a worse
-                                  answer than the number it replaced.
+        Held for the battle rather than read per row: it cannot change inside
+        one, and this is asked once per player per pass. `_publish` clears it
+        with the rest of the between-battles state.
+        """
+        if self._wg_mode is _UNASKED:
+            self._wg_mode = modes.current_wg_mode()
+        return self._wg_mode
+
+    def _on_tank(self, surface):
+        """Whether rows on this surface are showing the tank, not the career.
+
+        Alt, except where Alt already means "show this surface at all": one
+        key cannot mean two things on one surface without the second meaning
+        stealing the first.
         """
         if self.alt is None or not self.alt.down:
-            return None
-        if self._settings.alt_only('battle'):
-            return None
-        return modes.current_wg_mode()
+            return False
+        return not self._settings.alt_only(surface)
 
     def _marker(self, account_id, tank_id=None):
         """(flags markup, rating badge markup), each '' when not shown.
@@ -319,15 +333,25 @@ class Drawing(object):
         flags = ''
         if self._settings.shows_flags('battle'):
             flags = self._textures.markup(entry, self._settings['maxFlags'])
-        mode = self._swap_mode() if tank_id else None
+        mode = self._tank_mode() if tank_id else None
         if mode is not None:
-            # Asked for on the first press rather than when the battle opens.
-            # Thirty pairs is the heaviest question this mod puts to the site,
-            # and a player who never holds Alt should never make it answer.
+            # Asked for as the battle loads, beside the roster, and not on the
+            # first press. Waiting for the press was the cheaper of the two and
+            # it put the whole wait where it hurts: a site answering in twenty
+            # or thirty seconds -- measured, and timing out at the client's
+            # thirty more often than not -- turns a key held for a moment into
+            # a key held for nothing.
             if self._lookup.needs_vehicle(account_id, tank_id, mode):
                 self._request_vehicle(account_id, tank_id, mode)
-            record = self._lookup.vehicle(account_id, tank_id, mode)
-            return flags, self._badges.vehicle(record, self._settings, 'battle')
+            if self._on_tank('battle'):
+                record = self._lookup.vehicle(account_id, tank_id, mode)
+                drawn = self._badges.vehicle(record, self._settings, 'battle')
+                # Nothing in hand, or nothing stored about this tank: the
+                # career rating in plain grey instead of an empty column. A
+                # blank row answers the question with silence, and silence is
+                # indistinguishable from the mod being broken -- which is
+                # exactly how the first evening of this read.
+                return flags, drawn or self._badges.plain(entry, self._settings, 'battle')
         # Compact: this one dict feeds the players panel, whose column is the
         # narrowest place any of these numbers has to fit.
         return flags, (self._badges.rating(entry, self._settings, 'battle')

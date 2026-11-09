@@ -13,7 +13,7 @@ from gui.Scaleform.daapi.view.battle.shared.stats_exchange.stats_ctrl import Bat
 from gui.Scaleform.daapi.view.battle.shared.stats_exchange.vehicle import VehicleInfoComponent
 from unicum import config
 from unicum.api.entry import PLAYERS
-from unicum.battle.drawing import Drawing, _ORDERED
+from unicum.battle.drawing import Drawing, _ORDERED, _UNASKED
 
 _logger = logging.getLogger('unicum.battle.flags')
 
@@ -42,6 +42,9 @@ class BattleFlags(Drawing):
         self._pending_pairs = set()
         self._pairs_scheduled = False
         self._pair_mode = None
+        # The mode this battle reads a tank over, looked up once; see
+        # `_tank_mode`.
+        self._wg_mode = _UNASKED
         # Statistics controllers of the battle in progress, redrawn once the
         # ratings their averages need have landed.
         self._controllers = weakref.WeakSet()
@@ -192,9 +195,9 @@ class BattleFlags(Drawing):
     def _request_vehicle(self, account_id, tank_id, mode):
         """Queue one pair, and ask for the whole screen's worth shortly after.
 
-        Alt going down redraws every row in the same pass, so the delay turns
-        thirty requests into one -- the same trade `_request` makes for the
-        roster, over the heavier of the two reads.
+        A battle loads its rows in one pass, so the delay turns thirty
+        requests into one -- the same trade `_request` makes for the roster,
+        over the heavier of the two reads.
         """
         self._pending_pairs.add((account_id, tank_id))
         # The mode cannot change inside a battle, so the last one in wins

@@ -176,6 +176,39 @@ class _VehicleScales(object):
         return '#4A92B7'
 
 
+def check_plain_rating():
+    """The grey number a row falls back to, and why it is not a pill."""
+    import tempfile
+
+    class Settings(object):
+        def __init__(self, value=1933.6):
+            self._value = value
+
+        def rating(self, entry, surface):
+            return self._value
+
+    badges = _badges(tempfile.mkdtemp(), _VehicleScales())
+    out = badges.plain(None, Settings(), 'battle')
+    check('the stand-in is text, not a badge', '<IMG' not in out and '1934' in out)
+    check('and grey, so it does not read as a figure on a scale', '#8a8a8a' in out)
+    check('it leads with a space, like every group that follows a name', out.startswith(' '))
+    check('no rating to stand in for draws nothing', badges.plain(None, Settings(None), 'battle') == '')
+
+
+def check_marker_width_ignores_tags():
+    """A tag's own text is not text the player reads.
+
+    The colour of the grey stand-in carries three 8s. Measured as rating
+    digits they would have widened the column by half a pill.
+    """
+    from unicum.battle.drawing import markup_width
+
+    check('a grey figure is measured by its digits alone',
+          markup_width('<font face="$FieldFont" color="#8a8a8a">1934</font>') == 4 * 7)
+    check('an image still counts for the width it declares',
+          markup_width('<IMG SRC="img://b.png" width="38" height="12"/>') == 38)
+
+
 def check_alt_swaps_to_the_tank():
     """Alt puts a battle row on the tank its player brought, where it can.
 
@@ -200,24 +233,34 @@ def check_alt_swaps_to_the_tank():
     drawing = BattleFlags(None, None, None, None, Settings())
 
     check('with no Alt key at all the row stays on the career figures',
-          drawing._swap_mode() is None)
+          not drawing._on_tank('battle'))
     drawing.alt = Alt(False)
-    check('and with Alt up too', drawing._swap_mode() is None)
+    check('and with Alt up too', not drawing._on_tank('battle'))
+    drawing.alt = Alt(True)
+    check('held, the row goes on the tank', drawing._on_tank('battle'))
+    drawing._settings = Settings(alt_only=True)
+    check('unless Alt already means "show this surface at all" here, '
+          'which one key cannot mean twice',
+          not drawing._on_tank('battle'))
 
-    held, drawing.alt = modes.current_wg_mode, Alt(True)
+    # Read once for the battle. It cannot change inside one, and this is
+    # asked for every player on every pass.
+    held, asked = modes.current_wg_mode, []
     try:
-        modes.current_wg_mode = lambda: 'random'
-        check('held, it reads the tank over the mode being played',
-              drawing._swap_mode() == 'random')
-        drawing._settings = Settings(alt_only=True)
-        check('unless Alt already means "show this surface at all" here, '
-              'which one key cannot mean twice',
-              drawing._swap_mode() is None)
-        drawing._settings = Settings()
-        modes.current_wg_mode = lambda: None
-        check('and a mode Wargaming publishes no per-vehicle record for '
-              'leaves the career figures where they are',
-              drawing._swap_mode() is None)
+        modes.current_wg_mode = lambda: asked.append(1) or 'random'
+        check('the mode is the one being played', drawing._tank_mode() == 'random')
+        drawing._tank_mode()
+        drawing._tank_mode()
+        check('and the client answers for it once a battle, not once a row', len(asked) == 1)
+
+        drawing = BattleFlags(None, None, None, None, Settings())
+        del asked[:]
+        modes.current_wg_mode = lambda: asked.append(1) or None
+        check('a mode Wargaming publishes no per-vehicle record for has no mode at all',
+              drawing._tank_mode() is None)
+        drawing._tank_mode()
+        check('and that answer is held too, rather than asked again every pass',
+              len(asked) == 1)
     finally:
         modes.current_wg_mode = held
 
@@ -237,6 +280,85 @@ def check_alt_swaps_to_the_tank():
           len(asked) == 1 and drawing._pending_pairs == set([(1, 100), (2, 200), (3, 300)]))
     check('and the mode they are read over travels with them',
           drawing._pair_mode == 'random')
+
+
+def check_a_tank_is_asked_for_before_alt():
+    """The pairs are asked for as the battle loads, not on the first press.
+
+    Waiting for the press was the cheaper of the two and it put the whole wait
+    where it hurts: the site answers these in twenty to thirty seconds under
+    load, which turns a key held for a moment into a key held for nothing.
+    """
+    from unicum import modes
+    from unicum.battle.flags import BattleFlags
+
+    class Alt(object):
+        def __init__(self, down):
+            self.down = down
+
+    class Lookup(object):
+        def needs_fetch(self, kind, entity_id):
+            return False
+
+        def get(self, kind, entity_id):
+            return None
+
+        def needs_vehicle(self, account_id, tank_id, mode=None):
+            return True
+
+        def vehicle(self, account_id, tank_id, mode=None):
+            return None
+
+    class Settings(object):
+        def shows(self, surface):
+            return True
+
+        def shows_flags(self, surface):
+            return False
+
+        def alt_only(self, surface):
+            return False
+
+    class Badges(object):
+        def rating(self, entry, settings, surface):
+            return ' career'
+
+        def extras(self, entry, settings, surface, compact=False):
+            return ''
+
+        def vehicle(self, record, settings, surface):
+            return ''
+
+        def plain(self, entry, settings, surface):
+            return ' grey'
+
+    class Session(object):
+        def callback(self, delay, func):
+            pass
+
+    drawing = BattleFlags(Session(), Lookup(), None, Badges(), Settings())
+    held = modes.current_wg_mode
+    try:
+        modes.current_wg_mode = lambda: 'random'
+        badge = drawing._marker(1, 100)[1]
+        check('a tank is asked for with Alt up, so the answer is in hand when Alt goes down',
+              drawing._pending_pairs == set([(1, 100)]))
+        check('and until it is, the row shows the career figures as always', badge == ' career')
+
+        drawing.alt = Alt(True)
+        check('held with nothing in hand, the row shows the career rating in grey, not nothing',
+              drawing._marker(1, 100)[1] == ' grey')
+
+        modes.current_wg_mode = lambda: None
+        drawing = BattleFlags(Session(), Lookup(), None, Badges(), Settings())
+        drawing.alt = Alt(True)
+        check('and in a mode with no per-vehicle record, no pair is asked for and nothing changes',
+              drawing._marker(1, 100)[1] == ' career' and not drawing._pending_pairs)
+    finally:
+        modes.current_wg_mode = held
+
+    check('a row with no tank asks for nothing',
+          BattleFlags(Session(), Lookup(), None, Badges(), Settings())._marker(1)[1] == ' career')
 
 
 def check_extras_fallbacks():
