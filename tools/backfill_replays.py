@@ -41,17 +41,25 @@ WHAT THE SERVER WILL AND WILL NOT TAKE
     300 battle declarations an hour          not a bottleneck, 5 to a request
     12 MiB per replay, decoded
 
-And a floor on the date: `packages/core/src/battles/ingest.ts` refuses any
-battle that started before the first of LAST month, because the battles table
-is partitioned by month and an older row would land in the DEFAULT partition,
-where the month it belonged to can never be attached afterwards. Such a file
-is written down as `too_old` and left alone; it is not an error, and not a
-failure of this tool.
+And a floor on the date: `packages/core/src/battles/ingest.ts` takes a battle
+only inside the months its table has a partition for, since a row outside them
+lands in the DEFAULT partition, where the month it belonged to can never be
+attached afterwards. A battle refused as `too_old` gets no row and never will,
+and its replay is archived all the same, unattached: what such a file loses is
+its stats, never itself.
 
-**That floor moves on the first of every month.** On 1 November the oldest
-month accepted becomes October, and every September replay still on disk
-stops being sendable for good. At 30 an hour a thousand files take a day and
-a half, so the arithmetic is worth doing before the month turns.
+WHICH MONTHS THOSE ARE IS NOT DECIDED HERE
+
+It used to be, as a mirror of the server's rule, and the mirror drifted. The
+rule read "the first of last month"; the partitions are created once, by a
+migration, and do not move. By 9 November the mirror refused the whole of
+September while September's own partition sat there waiting, and 972 files in
+this folder were a fortnight from being archived without their stats.
+
+So every battle is offered and the server answers. It costs one request per
+five files against a budget of three hundred an hour, while the uploads it
+feeds run at thirty: the asking is free, in the only currency this run is
+short of.
 
 RESUMING
 
@@ -65,7 +73,6 @@ from __future__ import annotations
 
 import argparse
 import base64
-import calendar
 import hashlib
 import importlib.util
 import json
@@ -94,19 +101,19 @@ STATE = Path("mods") / "configs" / "unicum" / "backfill.json"
 #: Outcomes that are done with: the file is never looked at again.
 DONE = ("stored", "already_stored", "no_results", "not_a_player", "not_mine")
 
-#: Outcomes worth coming back to, should the floor ever move.
+#: Outcomes written down by a rule this tool no longer follows.
 #:
-#: `too_old` is one of these rather than one of DONE because the floor moves,
-#: and since the archive takes a replay whose battle the table cannot hold, a
-#: file written off under the old rule is worth offering again: one pass with
-#: `--retry-old` is what picks them up.
+#: Nothing here writes `too_old` any more: a battle the table cannot hold has
+#: its replay archived instead of being left on disk. The eleven thousand
+#: files already marked with it are the reason the name survives, and a pass
+#: with `--retry-old` is what offers them again.
 LATER = ("too_old",)
 
-#: Stands in for a declaration verdict on a file that gets no declaration.
+#: Stands in for a declaration verdict on a file that gets no row.
 #:
-#: Not a verdict the server can send, deliberately: it means "there is
-#: nothing to declare, go straight to the file", and a name no server uses
-#: cannot collide with one it does.
+#: Not a verdict the server can send, deliberately: it means "there is no row
+#: to attach this to, send the file anyway", and a name no server uses cannot
+#: collide with one it does.
 _ARCHIVE_ONLY = "archive only"
 
 #: The least time between two writes of the run's record.
@@ -368,48 +375,6 @@ def post(url: str, secret: str, body: str, timeout: float = 180.0) -> tuple:
         return 0, str(err), 0.0
 
 
-def floor_utc(now: float | None = None) -> int:
-    """The earliest start the server will take, as a unix time.
-
-    A mirror of `earliestAccepted` in `packages/core/src/battles/ingest.ts`:
-    midnight UTC on the first of last month, which is the oldest monthly
-    partition the battles table has.
-
-    Duplicated here for one reason only, which is cost. Without it a run walks
-    the folder oldest first, opens eleven thousand headers and spends two
-    thousand declaration requests to be told `too_old` eleven thousand times,
-    at three hundred requests an hour. The server stays the authority: this
-    only decides what is not worth asking about, and anything this lets
-    through is still judged there.
-    """
-    moment = time.gmtime(now if now is not None else time.time())
-    year, month = moment.tm_year, moment.tm_mon - 1
-    if month < 1:
-        year, month = year - 1, 12
-    # timegm, not mktime less an offset: `time.timezone` is the standard
-    # offset and says nothing about whether daylight saving is on today, so
-    # the floor would move by an hour twice a year for no reason.
-    return calendar.timegm((year, month, 1, 0, 0, 0, 0, 1, 0))
-
-
-#: How far a name may sit before the floor and still be worth opening.
-#:
-#: A name is local time (`20260901_0007`) while the floor is UTC, and the
-#: battle's real start comes from the server's own clock, so the two can
-#: disagree by a timezone. Two days is far more slack than any offset, and it
-#: is only used to decide whether to read a header.
-_NAME_SLACK = 2 * 86400
-
-
-def name_time(name: str) -> float:
-    """What the name says the battle started, as a unix time; 0 if unreadable."""
-    try:
-        return time.mktime((int(name[0:4]), int(name[4:6]), int(name[6:8]),
-                            int(name[9:11]), int(name[11:13]), 0, 0, 1, -1))
-    except (ValueError, OverflowError):
-        return 0.0
-
-
 def _reached_app(status: int, text: str) -> bool:
     """Whether the API itself answered, rather than something in front of it.
 
@@ -522,16 +487,17 @@ def upload(answers, path: Path, arena: str, started: int, secret: str,
 
 
 def selfcheck() -> int:
-    """The date arithmetic, which is the part of this that can be wrong quietly.
+    """What this file decides on its own, which is what can be wrong quietly.
 
     Not in `tools/selftest.py`: that suite runs under the client's Python 2.7,
     by design and by its own docstring, and this file is Python 3. The build
     tools beside it are untested there for the same reason, so this keeps its
     own cases rather than pretending to be covered.
 
-    Why these cases: a wrong floor does not fail, it silently refuses a month
-    of replays or offers a month the server will refuse, and the month before
-    January is the one every hand-rolled version of this gets wrong.
+    The date arithmetic that used to be checked here is gone with the floor it
+    mirrored. What is left is which files the folder offers at all, because a
+    name misread one way sends the recording in progress and the other way
+    skips a real battle, and neither says so.
     """
     failed = []
 
@@ -541,26 +507,11 @@ def selfcheck() -> int:
         if got != expected:
             failed.append(what)
 
-    def floor_on(day):
-        at = calendar.timegm(time.strptime(day + " 12:00", "%Y-%m-%d %H:%M"))
-        return time.strftime("%Y-%m-%d", time.gmtime(floor_utc(at)))
-
-    want(floor_on("2026-10-28"), "2026-09-01", "the floor is the first of last month")
-    want(floor_on("2026-01-15"), "2025-12-01", "January looks back to December")
-    want(floor_on("2026-01-01"), "2025-12-01", "and so does the first of January")
-    want(floor_on("2026-03-01"), "2026-02-01", "the first of a month is already in it")
-    want(floor_on("2026-12-31"), "2026-11-01", "December looks back to November")
-
     want(stamped("20260901_0227_usa-A189_Ares_90_127_japort.wotreplay"), True,
          "a dated name is recognised")
     want(stamped("replay_last_battle.wotreplay"), False,
          "the name reused for every battle is not")
     want(stamped("temp.wotreplay"), False, "nor the recording in progress")
-
-    want(time.strftime("%Y-%m-%d %H:%M",
-                       time.localtime(name_time("20260901_0227_x.wotreplay"))),
-         "2026-09-01 02:27", "a name gives its own date back")
-    want(name_time("not_a_date_x.wotreplay"), 0.0, "and an odd name gives nothing")
 
     # The mod's own code has to load, or everything above is beside the point.
     try:
@@ -618,11 +569,9 @@ def main() -> int:
                    if n.lower().endswith(".wotreplay") and stamped(n))
     skip = DONE if args.retry_old else DONE + LATER
     todo = [n for n in names if state.outcome(n) not in skip]
-    floor = floor_utc()
-    inside = sum(1 for n in todo if name_time(n) + _NAME_SLACK >= floor)
     print("%d replay(s) on disk, %d still to look at" % (len(names), len(todo)))
-    print("the server takes battles from %s on; %d of those are in range"
-          % (time.strftime("%Y-%m-%d", time.gmtime(floor)), inside))
+    print("every battle is offered; the ones whose month the table cannot hold"
+          " are archived without a row")
     print("quota left this hour: %d upload(s), %d declaration(s)"
           % (replay_quota.left(), battle_quota.left()))
     if not args.send:
@@ -637,7 +586,7 @@ def main() -> int:
     # most likely already sent.
     for at in range(0, len(todo), BATCH):
         chunk = todo[at:at + BATCH]
-        bodies, archive, starts, owners, paths = {}, {}, {}, {}, {}
+        bodies, starts, owners, paths = {}, {}, {}, {}
         for name in chunk:
             # Every file is opened now. The name used to answer first, to
             # keep a run from opening eleven thousand headers for nothing,
@@ -657,52 +606,47 @@ def main() -> int:
             starts[arena] = body["startedAt"]
             owners[arena] = owner or next(iter(secrets))
             paths[arena] = name
-            # Two decisions, not one. The table holds two months and the
-            # archive holds everything, so a battle older than the months
-            # is never declared and its replay is offered all the same.
-            if body["startedAt"] < floor:
-                archive[arena] = body
-            else:
-                bodies[arena] = body
-        if not bodies and not archive:
+            bodies[arena] = body
+        if not bodies:
             state.save(replay_quota, battle_quota)
             continue
         if not args.send:
             shown = counts.get("would send", 0)
             for arena, name in paths.items():
                 if shown < 8:
-                    print("  would send %s (battle %s%s)"
-                          % (name, arena, ", archive only" if arena in archive else ""))
+                    print("  would send %s (battle %s)" % (name, arena))
                     shown += 1
             counts["would send"] = counts.get("would send", 0) + len(paths)
-            counts["would archive"] = counts.get("would archive", 0) + len(archive)
             continue
 
+        # One secret per request, because the server checks the speaker was in
+        # the battle. A batch mixing two accounts is split by account.
+        by_account: dict = {}
+        for arena in bodies:
+            by_account.setdefault(owners[arena], []).append(arena)
         verdicts: dict = {}
-        if bodies:
-            # One secret per request, because the server checks the speaker was
-            # in the battle. A batch mixing two accounts is split by account.
-            by_account: dict = {}
-            for arena in bodies:
-                by_account.setdefault(owners[arena], []).append(arena)
-            for account, arenas in by_account.items():
-                verdicts.update(declare(
-                    store, {a: bodies[a] for a in arenas},
-                    secrets[account], args.api, battle_quota))
-            if not verdicts:
-                failures += 1
-                if failures >= _MAX_IN_A_ROW:
-                    print("\n%d declarations in a row told us nothing; stopping so "
-                          "this does not walk the whole folder failing." % failures)
-                    state.save(replay_quota, battle_quota, force=True)
-                    _report(counts, state, game)
-                    return 1
-                continue
-            failures = 0
-        # No declaration behind these, and none to wait for: the file is all
-        # there is to offer, so it goes straight to the upload below.
-        for arena in archive:
-            verdicts[arena] = _ARCHIVE_ONLY
+        for account, arenas in by_account.items():
+            verdicts.update(declare(
+                store, {a: bodies[a] for a in arenas},
+                secrets[account], args.api, battle_quota))
+        if not verdicts:
+            failures += 1
+            if failures >= _MAX_IN_A_ROW:
+                print("\n%d declarations in a row told us nothing; stopping so "
+                      "this does not walk the whole folder failing." % failures)
+                state.save(replay_quota, battle_quota, force=True)
+                _report(counts, state, game)
+                return 1
+            continue
+        failures = 0
+        # The one refusal that is not the end of the file: the battle's month
+        # is outside the table, so it gets no row and never will, and the
+        # archive takes a replay it cannot attach. Walking years of folder is
+        # this case; everything else here is the recent weeks.
+        for arena, verdict in list(verdicts.items()):
+            if verdict == "too_old":
+                verdicts[arena] = _ARCHIVE_ONLY
+                counts["archived, no row"] = counts.get("archived, no row", 0) + 1
 
         for arena, name in paths.items():
             verdict = verdicts.get(arena)
