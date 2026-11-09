@@ -272,12 +272,20 @@ def check_alt_swaps_to_the_tank():
         def callback(self, delay, func):
             asked.append(delay)
 
+    from unicum.battle.flags import _BATCH_DELAY, _PAIR_DELAY
+    # The rows of a loading battle arrive over seconds, and nobody is waiting
+    # on a tank the instant it lands: Alt comes later. Gathering them for
+    # longer than the roster is what makes it one request instead of ten.
+    check('the tanks are gathered for longer than the roster is',
+          _PAIR_DELAY > _BATCH_DELAY)
+
     drawing = BattleFlags(Session(), None, None, None, Settings())
     drawing._request_vehicle(1, 100, 'random')
     drawing._request_vehicle(2, 200, 'random')
     drawing._request_vehicle(3, 300, 'random')
     check('three rows asking at once queue one flush',
           len(asked) == 1 and drawing._pending_pairs == set([(1, 100), (2, 200), (3, 300)]))
+    check('and it is the slower of the two delays', asked == [_PAIR_DELAY])
     check('and the mode they are read over travels with them',
           drawing._pair_mode == 'random')
 

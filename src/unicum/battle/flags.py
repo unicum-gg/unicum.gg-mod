@@ -21,6 +21,16 @@ _logger = logging.getLogger('unicum.battle.flags')
 # short enough to be back before anyone finishes reading the loading screen.
 _BATCH_DELAY = 0.25
 
+# The same, for the tanks. Longer, and for two reasons measured in one
+# battle: the rows of a loading battle arrive over seconds rather than all at
+# once, so a quarter of a second gathered one of them at a time -- a log
+# reading `1 tank(s)`, `1 tank(s)`, `7 tank(s)` where one request would have
+# done -- and nobody is waiting on these the instant they land, since Alt
+# comes later. Three seconds costs nothing anybody can see and asks the site
+# once instead of ten times, which on an evening when it answers in twenty
+# seconds is the difference between an answer and none.
+_PAIR_DELAY = 3.0
+
 # How often the battle view is given the markers: a reloaded view starts empty.
 _PUBLISH_SECONDS = 0.5
 
@@ -206,7 +216,7 @@ class BattleFlags(Drawing):
         if self._pairs_scheduled:
             return
         self._pairs_scheduled = True
-        self._session.callback(_BATCH_DELAY, self._flush_pairs)
+        self._session.callback(_PAIR_DELAY, self._flush_pairs)
 
     def _flush_pairs(self):
         self._pairs_scheduled = False
