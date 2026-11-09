@@ -186,14 +186,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--version', required=True, help='the mod version, x.y.z')
-    parser.add_argument('--zip', type=Path, help='the archive; dist/unicum.gg_<version>.zip by default')
+    parser.add_argument('--zip', type=Path, help='the archive; dist/unicum.gg_<version>_wot_<client>.zip by default')
     parser.add_argument('--send', action='store_true',
                         help='actually add the version; without it nothing is written')
     args = parser.parse_args()
     if not VERSION.match(args.version):
         raise SystemExit('--version must be x.y.z')
 
-    archive = args.zip or DIST / f'unicum.gg_{args.version}.zip'
+    pattern = f'unicum.gg_{args.version}_wot_*.zip'
+    archive = args.zip or next(DIST.glob(pattern), DIST / pattern)
     if not archive.is_file():
         raise SystemExit(f'{archive} is not there; build it first')
     session, csrf = credentials()

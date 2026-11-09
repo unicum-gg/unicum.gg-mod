@@ -2,7 +2,7 @@
 
     python tools/build_release.py --version 1.0.0
 
-Writes dist/gg.unicum_<version>.wotmod, and dist/unicum.gg_<version>.zip laid
+Writes dist/gg.unicum_<version>.wotmod, and dist/unicum.gg_<version>_wot_<game version>.zip laid
 out as the game folder, which is what is published:
 
   mods/<game version>/gg.unicum_<version>.wotmod
@@ -243,7 +243,10 @@ def bundle(package: Path, version: str, client: str) -> None:
     gameface = sorted(GAMEFACE.glob('net.openwg.gameface_*.wotmod'))
     if len(gameface) != 1:
         raise SystemExit(f'expected one net.openwg.gameface_*.wotmod in {GAMEFACE}, found {len(gameface)}')
-    target = DIST / f'{NAME}_{version}.zip'
+    # A rebuild for another client must not leave two archives for this version.
+    for stale in DIST.glob(f'{NAME}_{version}_wot_*.zip'):
+        stale.unlink()
+    target = DIST / f'{NAME}_{version}_wot_{client}.zip'
     folder = f'mods/{client}'
     with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as archive:
         archive.write(package, f'{folder}/{package.name}')
