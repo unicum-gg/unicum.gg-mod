@@ -10,7 +10,7 @@ import json
 import logging
 import os
 
-from unicum.settings.defaults import DEFAULTS, STORE, WINDOWS
+from unicum.settings.defaults import CAREER_ONLY, DEFAULTS, STORE, WINDOWS
 from unicum.settings.validating import (_merge, panel_size,
                                         twitch_channel, validate)
 
@@ -169,19 +169,31 @@ class Settings(object):
         """Whether the mod draws anything on this surface."""
         return self.shows_flags(surface) or self.metric(surface) is not None
 
+    def window_of(self, metric):
+        """The window this rating is read over: the career, or what was chosen.
+
+        Wargaming's two are career figures and nothing else (CAREER_ONLY in
+        defaults.py), so the 30-day choice does not reach them. Decided here
+        rather than left to `Entry.rating`'s own fallback: that one is for a
+        30-day value not computed YET, and reads as "this will fill in",
+        while these two are never going to have one.
+        """
+        return 'total' if metric in CAREER_ONLY else self._values['window']
+
     def label(self, surface):
         """The surface's rating as named on screen: "30d WN8", or "WN8" for lifetime."""
         metric = self.metric(surface)
         if metric is None:
             return None
-        return '30d ' + metric.upper() if self._values['window'] == 'recent' else metric.upper()
+        prefix = '30d ' if self.window_of(metric) == 'recent' else ''
+        return prefix + metric.upper()
 
     def rating(self, entry, surface):
         """A player's or clan's rating as chosen for this surface, or None."""
         metric = self.metric(surface)
         if entry is None or metric is None:
             return None
-        return entry.rating(metric, self._values['window'])
+        return entry.rating(metric, self.window_of(metric))
 
     def on_change(self, listener):
         """Call listener() after every change. Listeners live as long as the session."""

@@ -1,10 +1,11 @@
 """The site's rating colour scales, from GET /ratings/scales.
 
-unicum.gg paints every WN8, WNx and win rate with a nine-step scale, and
-serves the scale itself so a client never re-implements the thresholds and
-drifts the day they change. It is region-less and moves rarely, so it is
-fetched at most once a day and kept on disk, which also means a number can
-be painted before the network answers.
+unicum.gg paints every rating and win rate with a nine-step scale, its own
+three and Wargaming's two alike, and serves the scales themselves so a
+client never re-implements the thresholds and drifts the day they change.
+They are region-less and move rarely, so they are fetched at most once a
+day and kept on disk, which also means a number can be painted before the
+network answers.
 """
 import json
 import logging

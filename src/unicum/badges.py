@@ -30,8 +30,17 @@ from unicum import badge_png, config
 
 _logger = logging.getLogger('unicum.badges')
 
-METRICS = ('wn7', 'wn8', 'wnx')
-MAX_VALUE = 9999
+METRICS = ('wn7', 'wn8', 'wnx', 'pr', 'wtr')
+
+# Past this a figure is written as plain text instead of drawn as a badge.
+#
+# Five digits, not four, since Wargaming's two joined the list: the top band
+# of their scales opens at 9,600 (PR) and 9,900 (WTR) and closes at nothing,
+# so a four-digit cap took the badge away from exactly the players whose
+# colour says the most. The cap is here to refuse a figure that cannot be
+# real before it becomes a PNG in someone's game folder, and twenty thousand
+# is above every rating either side of this ever serves.
+MAX_VALUE = 20000
 
 _HEIGHT = badge_png.HEIGHT
 
