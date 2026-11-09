@@ -95,7 +95,19 @@ STATE = Path("mods") / "configs" / "unicum" / "backfill.json"
 DONE = ("stored", "already_stored", "no_results", "not_a_player", "not_mine")
 
 #: Outcomes worth coming back to, should the floor ever move.
+#:
+#: `too_old` is one of these rather than one of DONE because the floor moves,
+#: and since the archive takes a replay whose battle the table cannot hold, a
+#: file written off under the old rule is worth offering again: one pass with
+#: `--retry-old` is what picks them up.
 LATER = ("too_old",)
+
+#: Stands in for a declaration verdict on a file that gets no declaration.
+#:
+#: Not a verdict the server can send, deliberately: it means "there is
+#: nothing to declare, go straight to the file", and a name no server uses
+#: cannot collide with one it does.
+_ARCHIVE_ONLY = "archive only"
 
 #: The least time between two writes of the run's record.
 _SAVE_EVERY = 5.0
@@ -625,15 +637,13 @@ def main() -> int:
     # most likely already sent.
     for at in range(0, len(todo), BATCH):
         chunk = todo[at:at + BATCH]
-        bodies, owners, paths = {}, {}, {}
+        bodies, archive, starts, owners, paths = {}, {}, {}, {}, {}
         for name in chunk:
-            # By name first, which costs no disk at all. Only what might be
-            # inside the window is opened.
-            at = name_time(name)
-            if at and at + _NAME_SLACK < floor:
-                state.put(name, "too_old")
-                counts["too_old"] = counts.get("too_old", 0) + 1
-                continue
+            # Every file is opened now. The name used to answer first, to
+            # keep a run from opening eleven thousand headers for nothing,
+            # and it is no longer for nothing: a battle the table cannot
+            # hold still has a replay the archive takes, and the start and
+            # the arena id that upload needs are inside the file.
             body, owner = battle_of(folder / name, extract)
             if body is None:
                 state.put(name, "no_results")
@@ -643,60 +653,68 @@ def main() -> int:
                 state.put(name, "not_mine", owner=owner)
                 counts["not_mine"] = counts.get("not_mine", 0) + 1
                 continue
-            if body["startedAt"] < floor:
-                # The name was within the slack but the battle's own start,
-                # which is the server's clock, is not.
-                state.put(name, "too_old", battle=body["arenaUniqueId"])
-                counts["too_old"] = counts.get("too_old", 0) + 1
-                continue
             arena = body["arenaUniqueId"]
-            bodies[arena] = body
+            starts[arena] = body["startedAt"]
             owners[arena] = owner or next(iter(secrets))
             paths[arena] = name
-        if not bodies:
+            # Two decisions, not one. The table holds two months and the
+            # archive holds everything, so a battle older than the months
+            # is never declared and its replay is offered all the same.
+            if body["startedAt"] < floor:
+                archive[arena] = body
+            else:
+                bodies[arena] = body
+        if not bodies and not archive:
             state.save(replay_quota, battle_quota)
             continue
         if not args.send:
             shown = counts.get("would send", 0)
             for arena, name in paths.items():
                 if shown < 8:
-                    print("  would send %s (battle %s)" % (name, arena))
+                    print("  would send %s (battle %s%s)"
+                          % (name, arena, ", archive only" if arena in archive else ""))
                     shown += 1
-            counts["would send"] = counts.get("would send", 0) + len(bodies)
+            counts["would send"] = counts.get("would send", 0) + len(paths)
+            counts["would archive"] = counts.get("would archive", 0) + len(archive)
             continue
 
-        # One secret per request, because the server checks the speaker was in
-        # the battle. A batch mixing two accounts is split by account.
-        by_account: dict = {}
-        for arena in bodies:
-            by_account.setdefault(owners[arena], []).append(arena)
         verdicts: dict = {}
-        for account, arenas in by_account.items():
-            verdicts.update(declare(
-                store, {a: bodies[a] for a in arenas},
-                secrets[account], args.api, battle_quota))
-        if not verdicts:
-            failures += 1
-            if failures >= _MAX_IN_A_ROW:
-                print("\n%d declarations in a row told us nothing; stopping so "
-                      "this does not walk the whole folder failing." % failures)
-                state.save(replay_quota, battle_quota, force=True)
-                _report(counts, state, game)
-                return 1
-            continue
-        failures = 0
+        if bodies:
+            # One secret per request, because the server checks the speaker was
+            # in the battle. A batch mixing two accounts is split by account.
+            by_account: dict = {}
+            for arena in bodies:
+                by_account.setdefault(owners[arena], []).append(arena)
+            for account, arenas in by_account.items():
+                verdicts.update(declare(
+                    store, {a: bodies[a] for a in arenas},
+                    secrets[account], args.api, battle_quota))
+            if not verdicts:
+                failures += 1
+                if failures >= _MAX_IN_A_ROW:
+                    print("\n%d declarations in a row told us nothing; stopping so "
+                          "this does not walk the whole folder failing." % failures)
+                    state.save(replay_quota, battle_quota, force=True)
+                    _report(counts, state, game)
+                    return 1
+                continue
+            failures = 0
+        # No declaration behind these, and none to wait for: the file is all
+        # there is to offer, so it goes straight to the upload below.
+        for arena in archive:
+            verdicts[arena] = _ARCHIVE_ONLY
 
         for arena, name in paths.items():
             verdict = verdicts.get(arena)
             if verdict is None:
                 continue  # Nothing was learned; the file stays on the list.
-            if verdict not in ("stored", "known"):
+            if verdict not in ("stored", "known", _ARCHIVE_ONLY):
                 state.put(name, verdict, battle=arena)
                 counts[verdict] = counts.get(verdict, 0) + 1
                 print("  %-52s %s" % (name[:52], verdict))
                 continue
             outcome = upload(answers, folder / name, arena,
-                             bodies[arena]["startedAt"], secrets[owners[arena]],
+                             starts[arena], secrets[owners[arena]],
                              args.api, replay_quota)
             if outcome == _UNREACHED:
                 stalls += 1
@@ -742,9 +760,10 @@ def _report(counts: dict, state: State, game: Path) -> None:
         print("  %-24s %d" % (name, count))
     waiting = sum(1 for row in state.files.values() if row.get("state") in LATER)
     if waiting:
-        print("\n  %d file(s) are older than the months the table holds. They stay"
+        print("\n  %d file(s) were written off as too old for the table, under the"
               % waiting)
-        print("  on the list, and --retry-old looks at them again if that changes.")
+        print("  rule that refused their replay with them. The archive now takes a")
+        print("  replay whose battle it cannot hold, so --retry-old offers them.")
     print("\n  state in %s" % (game / STATE))
 
 
