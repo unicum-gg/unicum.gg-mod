@@ -115,7 +115,7 @@ jobs:
           set -eu
           cp build/client-files/manifest.json dist/client.json
           gh release create "v$VERSION" \
-            "dist/gg.unicum_$VERSION.wotmod" "dist/unicum.gg_$VERSION.zip" dist/client.json \
+            "dist/gg.unicum_$VERSION.wotmod" "dist/unicum.gg_${VERSION}_wot_"*.zip dist/client.json \
             --target "$GITHUB_SHA" --title "$VERSION" --notes-file build-notes.md
 
       # The hub has no API key, so the upload is done by a service that keeps a

@@ -22,6 +22,7 @@ that path is down; a release cut here carries no client.json, so release-pr.yml
 reads it as built against an unknown client and proposes a rebuild.
 """
 import argparse
+import glob
 import os
 import re
 import subprocess
@@ -223,7 +224,7 @@ def publish(version, notes):
         out.write(notes)
     run(['gh', 'release', 'create', 'v%s' % version,
          os.path.join('dist', 'gg.unicum_%s.wotmod' % version),
-         os.path.join('dist', 'unicum.gg_%s.zip' % version),
+         glob.glob(os.path.join('dist', 'unicum.gg_%s_wot_*.zip' % version))[0],
          '--title', version, '--notes-file', path])
     os.unlink(path)
 
@@ -235,7 +236,7 @@ def hand_over(version, notes):
         subprocess.run(['explorer', DIST])
     webbrowser.open(WGMODS_UPLOAD)
     print('\n  wgmods is the one step that stays manual: it publishes no upload API.')
-    print('  dist/gg.unicum_%s.wotmod and dist/unicum.gg_%s.zip are built.' % (version, version))
+    print('  dist/gg.unicum_%s.wotmod and dist/unicum.gg_%s_wot_<client>.zip are built.' % (version, version))
     print('  The notes are %s.' % ('in your clipboard' if copied else 'in CHANGELOG.md'))
     print('  The GitHub release is live now; wgmods follows once it has reviewed it')
     print('  (0.1.1 took six days), which is why nothing announces a version on its own.\n')
