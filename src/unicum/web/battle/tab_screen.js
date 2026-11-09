@@ -7,8 +7,17 @@
 // The model it reads:
 //
 //   { shown,
-//     players:  { name: { image, width, height, flags: [image url] } },
+//     players:  { name: { image, width, height, flags: [image url],
+//                         vehicle: { scope, rating, battles } } },
 //     averages: { allies: { image, width, height } | null, enemies: ... } }
+//
+// `vehicle` is what this player does with the tank they brought, in this
+// battle's mode: the question the account's rating does not answer. Its two
+// pills are the same badges as everything else here -- the rating on its
+// band, the battle count on the one neutral band -- and either may be
+// missing: no rating for a mode the WN scales do not measure, and no
+// `vehicle` at all for a player we hold no record for on that tank, which is
+// itself the answer and is why it is never drawn as a zero.
 //
 // WHY THE DOM AND NOT THE VIEW'S OWN MODEL
 //
@@ -55,6 +64,9 @@ const NAME = '[class*="UserInfo_userName_"] > [class*="UserInfo_tooltip_trigger_
 // the three. It is a child of the row, and only on the allies side.
 const LIVE_TAG = '[class*="LiveTag_liveTag"]';
 const MARK = "unicum-tab-rating";
+// The two figures of a vehicle record, in the order they are appended and
+// therefore the order they read outwards: how good, then how much.
+const VEHICLE_PARTS = ["rating", "battles"];
 const POLL_MS = 200;
 // Between a badge and whatever it stands clear of, in pixels.
 const GAP = 16;
@@ -217,7 +229,15 @@ function fill(node, rating) {
     node.style.width = image ? `${rating.width}rem` : "";
     node.style.height = image ? `${rating.height}rem` : "";
   }
-  const text = !image && rating && rating.value !== undefined ? group(rating.value) : "";
+  // `text` is already written out, `value` is a number to group. The battle
+  // count arrives as text (844, 161k) because python shortened it, and
+  // grouping it again here would make "1 61k" of a hundred and sixty-one
+  // thousand.
+  let text = "";
+  if (!image && rating) {
+    if (rating.text !== undefined) text = String(rating.text);
+    else if (rating.value !== undefined) text = group(rating.value);
+  }
   if (node.textContent !== text) node.textContent = text;
   const color = !image && rating && rating.color ? rating.color : "";
   if (node.style.backgroundColor !== color) node.style.backgroundColor = color;
@@ -233,6 +253,61 @@ function setValue(badge, rating) {
     badge.insertBefore(node, badge.firstChild);
   }
   fill(node, rating);
+}
+
+/** One pill of the vehicle group, hidden when there is nothing in it.
+ *
+ * Hidden rather than removed, like every other node here: cohtml rebuilds
+ * the rows several times a battle and these elements live in the layer, so
+ * they are reused across rebuilds and across the players who pass through
+ * one row's position.
+ */
+function setPart(box, role, pill) {
+  let node = box.querySelector(`.${MARK}_pill--${role}`);
+  if (!pill) {
+    if (node) node.style.display = "none";
+    return;
+  }
+  if (!node) {
+    node = document.createElement("div");
+    node.className = `${MARK}_pill ${MARK}_pill--${role}`;
+    box.appendChild(node);
+  }
+  if (node.style.display === "none") node.style.display = "";
+  fill(node, pill);
+}
+
+/** The vehicle's figures, between the account's rating and the flags.
+ *
+ * Between, and that is the whole of the layout: the row reads outwards from
+ * its own table, so the account's number stays nearest it, the vehicle's
+ * sits just beyond, and the flags stay outermost. The container is created
+ * before the flags when they are already there, because a badge is reused
+ * and its children are not rebuilt in order.
+ */
+function setVehicle(badge, vehicle) {
+  let box = badge.querySelector(`.${MARK}_vehicle`);
+  if (!vehicle) {
+    if (box) box.style.display = "none";
+    return;
+  }
+  if (!box) {
+    box = document.createElement("div");
+    const flags = badge.querySelector(`.${MARK}_flags`);
+    if (flags) badge.insertBefore(box, flags);
+    else badge.appendChild(box);
+  }
+  // The scope rides in the class, because a figure covering every mode
+  // must not read as this mode's. Wargaming publishes no per-vehicle
+  // statistics for Frontline, Onslaught or Steel Hunter, so in those
+  // battles this is the vehicle's whole record and is drawn quieter to
+  // say so, rather than drawn the same and silently meaning something
+  // else.
+  const scope = vehicle.scope === "mode" ? "mode" : "overall";
+  const named = `${MARK}_vehicle ${MARK}_vehicle--${scope}`;
+  if (box.className !== named) box.className = named;
+  if (box.style.display === "none") box.style.display = "";
+  for (const role of VEHICLE_PARTS) setPart(box, role, vehicle[role]);
 }
 
 /** Put `urls` in the badge's flag strip, rebuilt only when it changes. */
@@ -319,6 +394,7 @@ function decorate() {
       const player = state.shown && name ? state.players[name] : null;
       if (player) matched += 1;
       setValue(badge, player);
+      setVehicle(badge, player ? player.vehicle : null);
       setFlags(badge, player ? player.flags : null);
       place(badge, row.getBoundingClientRect(), side, clear);
     }

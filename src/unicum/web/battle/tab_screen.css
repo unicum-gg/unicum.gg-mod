@@ -44,8 +44,54 @@
     background-repeat: no-repeat;
 }
 
+/* What this player does with the tank they brought, beyond what they do in
+   general. Outwards like everything else here: the account's number stays
+   nearest its own table, the vehicle's sits just beyond it, the flags
+   outermost. */
+.unicum-tab-rating_vehicle {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    margin-left: 6rem;
+}
+
+.unicum-tab-rating--allies .unicum-tab-rating_vehicle {
+    flex-direction: row-reverse;
+    margin-left: 0;
+    margin-right: 6rem;
+}
+
+/* The same figures over every mode rather than over this battle's, which
+   is what Frontline, Onslaught and Steel Hunter get because Wargaming
+   publishes nothing per vehicle for them. Quieter, so a reader is not told
+   the same thing in the same voice about a wider set of battles. */
+.unicum-tab-rating_vehicle--overall {
+    opacity: 0.6;
+}
+
+.unicum-tab-rating_pill {
+    flex-shrink: 0;
+    background-position: center center;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+}
+
+/* The gap between the two, carried by the second one rather than by a
+   sibling selector: the group is reversed on the allies side, so the margin
+   has to change side with it. */
+.unicum-tab-rating_pill--battles {
+    margin-left: 3rem;
+}
+
+.unicum-tab-rating--allies .unicum-tab-rating_pill--battles {
+    margin-left: 0;
+    margin-right: 3rem;
+}
+
 /* The fallback only: an element carrying the image has no text. */
-.unicum-tab-rating_value:not(:empty) {
+.unicum-tab-rating_value:not(:empty),
+.unicum-tab-rating_pill:not(:empty) {
     height: 14rem;
     padding: 0 4rem;
     border-radius: 2rem;

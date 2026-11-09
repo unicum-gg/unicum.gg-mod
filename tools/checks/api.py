@@ -101,6 +101,35 @@ def check_lookup(bigworld, src_root, api_base, label):
     check('a cached roster asks for nothing', len(bigworld.fetched) == before)
     check('on_ready still fires on a full cache hit', len(ready) == 2)
 
+    # What a player does on the vehicle they brought, which rides in the
+    # roster's own request. The figures themselves are the server's business;
+    # what is checked here is the client's side of the contract, which holds
+    # whether or not it happens to hold a record for this pair.
+    pair = (SAMPLE_PLAYERS[0], 54609)
+    check('a pair is not cached before a fetch',
+          lookup.vehicle(pair[0], pair[1], 'random') is None
+          and lookup.needs_vehicle(pair[0], pair[1], 'random'))
+    before = len(bigworld.fetched)
+    landed = []
+    lookup.prefetch(vehicles=[pair], mode='random',
+                    on_ready=lambda: landed.append(True))
+    check('one request carries the pairs', len(bigworld.fetched) == before + 1)
+    asked = bigworld.fetched[-1]
+    check('the pair and its mode ride together',
+          'vehicles=%d:%d' % pair in asked and 'mode=random' in asked)
+    _settle(bigworld)
+    if landed:
+        check('an answered pair is cached, record or no record',
+              lookup.vehicle(pair[0], pair[1], 'random') is not None)
+        check('and is not asked about again',
+              not lookup.needs_vehicle(pair[0], pair[1], 'random'))
+        # The same vehicle in another mode is another record: one
+        # overwriting the other is how a reader gets shown the wrong one.
+        check('the same pair in another mode is its own record',
+              lookup.vehicle(pair[0], pair[1], 'epic') is None)
+    else:
+        print('skip the pair request did not land, vehicle checks not run')
+
     # The contacts list was opened again long after the last lookup. The old
     # answer has to keep being drawn while the fresh one is fetched: deleting
     # it here is what blanked every flag at once.

@@ -47,6 +47,12 @@ def check_settings(workdir):
                           'battle') == 8740)
     check('while a WN rating still follows the period',
           settings.window_of('wnx') == 'recent' and settings.window_of('pr') == 'total')
+    check('a per-vehicle figure falls back to WNX for a career rating',
+          settings.vehicle_metric('battle') == 'wnx')
+    settings.update({'metric': 'wn7'})
+    check('and keeps a WN rating as it is',
+          settings.vehicle_metric('battle') == 'wn7'
+          and settings.vehicle_metric('contacts') is None)
     settings.update({'metric': 'wnx'})
 
     changes = []

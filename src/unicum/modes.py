@@ -43,6 +43,50 @@ def current_mode():
     return mode_of(bonus_type) if bonus_type is not None else None
 
 
+# ARENA_BONUS_TYPE names -> the key Wargaming publishes PER VEHICLE under.
+#
+# Keyed on the bonus type rather than on the kinds above, because the two do
+# not line up: EPIC_RANDOM is Grand Battles, which this file counts as random
+# (it is the random queue's own 30v30) while Wargaming keeps a separate `epic`
+# block for it, and a figure drawn from the wrong block is worse than none.
+#
+# What is missing is missing because Wargaming publishes NOTHING per vehicle
+# about it: Frontline (EPIC_BATTLE), Onslaught (COMP7), Steel Hunter, and the
+# current Ranked format, whose per-vehicle block stopped with the retired
+# 10v10 one. A battle in one of those asks for no mode and is answered with
+# the vehicle's whole record instead, which the answer says it is.
+_WG_MODES = {
+    'REGULAR': 'random',
+    'RANDOM_NP2': 'random',
+    'EPIC_RANDOM': 'epic',
+    'SORTIE_2': 'stronghold_skirmish',
+    'FORT_BATTLE_2': 'stronghold_defense',
+    'GLOBAL_MAP': 'globalmap',
+}
+
+
+def wg_mode_of(bonus_type, constants=None):
+    """The per-vehicle mode key of an arena bonus type, or None for no block."""
+    if constants is None:
+        from constants import ARENA_BONUS_TYPE as constants
+    for name, mode in _WG_MODES.items():
+        if hasattr(constants, name) and bonus_type == getattr(constants, name):
+            return mode
+    return None
+
+
+def current_wg_mode():
+    """The per-vehicle mode key of the battle in progress, or None.
+
+    None outside a battle and None inside one whose mode has no per-vehicle
+    statistics, which the caller passes along as "no mode" rather than as "no
+    figures": the vehicle's whole record still says something true.
+    """
+    import BigWorld
+    bonus_type = getattr(BigWorld.player(), 'arenaBonusType', None)
+    return wg_mode_of(bonus_type) if bonus_type is not None else None
+
+
 def team_filter(settings):
     """team -> whether this battle shows the ratings and flags of that team's players.
 

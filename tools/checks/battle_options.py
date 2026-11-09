@@ -6,7 +6,7 @@ from checks.common import check
 def check_battle_modes(workdir):
     """Per mode, allies and enemies are switched apart, and survive a partial change."""
     import os
-    from unicum.modes import mode_of
+    from unicum.modes import mode_of, wg_mode_of
     from unicum.runtime.session import Session
     from unicum.settings import MODES, Settings, validate
     from unicum.settings_window.codec import from_window, to_window
@@ -20,10 +20,22 @@ def check_battle_modes(workdir):
         SORTIE_2 = 20
         EPIC_BATTLE = 27
         TRAINING = 2
+        EPIC_RANDOM = 24
+        FORT_BATTLE_2 = 21
 
     check('a bonus type tells its mode apart',
           [mode_of(t, Bonus) for t in (1, 22, 43, 49, 20, 27, 2, 999)] ==
           ['random', 'ranked', 'onslaught', 'onslaught', 'stronghold', 'frontline', 'training', 'other'])
+
+    # Which Wargaming block a per-vehicle figure is read from. Grand
+    # Battles is the case worth a check of its own: this mod counts it as
+    # random, because it is the random queue's own 30v30, while Wargaming
+    # keeps a separate `epic` block for it -- and Frontline, which the game
+    # also calls epic something, has no block at all.
+    check('a bonus type names the block its figures come from',
+          [wg_mode_of(t, Bonus) for t in (1, 24, 20, 21, 27, 22, 43, 2, 999)] ==
+          ['random', 'epic', 'stronghold_skirmish', 'stronghold_defense',
+           None, None, None, None, None])
 
     values = validate({})
     check('every mode shows both teams by default',

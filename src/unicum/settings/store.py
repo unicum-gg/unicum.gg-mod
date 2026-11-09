@@ -180,6 +180,20 @@ class Settings(object):
         """
         return 'total' if metric in CAREER_ONLY else self._values['window']
 
+    def vehicle_metric(self, surface):
+        """The rating a per-vehicle figure on this surface uses, or None.
+
+        The chosen one, unless it is one of Wargaming's two: those are career
+        account figures and have no per-vehicle value at all (CAREER_ONLY in
+        defaults.py), so a reader who chose PR would get a blank where the
+        question is loudest. WNX stands in, which is the same fallback the
+        site makes on its own per-vehicle surfaces.
+        """
+        metric = self.metric(surface)
+        if metric is None:
+            return None
+        return 'wnx' if metric in CAREER_ONLY else metric
+
     def label(self, surface):
         """The surface's rating as named on screen: "30d WN8", or "WN8" for lifetime."""
         metric = self.metric(surface)

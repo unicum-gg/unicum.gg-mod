@@ -46,7 +46,7 @@ import zlib
 from frameworks.wulf import ViewModel
 from gui.impl.pub.view_component import ViewComponent
 
-from unicum import extended_info, resources
+from unicum import badges, extended_info, modes, resources
 from unicum.api.entry import PLAYERS
 from unicum.layouts import layout_id
 from unicum.tank_button import FEATURE, LAYOUT, compose
@@ -248,10 +248,46 @@ class TabScreen(object):
                                            getattr(player, 'fakeName', None)) if name]
                 if not names:
                     continue
-                found.append((names, account_id, bool(arena_dp.isAllyTeam(info.team))))
+                found.append((names, account_id,
+                              int(getattr(getattr(info, 'vehicleType', None),
+                                          'compactDescr', 0) or 0),
+                              bool(arena_dp.isAllyTeam(info.team))))
         except Exception:
             _logger.debug('could not read the arena roster', exc_info=True)
         return found
+
+    def _count(self, battles):
+        """{image, width, height} of a battle-count pill, or {text, color}.
+
+        The one neutral band, like every battle count this mod draws: the
+        count has no scale of its own, and inventing a colour for it would
+        claim a meaning that does not exist.
+        """
+        text = badges.count(battles)
+        found = self._badges.picture(text, badges.NEUTRAL)
+        if found is not None:
+            path, width, height = found
+            return {'image': 'img://%s' % path, 'width': width, 'height': height}
+        # `text`, not `value`: the count is already shortened and grouped
+        # (844, 161k), and the page's own grouping would make "1 61k" of it.
+        return {'text': text, 'color': badges.NEUTRAL}
+
+    def _vehicle(self, metric, account_id, tank_id, mode):
+        """What this player does on this vehicle, as the page draws it.
+
+        None when there is nothing to say: an account we hold no record for,
+        or a vehicle this player has never taken into this mode. That is the
+        answer the whole figure exists for, so it is never dressed up as a
+        zero -- never played and played badly are different things.
+        """
+        record = self._lookup.vehicle(account_id, tank_id, mode)
+        if record is None or not record.known or not record.battles:
+            return None
+        shown = {'scope': record.scope or 'overall', 'battles': self._count(record.battles)}
+        value = record.rating(metric) if metric else None
+        if value is not None:
+            shown['rating'] = self._badge(metric, value)
+        return shown
 
     def _badge(self, metric, value):
         """{image, width, height} of a rating's badge, or {value, color}.
@@ -292,8 +328,18 @@ class TabScreen(object):
             metric = self._settings.metric(SURFACE)
             limit = self._settings['maxFlags'] if self._settings.shows_flags(SURFACE) else 0
             wanted = []
+            pairs = []
             values = {'allies': [], 'enemies': []}
-            for names, account_id, ally in self._roster():
+            # The mode this battle has per-vehicle statistics under, which is
+            # None for the modes Wargaming publishes none for (modes.py). The
+            # record then covers every mode, and says so.
+            mode = modes.current_wg_mode()
+            vehicle_metric = self._settings.vehicle_metric(SURFACE)
+            for names, account_id, tank_id, ally in self._roster():
+                # Asked for before the player is read, so a roster whose
+                # ratings are already cached still fetches the pairs.
+                if tank_id and self._lookup.needs_vehicle(account_id, tank_id, mode):
+                    pairs.append((account_id, tank_id))
                 if self._lookup.needs_fetch(PLAYERS, account_id):
                     wanted.append(account_id)
                     continue
@@ -303,6 +349,10 @@ class TabScreen(object):
                 if value is not None:
                     shown.update(self._badge(metric, value))
                     values['allies' if ally else 'enemies'].append(value)
+                if tank_id:
+                    found = self._vehicle(vehicle_metric, account_id, tank_id, mode)
+                    if found is not None:
+                        shown['vehicle'] = found
                 if limit and entry is not None:
                     sources = [self._textures.source(code) for code in entry.flags[:limit]]
                     sources = [source for source in sources if source]
@@ -318,8 +368,9 @@ class TabScreen(object):
                         continue
                     mean = int(round(sum(found) / float(len(found))))
                     data['averages'][side] = self._badge(metric, mean)
-            if wanted:
-                self._lookup.prefetch(players=sorted(set(wanted)), on_ready=self._publish_all)
+            if wanted or pairs:
+                self._lookup.prefetch(players=sorted(set(wanted)), vehicles=pairs,
+                                      mode=mode, on_ready=self._publish_all)
         text = json.dumps(data, sort_keys=True)
         if self._published.get(model) == text:
             return

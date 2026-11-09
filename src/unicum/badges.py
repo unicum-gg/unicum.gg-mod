@@ -62,7 +62,7 @@ _GAP = ' '
 # scale the site serves; a battle count has none, and inventing one would
 # claim a meaning that does not exist. So it is the one neutral pill, dark
 # enough to sit behind white text and to read as the quietest of the three.
-_NEUTRAL = '#4a4a4a'
+NEUTRAL = '#4a4a4a'
 
 # Where a battle count stops being written out in full.
 #
@@ -196,19 +196,30 @@ class Badges(object):
             value = entry.stat('battles', window)
             if value is not None:
                 text = count(value)
-                parts.append(self._pill(text, _NEUTRAL) or _DIM % text)
+                parts.append(self._pill(text, NEUTRAL) or _DIM % text)
         if not parts:
             return ''
         return ' ' + _GAP.join(parts)
 
-    def _pill(self, text, color):
-        """One badge of arbitrary text on `color`, or '' when it cannot draw."""
+    def picture(self, text, color):
+        """(resource path, width, height) of a badge of arbitrary text, or None.
+
+        What `_pill` draws, without the markup around it. The Scaleform
+        surfaces want an `<IMG>` tag and the Gameface ones want the three
+        pieces to put in a style, and it is the same badge either way: one
+        drawing, two wrappings, rather than two drawings that can drift.
+        """
         if not self._ready or not color:
-            return ''
+            return None
         name = '%s.%s.png' % (_slug(text), color.lstrip('#').lower())
         if not self._ensure(name, lambda: badge_png.png(text, color)):
-            return ''
-        return _IMG % ('%s/%s' % (self._res_path, name), badge_png.width_of(text), _HEIGHT)
+            return None
+        return '%s/%s' % (self._res_path, name), badge_png.width_of(text), _HEIGHT
+
+    def _pill(self, text, color):
+        """One badge of arbitrary text on `color`, or '' when it cannot draw."""
+        found = self.picture(text, color)
+        return _IMG % found if found is not None else ''
 
     def markup(self, metric, value):
         """htmlText for a rating badge, or None when it cannot draw."""

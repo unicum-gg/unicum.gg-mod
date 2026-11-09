@@ -4,6 +4,65 @@ from unicum import config
 PLAYERS = 'players'
 CLANS = 'clans'
 TAGS = 'tags'
+VEHICLES = 'vehicles'
+
+
+class Vehicle(object):
+    """What one account has done on one vehicle, in one mode or in all.
+
+    The question a battle asks and an account's rating does not answer: a
+    unicum who has just bought the tank they brought reads as a unicum
+    everywhere else on screen.
+
+    A pair the server holds nothing for is an unknown record rather than a
+    missing one, for the reason an unknown Entry is cached: the same thirty
+    pairs are asked about on every redraw of a battle.
+    """
+
+    __slots__ = ('known', 'scope', 'mode', 'battles', 'winrate', 'damage',
+                 'xp', 'survival', 'ratings', 'fetched_at')
+
+    def __init__(self, known=False, scope=None, mode=None, battles=0,
+                 winrate=None, damage=None, xp=None, survival=None,
+                 ratings=None, fetched_at=0.0):
+        self.known = known
+        # 'mode' when the figures are the mode's, 'overall' when they are
+        # every mode together, which is the answer for a mode Wargaming
+        # publishes nothing per vehicle about.
+        self.scope = scope
+        self.mode = mode
+        self.battles = battles or 0
+        self.winrate = winrate
+        self.damage = damage
+        self.xp = xp
+        self.survival = survival
+        self.ratings = ratings or {}
+        self.fetched_at = fetched_at
+
+    @classmethod
+    def from_api(cls, raw, fetched_at):
+        return cls(known=True,
+                   scope=raw.get('scope'),
+                   mode=raw.get('mode'),
+                   battles=raw.get('battles') or 0,
+                   winrate=raw.get('winrate'),
+                   damage=raw.get('avgDamage'),
+                   xp=raw.get('avgXp'),
+                   survival=raw.get('survival'),
+                   ratings=raw.get('ratings') or {},
+                   fetched_at=fetched_at)
+
+    def rating(self, metric):
+        """The WN rating of these battles for `metric`, or None.
+
+        None for PR and WTR by design, not by omission: they are career
+        account figures with no per-vehicle value, so a reader who chose one
+        of them gets no number here rather than a number off another scale.
+        None too for a mode the WN scales do not measure, which the server
+        decides and sends as nulls.
+        """
+        value = self.ratings.get(metric)
+        return value if isinstance(value, (int, float)) else None
 
 
 class Entry(object):
