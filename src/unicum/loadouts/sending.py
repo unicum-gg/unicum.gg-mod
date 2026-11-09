@@ -16,6 +16,7 @@ import logging
 import time
 
 from unicum import build, config, game_link
+from unicum.api.http import said
 from unicum.loadouts.reading import (crewed, fingerprint, fleet_garage,
                                      mounted)
 from unicum.loadouts.store import (_keep_rejected, changed, garage_hash,
@@ -142,7 +143,8 @@ class Sending(object):
                 # remembered, so the next sweep carries on where this left.
                 self._busy = False
                 save_sent(self._sent)
-                _logger.warning('loadout upload stopped on HTTP %s after %d vehicle(s)', code, at)
+                _logger.warning('loadout upload stopped on HTTP %s after %d vehicle(s): %s',
+                                code, at, said(getattr(response, 'body', None)))
                 _keep_rejected(code, batch)
                 return
             if at == 0 and marks:

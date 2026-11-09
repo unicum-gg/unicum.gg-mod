@@ -16,6 +16,7 @@ import logging
 import time
 
 from unicum import config
+from unicum.api.http import said
 from unicum.battles.extract import _int
 from unicum.battles.store import (_MAX_SETTLED, read_answer, save_queue,
                                   save_settled, settled)
@@ -101,23 +102,6 @@ def garage_ready():
         return bool(dependency.instance(IHangarSpace).spaceInited)
     except Exception:
         return True
-
-def _said(body):
-    """What the server put in the body of a refusal, short enough to log.
-
-    The status code alone was not enough: a 400 repeated for a whole evening
-    without once saying which field the server disliked, while the body was
-    carrying the `{error: ...}` that names it the entire time.
-    """
-    try:
-        text = body if isinstance(body, str) else str(body)
-    except Exception:
-        return 'no body'
-    text = ' '.join(text.split())
-    if not text:
-        return 'empty body'
-    return text[:300] + ('...' if len(text) > 300 else '')
-
 
 def _seconds(headers):
     """The server's own Retry-After in seconds, or None."""
@@ -250,14 +234,14 @@ class Sending(object):
                                 '%d battle(s) still waiting', wait, len(self._queue))
                 return
             if code in _PAYLOAD_FAULTS:
-                self._blame(batch, code, _said(getattr(response, 'body', None)))
+                self._blame(batch, code, said(getattr(response, 'body', None)))
                 return
             if code != 200:
                 # Kept, not dropped: a battle a network refused is one the next
                 # garage sends.
                 self._done()
                 _logger.warning('battle upload stopped on HTTP %s: %s; %d still waiting',
-                                code, _said(getattr(response, 'body', None)),
+                                code, said(getattr(response, 'body', None)),
                                 len(self._queue))
                 return
             answer = read_answer(getattr(response, 'body', None))

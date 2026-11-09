@@ -23,3 +23,21 @@ def parse(response, what):
         _logger.warning('%s returned a body that is not JSON', what)
         return None
     return payload if isinstance(payload, dict) else None
+
+
+def said(body):
+    """What the server put in the body of a refusal, short enough to log.
+
+    The status code alone was not enough: a 400 repeated for a whole evening
+    without once saying which field the server disliked, while the body was
+    carrying the `{error: ...}` that names it the entire time. A 401 did the
+    same later, until the server started naming what refused the client.
+    """
+    try:
+        text = body if isinstance(body, str) else str(body)
+    except Exception:
+        return 'no body'
+    text = ' '.join(text.split())
+    if not text:
+        return 'empty body'
+    return text[:300] + ('...' if len(text) > 300 else '')
