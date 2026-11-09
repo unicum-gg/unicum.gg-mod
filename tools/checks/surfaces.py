@@ -188,7 +188,7 @@ def check_badges(workdir):
 
     class Scales(object):
         def color(self, scale, value, unit=None):
-            return '#7A4FB2' if scale == 'wnx' else None
+            return '#7A4FB2' if scale in ('wnx', 'pr') else None
 
     folder = os.path.join(workdir, 'badges')
     badges = Badges(Scales(), directory=folder, res_path='gui/badges', drawable=lambda path: True)
@@ -199,6 +199,9 @@ def check_badges(workdir):
           open(os.path.join(folder, 'wnx.3323.7a4fb2.png'), 'rb').read(8)[1:4] == b'PNG')
     check('a rating with no colour on its scale draws nothing', badges.markup('wn8', 3323) is None)
     check('a value past the drawn range draws nothing', badges.markup('wnx', MAX_VALUE + 1) is None)
+    check('five digits are drawn too, which is where PR and WTR live',
+          badges.markup('pr', 10400) ==
+          '<IMG SRC="img://gui/badges/pr.10400.7a4fb2.png" width="38" height="12" vspace="-3"/>')
     unknown = Badges(Scales(), directory=os.path.join(workdir, 'new-badges'), res_path='gui/new',
                      drawable=lambda path: False)
     check('a folder the client did not know at startup shows numbers until the next start',

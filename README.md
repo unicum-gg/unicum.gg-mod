@@ -2,7 +2,8 @@
 
 World of Tanks client mod for [unicum.gg](https://unicum.gg). Shows where
 players and clans come from, with the same Flagpack flags as the site, and
-their WN7, WN8 or WNX painted with the site's colour scale.
+their rating painted with the site's colour scale: WN7, WN8, WNX, or
+Wargaming's own PR and WTR.
 
 Not affiliated with Wargaming.net.
 

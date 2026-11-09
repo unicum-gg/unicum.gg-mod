@@ -76,10 +76,15 @@ def template(values, channel=u'', linked=False, card_shown=True,
 
     garage = [
         _heading(templates, 'Garage'),
-        choice('Rating', 'metric', [metric.upper() for metric in METRICS]),
+        choice('Rating', 'metric', [metric.upper() for metric in METRICS],
+               tooltip='{HEADER}Rating{/HEADER}{BODY}WN7, WN8 and WNX are unicum.gg\'s own, computed '
+                       'from a player\'s per-vehicle records. PR and WTR are Wargaming\'s own: one '
+                       'figure for a whole career, the second being the rating the client itself '
+                       'shows.{/BODY}'),
         choice('Period', 'window', [_WINDOW_LABELS[w] for w in WINDOWS],
                tooltip='{HEADER}Rating period{/HEADER}{BODY}Last 30 days falls back to overall while the '
-                       '30-day value is not computed yet.{/BODY}'),
+                       '30-day value is not computed yet. PR and WTR have no 30-day value at all, so '
+                       'they stay career figures whatever is chosen here.{/BODY}'),
         choice('Win rate', 'winrate', [_EXTRA_LABELS[e] for e in EXTRAS],
                tooltip='{HEADER}Win rate{/HEADER}{BODY}Drawn beside the rating, wherever the rating is '
                        'drawn, in grey so the badge stays what you read first. Its period is its own: a '

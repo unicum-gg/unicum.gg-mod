@@ -36,6 +36,19 @@ def check_settings(workdir):
     check('the recent window is labelled as such', settings.label('battle') == '30d WNX')
     check('a surface without a rating has no label', settings.label('contacts') is None)
 
+    # Wargaming's two are career figures: the 30-day choice stands, since it
+    # is still what a WN rating uses, and it does not reach these.
+    from unicum.api.entry import Entry
+    settings.update({'metric': 'wtr'})
+    check('a career rating is not labelled as 30 days', settings.label('battle') == 'WTR')
+    check('and is read over the career, whatever the period says',
+          settings.rating(Entry(known=True, ratings={'total': {'wtr': 8740},
+                                                     'recent': {'wtr': None}}),
+                          'battle') == 8740)
+    check('while a WN rating still follows the period',
+          settings.window_of('wnx') == 'recent' and settings.window_of('pr') == 'total')
+    settings.update({'metric': 'wnx'})
+
     changes = []
     settings.on_change(lambda: changes.append(settings.metric('contacts')))
     settings.update({'metric': 'wn8', 'contacts': {'rating': True}, 'battle': {'rating': False},

@@ -14,7 +14,29 @@ _logger = logging.getLogger('unicum.settings.defaults')
 
 STORE = os.path.join('mods', 'configs', 'unicum', 'settings.json')
 
-METRICS = ('wn7', 'wn8', 'wnx')
+# The ratings a player can read, in the order the dropdowns show them.
+#
+# The first three are unicum.gg's own, computed from a player's per-vehicle
+# records against expected values, so they exist over any window two
+# snapshots bound. The last two are Wargaming's, handed over finished as one
+# figure per account: PR is `global_rating` on account/info, WTR is
+# account/wtr, the rating the client itself has shown since 1.21.
+#
+# A new entry goes at the END. The settings window sends a choice as its
+# index into this tuple (settings_window/codec.py), so inserting one in the
+# middle would quietly move every player's saved choice along by one.
+METRICS = ('wn7', 'wn8', 'wnx', 'pr', 'wtr')
+
+# The ratings that exist over a whole career and nothing else.
+#
+# Wargaming serves them as one career number per account, and the difference
+# between two readings of a career number is not a rating of the battles in
+# between: there is no 30-day PR to be had. So /resolve carries them under
+# `total` alone and leaves `recent` null, the window a player chose is not
+# applied to them, and -- the part that would otherwise lie -- not claimed
+# either: their label stays "PR" where a WN rating's reads "30d WN8".
+CAREER_ONLY = ('pr', 'wtr')
+
 WINDOWS = ('recent', 'total')
 
 # The two plain numbers that can sit beside a rating: how many battles a
