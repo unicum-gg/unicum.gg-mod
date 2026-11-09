@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.9.0
+
+### Added
+
+- Offering a replay whose battle the table cannot hold
+- Personal rating and wtr to the ratings a player can read
+
+### Fixed
+
+- Ask the server which months it holds instead of mirroring the rule
+
+<!-- 3 commit(s) not shown, being invisible to a player:
+     Merge remote-tracking branch 'origin/main'
+     the release zip's name to carry the game version
+     Merge remote-tracking branch 'origin/main'
+-->
+
 ## 0.8.0
 
 ### Added
