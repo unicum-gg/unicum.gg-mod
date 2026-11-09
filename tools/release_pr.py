@@ -6,8 +6,10 @@ Run by .github/workflows/release-pr.yml, which turns what this writes into the
 release pull request; merging that pull request is what releases. Two things
 make a release due, and either is enough:
 
-  * commits on main since the last tag, read exactly as tools/release.py reads
-    them (the version and the notes come from their typed subjects);
+  * commits on main since the last tag that a player would be told about, read
+    exactly as tools/release.py reads them (the version and the notes come from
+    their typed subjects). The others wait for one that is: alone, they would
+    send the hub's moderators a version with empty notes;
   * the live client moving away from the files the last release was built
     against, which a release records as its `client.json` asset. Not only the
     mods folder: Wargaming republished battleVehicleMarkersApp.swf around
@@ -33,7 +35,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from release import CHANGELOG, changelog, commits_since, last_tag, next_version  # noqa: E402
+from release import CHANGELOG, TOLD, changelog, commits_since, last_tag, next_version  # noqa: E402
 
 SECTION = re.compile(r'^## (\d+\.\d+\.\d+)\s*$', re.M)
 
@@ -87,7 +89,7 @@ def main():
     commits = commits_since(tag)
     moved = client_moved(live, read_json(args.published))
 
-    due = bool(commits) or moved
+    due = any(kind in TOLD for kind, _ in commits) or moved
     version = None
     if due:
         # A client that moved with nothing committed is still a release: the
