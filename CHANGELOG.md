@@ -10,7 +10,6 @@
 - Replace the battle-sharing box with one that hides the battle list
 - The platoons the client numbers to each battle sent
 - A size for the chat text, in the panel and in the battle chat
-- The live client's files as a source for the as3 build
 
 ### Improved
 
@@ -37,8 +36,6 @@
 - Frontline battles naming only the first tank and earning for only one
 - Frontline replays never being sent because their results ran past the header window
 - The settings window taking the mod down at every start
-- The release pull request never being opened after a run that pushed its branch and failed
-- The changelog telling players about commits that only touch the repository
 - Reading an order into the lives of a vehicle that respawned
 
 <!-- 16 commit(s) not shown, being invisible to a player:
