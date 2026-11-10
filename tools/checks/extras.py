@@ -161,8 +161,15 @@ def check_vehicle_badges():
     check('a pair the site has never stored draws nothing',
           badges.vehicle(_Record(known=False), settings, 'battle') == '')
     check('and no record at all draws nothing', badges.vehicle(None, settings, 'battle') == '')
-    check('a reader who wanted no counts gets the rating alone',
-          badges.vehicle(_Record(), _Settings(), 'battle').count('<IMG') == 1)
+    # The one place a surface's choice about battle counts is overridden,
+     # and the figure beside it is the reason: a career count is twenty
+     # thousand and says nothing a reader did not assume, while a count on one
+     # tank is four or four hundred and is the whole difference between a
+     # rating worth reading and noise.
+    check('the count on this tank is drawn even where career counts are off',
+          badges.vehicle(_Record(), _Settings(), 'battle').count('<IMG') == 2)
+    check('a tank with no battles on it has only its rating to show',
+          badges.vehicle(_Record(battles=0), _Settings(), 'battle').count('<IMG') == 1)
     check('a mode the WN scales do not measure leaves the count to speak alone',
           badges.vehicle(_Record(wnx=None), settings, 'battle').count('<IMG') == 1)
     check('and a surface showing nothing draws nothing here either',
@@ -201,7 +208,7 @@ def check_marker_width_ignores_tags():
     The colour of the grey stand-in carries three 8s. Measured as rating
     digits they would have widened the column by half a pill.
     """
-    from unicum.battle.drawing import markup_width
+    from unicum.battle.markup import markup_width
 
     check('a grey figure is measured by its digits alone',
           markup_width('<font face="$FieldFont" color="#8a8a8a">1934</font>') == 4 * 7)
@@ -224,24 +231,37 @@ def check_alt_swaps_to_the_tank():
             self.down = down
 
     class Settings(object):
-        def __init__(self, alt_only=False):
-            self._alt_only = alt_only
+        def __init__(self, waiting=()):
+            self._waiting = waiting
 
         def alt_only(self, surface):
-            return self._alt_only
+            return surface in self._waiting
 
     drawing = BattleFlags(None, None, None, None, Settings())
 
     check('with no Alt key at all the row stays on the career figures',
-          not drawing._on_tank('battle'))
+          not drawing._on_tank())
     drawing.alt = Alt(False)
-    check('and with Alt up too', not drawing._on_tank('battle'))
+    check('and with Alt up too', not drawing._on_tank())
     drawing.alt = Alt(True)
-    check('held, the row goes on the tank', drawing._on_tank('battle'))
-    drawing._settings = Settings(alt_only=True)
-    check('unless Alt already means "show this surface at all" here, '
-          'which one key cannot mean twice',
-          not drawing._on_tank('battle'))
+    check('held, the row goes on the tank', drawing._on_tank())
+
+    # Alt is asked to do two things: show a surface that waits for it, and
+    # change what an already visible one says. The three battle surfaces are
+    # drawn from one string of markers, so the question is asked once for all
+    # three: if any of them shows without Alt, Alt is free to change it.
+    drawing._settings = Settings(waiting=['panel'])
+    check('a surface waiting for Alt does not stop the one beside it swapping',
+          drawing._on_tank())
+    drawing._settings = Settings(waiting=['panel', 'tab', 'loading'])
+    check('with every surface waiting for Alt, the key is spent and nothing swaps',
+          not drawing._on_tank())
+
+    # The name this guard used to read was not a surface at all, so it
+    # answered False for everyone and never guarded anything.
+    from unicum.battle.drawing import _ALT_SURFACES
+    check('and the surfaces it asks about are the ones that exist',
+          set(_ALT_SURFACES) == set(['panel', 'tab', 'loading']))
 
     # Read once for the battle. It cannot change inside one, and this is
     # asked for every player on every pass.

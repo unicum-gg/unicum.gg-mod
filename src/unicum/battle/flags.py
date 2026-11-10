@@ -55,6 +55,10 @@ class BattleFlags(Drawing):
         # The mode this battle reads a tank over, looked up once; see
         # `_tank_mode`.
         self._wg_mode = _UNASKED
+        # Rows drawn on the tank in the pass being published, and whether this
+        # battle has already said so once.
+        self._drew_tank = 0
+        self._said_tanks = False
         # Statistics controllers of the battle in progress, redrawn once the
         # ratings their averages need have landed.
         self._controllers = weakref.WeakSet()

@@ -11,9 +11,9 @@ and the settings are read by both halves.
 from __future__ import absolute_import
 
 import logging
-import re
 
 from unicum import modes, views
+from unicum.battle.markup import icon_markers, markup_width
 from unicum.api.entry import PLAYERS
 
 _logger = logging.getLogger('unicum.battle.drawing')
@@ -32,29 +32,11 @@ _AVERAGE_SURFACES = ('tab', 'loading')
 # `BattleStatisticsDataController`.
 _ARENA_DESCRIPTION = '_BattleStatisticsDataController__setArenaDescription'
 
-_IMG_WIDTH = re.compile(r'<IMG[^>]*\bwidth="(\d+)"', re.IGNORECASE)
-_IMG = re.compile(r'<IMG[^>]*>', re.IGNORECASE)
-# Any tag at all. Counting the text inside one as text was close enough while
-# the only markup here was images, and stopped being close enough the day a
-# figure could arrive as `<font color="#8a8a8a">` -- whose three 8s would have
-# been measured as three digits of rating.
-_TAG = re.compile(r'<[^>]+>')
-
-# A space in markup; a bare number's digits, when a badge cannot draw.
-_SPACE_WIDTH = 4
-_DIGIT_WIDTH = 7
-
 # The statistics controller's methods whose data can carry each team's order:
 # every exchange it adds sort ids to (stats_ctrl.py). Frags re-sort the teams
 # too, in the Tab of a mode that orders by them.
 _ORDERED = ('as_setVehiclesDataS', 'as_addVehiclesInfoS', 'as_updateVehiclesInfoS',
             'as_updateVehicleStatusS', 'as_setFragsS', 'as_updateVehiclesStatsS')
-
-def markup_width(markup):
-    """Pixels the markup takes: its images' widths, and text by the character."""
-    images = sum(int(width) for width in _IMG_WIDTH.findall(markup))
-    text = _TAG.sub('', markup)
-    return images + text.count(' ') * _SPACE_WIDTH + sum(c.isdigit() for c in text) * _DIGIT_WIDTH
 
 # "Not looked up yet", which None cannot say: None is the answer for a mode
 # with no per-vehicle record at all, and asking the client again every pass
@@ -71,11 +53,6 @@ def tank_of(vInfo):
     """
     return getattr(getattr(vInfo, 'vehicleType', None), 'compactDescr', None)
 
-
-def icon_markers(flags, badge):
-    """[badge html, its width, flags html, their width], drawn as two columns."""
-    badge, flags = badge.strip(), flags.strip()
-    return [badge, markup_width(badge), flags, markup_width(flags)]
 
 def _arena():
     """The battle's arena data provider, or None outside a battle."""
@@ -125,8 +102,10 @@ class Drawing(object):
             self._received = set()
             self._published = None
             self._wg_mode = _UNASKED
+            self._said_tanks = False
             return
         self._markers = {}
+        self._drew_tank = 0
         shows = modes.team_filter(self._settings)
         for vInfo in arena.getVehiclesInfoIterator():
             if vInfo.isObserver() or not shows(vInfo.team):
@@ -161,6 +140,9 @@ class Drawing(object):
         if count != getattr(self, '_probed', None):
             self._probed = count
             first = True
+        if self._drew_tank and not self._said_tanks:
+            self._said_tanks = True
+            _logger.info('Alt: %d row(s) on the tank they brought', self._drew_tank)
         if first:
             # One line per battle, saying what actually left Python. Without it
             # a Tab screen that draws nothing is indistinguishable from a Tab
@@ -304,16 +286,28 @@ class Drawing(object):
             self._wg_mode = modes.current_wg_mode()
         return self._wg_mode
 
-    def _on_tank(self, surface):
-        """Whether rows on this surface are showing the tank, not the career.
+    def _on_tank(self):
+        """Whether the battle rows are showing the tank rather than the career.
 
-        Alt, except where Alt already means "show this surface at all": one
-        key cannot mean two things on one surface without the second meaning
-        stealing the first.
+        Alt, so long as it has a meaning left to spend. It is asked to do two
+        things here: show a surface that waits for it, and change what an
+        already visible one says. On a surface that waits, the first use is
+        the one the player set up and the second would steal it.
+
+        One answer for the three surfaces rather than one each, because they
+        are drawn from one string of markers: the panel, the Tab screen and
+        the loading screen are shown and hidden apart but read the same
+        figures. So the question is whether ANY of them is shown without Alt
+        -- if one is, Alt is free to change it, and the surfaces that waited
+        for Alt arrive already on the tank, which is what the same press
+        asked for. With all three waiting, Alt is spent and nothing swaps.
+
+        This read `alt_only('battle')` until tonight, which is not a surface
+        and answered False for everyone, so the guard never fired at all.
         """
         if self.alt is None or not self.alt.down:
             return False
-        return not self._settings.alt_only(surface)
+        return any(not self._settings.alt_only(surface) for surface in _ALT_SURFACES)
 
     def _marker(self, account_id, tank_id=None):
         """(flags markup, rating badge markup), each '' when not shown.
@@ -343,9 +337,11 @@ class Drawing(object):
             # a key held for nothing.
             if self._lookup.needs_vehicle(account_id, tank_id, mode):
                 self._request_vehicle(account_id, tank_id, mode)
-            if self._on_tank('battle'):
+            if self._on_tank():
                 record = self._lookup.vehicle(account_id, tank_id, mode)
                 drawn = self._badges.vehicle(record, self._settings, 'battle')
+                if drawn:
+                    self._drew_tank += 1
                 # Nothing in hand, or nothing stored about this tank: the
                 # career rating in plain grey instead of an empty column. A
                 # blank row answers the question with silence, and silence is

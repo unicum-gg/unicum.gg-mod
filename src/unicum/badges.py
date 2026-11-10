@@ -215,17 +215,24 @@ class Badges(object):
         """
         if record is None or not record.known or record.scope != 'mode':
             return ''
+        # A surface told to show nothing shows nothing here either. The count
+        # below no longer rides on `extra`, which asked this question on its
+        # own, so the surface has to be asked directly or a row turned off
+        # entirely comes back to life the moment somebody holds Alt.
+        if not settings.shows(surface):
+            return ''
         parts = []
         metric = settings.vehicle_metric(surface)
         value = record.rating(metric) if metric else None
         if value is not None:
             parts.append(self.markup(metric, value) or _DIM % ('%d' % round(value)))
-        # The count rides on the choice already made for this surface: a
-        # reader who wanted no counts beside the career rating does not
-        # suddenly want one here. It earns its place all the same, because on
-        # one tank it is the number that says whether the rating beside it
-        # means anything -- seventy battles and four read the same otherwise.
-        if settings.extra('battles', surface) is not None and record.battles:
+        # Drawn whatever the surface was told about battle counts, which is
+        # the one place this mod overrides that choice and the reason is the
+        # figure beside it: a career count is twenty thousand and says nothing
+        # a reader did not assume, while a count on one tank is four or four
+        # hundred and is the whole difference between a rating worth reading
+        # and noise. Turning counts off is a judgement about the first one.
+        if record.battles:
             text = count(record.battles)
             parts.append(self._pill(text, NEUTRAL) or _DIM % text)
         if not parts:

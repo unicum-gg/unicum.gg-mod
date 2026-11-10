@@ -145,7 +145,7 @@ def check_team_order():
 
 def check_icon_markers():
     """The markers drawn beside a vehicle icon, and the width they take."""
-    from unicum.battle.drawing import icon_markers, markup_width
+    from unicum.battle.markup import icon_markers, markup_width
     flag = '<IMG SRC="img://f/fr.png" width="16" height="12" vspace="-3"/>'
     badge = '<IMG SRC="img://b/wnx/1234.png" width="38" height="12" vspace="-3"/>'
     check('the badge and the flags come apart, each with its width',
