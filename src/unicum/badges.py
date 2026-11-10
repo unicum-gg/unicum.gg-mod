@@ -204,17 +204,26 @@ class Badges(object):
     def vehicle(self, record, settings, surface):
         """' ' + what a player does on the tank they brought, or ''.
 
-        The mode's own figures and nothing else. A record whose scope is
-        'overall' is the career record this row carries anyway, and drawing
-        the same number where a reader expects "on this tank, in this mode"
-        would be a lie about where it came from.
+        Drawn as pills for the mode asked about, and in plain grey for the
+        tank's whole record -- every mode together, which is what the site
+        sends back for a mode Wargaming publishes no per-vehicle block about
+        at all: Frontline, Onslaught, Steel Hunter. That record is still
+        about this tank and this was throwing it away, on the belief that it
+        was the player's career. It is not: a career figure covers every tank
+        they own, and the question here is what they do in THIS one.
+
+        Grey is the same thing it means on the row beside it -- "true, but
+        not the figure you asked for" -- and it reads apart from a career
+        fallback without a second convention, since that one is a bare
+        four-digit rating and this one carries a percent and a count.
 
         The rating is the same drawing as the career one -- same scale, same
         file on disk -- because it is the same measurement over a smaller set
         of battles. Two drawings of one number drift; one does not.
         """
-        if record is None or not record.known or record.scope != 'mode':
+        if record is None or not record.known:
             return ''
+        on_mode = record.scope == 'mode'
         # A surface told to show nothing shows nothing here either. The count
         # below no longer rides on `extra`, which asked this question on its
         # own, so the surface has to be asked directly or a row turned off
@@ -225,7 +234,8 @@ class Badges(object):
         metric = settings.vehicle_metric(surface)
         value = record.rating(metric) if metric else None
         if value is not None:
-            parts.append(self.markup(metric, value) or _DIM % ('%d' % round(value)))
+            drawn = self.markup(metric, value) if on_mode else None
+            parts.append(drawn or _DIM % ('%d' % round(value)))
         elif record.winrate is not None:
             # No WN rating for this mode, and there never will be: the
             # expected values those scales are built from are computed on
@@ -236,7 +246,7 @@ class Badges(object):
             # which is what a skirmish drew until tonight.
             text = winrate(record.winrate, settings.winrate_decimal())
             color = self._scales.color('winrate', record.winrate, 'percent') if self._scales else None
-            parts.append(self._pill(text, color) or _DIM % text)
+            parts.append((self._pill(text, color) if on_mode else '') or _DIM % text)
         # Drawn whatever the surface was told about battle counts, which is
         # the one place this mod overrides that choice and the reason is the
         # figure beside it: a career count is twenty thousand and says nothing
@@ -245,7 +255,7 @@ class Badges(object):
         # and noise. Turning counts off is a judgement about the first one.
         if record.battles:
             text = count(record.battles)
-            parts.append(self._pill(text, NEUTRAL) or _DIM % text)
+            parts.append((self._pill(text, NEUTRAL) if on_mode else '') or _DIM % text)
         if not parts:
             return ''
         return ' ' + _GAP.join(parts)

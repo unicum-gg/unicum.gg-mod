@@ -157,8 +157,15 @@ def check_vehicle_badges():
     check('and the career rating draws the very same file',
           badges.markup('wnx', 1933.6) in out)
 
-    check('a record of every mode together draws nothing, since the row has it already',
-          badges.vehicle(_Record(scope='overall'), settings, 'battle') == '')
+    # The tank's whole record, which is what the site sends for a mode it
+    # publishes no per-vehicle block about. Still about this tank, so still
+    # worth drawing -- in grey, which already means "true, but not the figure
+    # you asked for" on the row beside it.
+    out = badges.vehicle(_Record(scope='overall'), settings, 'battle')
+    check('the tank\'s whole record is drawn, as text rather than pills',
+          '<IMG' not in out and '1934' in out and '70' in out)
+    check('and it carries its battle count, which a career fallback never does',
+          out.count('#8a8a8a') == 2)
     check('a pair the site has never stored draws nothing',
           badges.vehicle(_Record(known=False), settings, 'battle') == '')
     check('and no record at all draws nothing', badges.vehicle(None, settings, 'battle') == '')
