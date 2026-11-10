@@ -22,7 +22,10 @@ def check_settings(workdir):
           migrated['metric'] == 'wn8'
           and migrated['stronghold'] == {'flags': True, 'rating': True}
           and migrated['skirmishRoom'] == {'flags': True, 'rating': True, 'average': False}
-          and migrated['battle'] == {'flags': False, 'rating': False, 'average': False}
+          # `onTank` rides along because the battle surface carries it now; the
+          # first settings.json predates it, so it arrives at its default.
+          and migrated['battle'] == {'flags': False, 'rating': False, 'average': False,
+                                     'onTank': False}
           and migrated['contacts']['rating'] is False)
     migrated = validate({'contacts': {'flags': True, 'rating': 'none'},
                          'battle': {'flags': True, 'rating': 'wn7', 'average': True}})

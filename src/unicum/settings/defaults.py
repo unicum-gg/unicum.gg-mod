@@ -53,6 +53,12 @@ SURFACES = ('contacts', 'profile', 'skirmishRoom', 'battle', 'stronghold', 'batt
 # Surfaces with a team or detachment to average.
 AVERAGED = ('skirmishRoom', 'battle', 'battleResults')
 
+# Surfaces whose rows can rest on the tank a player brought rather than on
+# their career. A battle's rows and the results screen's know which tank each
+# row is; a contact row and a profile title are not about one tank at all, and
+# the skirmish room is a lobby where nobody has brought anything yet.
+ON_TANK = ('battle',)
+
 # A Twitch login: what a channel name may be.
 _TWITCH_CHANNEL = re.compile(r'^[a-z0-9_]{3,25}$')
 
@@ -67,6 +73,11 @@ def _surface(surface):
     values = {'flags': True, 'rating': surface in _RATED_BY_DEFAULT}
     if surface in AVERAGED:
         values['average'] = True
+    if surface in ON_TANK:
+        # Off: the career figure is the one every other surface shows, and a
+        # row that quietly meant something else than its neighbours would be
+        # the worst of both. A player who wants the tank says so once.
+        values['onTank'] = False
     return values
 
 DEFAULTS = dict({

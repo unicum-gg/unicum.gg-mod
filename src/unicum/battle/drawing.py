@@ -289,25 +289,24 @@ class Drawing(object):
     def _on_tank(self):
         """Whether the battle rows are showing the tank rather than the career.
 
-        Alt, so long as it has a meaning left to spend. It is asked to do two
-        things here: show a surface that waits for it, and change what an
-        already visible one says. On a surface that waits, the first use is
-        the one the player set up and the second would steal it.
+        `onTank` says which of the two a row rests on and Alt shows the
+        other, so the key is a glance at the figure not currently drawn
+        rather than the only road to one of them. Holding a key to read a
+        number is fine for a second opinion and no way to read the number you
+        came for.
 
-        One answer for the three surfaces rather than one each, because they
-        are drawn from one string of markers: the panel, the Tab screen and
-        the loading screen are shown and hidden apart but read the same
-        figures. So the question is whether ANY of them is shown without Alt
-        -- if one is, Alt is free to change it, and the surfaces that waited
-        for Alt arrive already on the tank, which is what the same press
-        asked for. With all three waiting, Alt is spent and nothing swaps.
-
-        This read `alt_only('battle')` until tonight, which is not a surface
-        and answered False for everyone, so the guard never fired at all.
+        One answer for the three surfaces, because they are drawn from one
+        string of markers: the panel, the Tab screen and the loading screen
+        are shown and hidden apart but read the same figures. Alt can swap
+        only where at least one of them shows without it; where all three
+        wait, the key is spent on revealing and the rows arrive as they rest.
         """
+        at_rest = self._settings.shows_on_tank('battle')
         if self.alt is None or not self.alt.down:
-            return False
-        return any(not self._settings.alt_only(surface) for surface in _ALT_SURFACES)
+            return at_rest
+        if not any(not self._settings.alt_only(surface) for surface in _ALT_SURFACES):
+            return at_rest
+        return not at_rest
 
     def _marker(self, account_id, tank_id=None):
         """(flags markup, rating badge markup), each '' when not shown.

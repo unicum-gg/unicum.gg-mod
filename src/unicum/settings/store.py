@@ -180,6 +180,16 @@ class Settings(object):
         """
         return 'total' if metric in CAREER_ONLY else self._values['window']
 
+    def shows_on_tank(self, surface):
+        """Whether this surface's rows rest on the tank rather than the career.
+
+        Which of the two a row shows when nothing is held. The extended info
+        key (Alt) shows the other, so the choice here is about which question
+        is worth answering at a glance and which is worth a key -- not about
+        which one is reachable.
+        """
+        return self._values[surface].get('onTank', False)
+
     def vehicle_metric(self, surface):
         """The rating a per-vehicle figure on this surface uses, or None.
 
