@@ -127,8 +127,9 @@ def check_extras_badges():
 class _Record(object):
     """Only what `vehicle` asks of a per-vehicle record."""
 
-    def __init__(self, scope='mode', battles=70, wnx=1933.6, known=True):
+    def __init__(self, scope='mode', battles=70, wnx=1933.6, known=True, winrate=58.7):
         self.known, self.scope, self.battles = known, scope, battles
+        self.winrate = winrate
         self._wnx = wnx
 
     def rating(self, metric):
@@ -170,8 +171,16 @@ def check_vehicle_badges():
           badges.vehicle(_Record(), _Settings(), 'battle').count('<IMG') == 2)
     check('a tank with no battles on it has only its rating to show',
           badges.vehicle(_Record(battles=0), _Settings(), 'battle').count('<IMG') == 1)
-    check('a mode the WN scales do not measure leaves the count to speak alone',
-          badges.vehicle(_Record(wnx=None), settings, 'battle').count('<IMG') == 1)
+    # A skirmish, a stronghold, the global map: Wargaming's expected values
+    # are computed on random battles alone, so those modes have no WN rating
+    # per vehicle and never will. The win rate is what survives.
+    out = badges.vehicle(_Record(wnx=None), settings, 'battle')
+    check('a mode the WN scales do not measure shows the win rate on the tank',
+          '59pct.4a92b7.png' in out and out.count('<IMG') == 2)
+    check('and the rating takes precedence wherever there is one',
+          '59pct' not in badges.vehicle(_Record(), settings, 'battle'))
+    check('with neither, the count speaks alone',
+          badges.vehicle(_Record(wnx=None, winrate=None), settings, 'battle').count('<IMG') == 1)
     check('and a surface showing nothing draws nothing here either',
           badges.vehicle(_Record(), _Settings(rated=False), 'battle') == '')
 

@@ -226,6 +226,17 @@ class Badges(object):
         value = record.rating(metric) if metric else None
         if value is not None:
             parts.append(self.markup(metric, value) or _DIM % ('%d' % round(value)))
+        elif record.winrate is not None:
+            # No WN rating for this mode, and there never will be: the
+            # expected values those scales are built from are computed on
+            # random battles alone, so a skirmish, a stronghold or a global
+            # map battle has none. The win rate on the tank is the figure
+            # that survives, it sits on a scale the site publishes, and it
+            # beats leaving a lone battle count to stand for a player --
+            # which is what a skirmish drew until tonight.
+            text = winrate(record.winrate, settings.winrate_decimal())
+            color = self._scales.color('winrate', record.winrate, 'percent') if self._scales else None
+            parts.append(self._pill(text, color) or _DIM % text)
         # Drawn whatever the surface was told about battle counts, which is
         # the one place this mod overrides that choice and the reason is the
         # figure beside it: a career count is twenty thousand and says nothing
