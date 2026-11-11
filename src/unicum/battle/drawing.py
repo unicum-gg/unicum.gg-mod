@@ -14,6 +14,7 @@ import logging
 
 from unicum import modes, views
 from unicum.battle.markup import icon_markers, markup_width
+from unicum.battle.teams import TeamNames
 from unicum.api.entry import PLAYERS
 
 _logger = logging.getLogger('unicum.battle.drawing')
@@ -21,11 +22,6 @@ _logger = logging.getLogger('unicum.battle.drawing')
 # The battle view's surfaces that can wait for Alt, in the order of its
 # panelHidden, tabHidden and loadingHidden properties.
 _ALT_SURFACES = ('panel', 'tab', 'loading')
-
-# Of those, the ones that show a team's average: the players panel does not.
-# Read by _mark_teams, which puts nothing in a team name while all of them are
-# waiting for Alt.
-_AVERAGE_SURFACES = ('tab', 'loading')
 
 # The client's own method for "resend the arena's description", which is where
 # a team name lives. Private, so it carries the mangled name of its class,
@@ -77,7 +73,7 @@ def _default_order(arena):
             'rightItemsIDs': ids(vos_collections.EnemyItemsCollection)}
 
 
-class Drawing(object):
+class Drawing(TeamNames):
     """Putting ratings and flags on the battle surfaces."""
 
     def _publish(self):
@@ -178,72 +174,6 @@ class Drawing(object):
             # a screen shows is what asks for one to be put there or dropped
             # (see _mark_teams).
             self._redraw()
-
-    def _mark_teams(self, controller, data):
-        # Says, once per battle, whether this ran at all and what it found.
-        # A team name with no average and a team name this never reached look
-        # the same on screen, and that is the whole question right now.
-        if not getattr(self, '_probed_teams', False):
-            self._probed_teams = True
-            try:
-                _logger.info('team names: shows_average=%s, keys=%r',
-                             self._settings.shows_average('battle'),
-                             sorted(data.keys()) if hasattr(data, 'keys') else type(data).__name__)
-            except Exception:
-                _logger.exception('team names: could not describe the data')
-        if not self._settings.shows_average('battle'):
-            return
-        # Not injected at all while every screen that would show it is waiting
-        # for Alt.
-        #
-        # An average rides in the client's own team name field, which draws
-        # plain text until TeamNamesHtml re-sets it as HTML. So putting one
-        # there for a screen that is hidden shows a raw `<IMG ...>` tag for a
-        # frame or two and then drops it, which is all the player ever sees of
-        # it. `_publish` asks for a redraw whenever Alt changes what a screen
-        # shows, and that is what puts the average back.
-        held = self.alt is not None and self.alt.down
-        if not held and all(self._settings.alt_only(surface) for surface in _AVERAGE_SURFACES):
-            return
-        arena = controller._battleCtx.getArenaDP()
-        teams = {'allyTeamName': [], 'enemyTeamName': []}
-        # A team whose players show nothing gets no average either.
-        shows = modes.team_filter(self._settings)
-        for vInfo in arena.getVehiclesInfoIterator():
-            if vInfo.isObserver() or not shows(vInfo.team):
-                continue
-            key = 'allyTeamName' if arena.isAllyTeam(vInfo.team) else 'enemyTeamName'
-            teams[key].append(vInfo.player.accountDBID)
-        for key, account_ids in teams.items():
-            average = self._average(account_ids)
-            name = data.get(key)
-            if not getattr(self, '_probed_each', False):
-                _logger.info('team names: %s -> %d player(s), average=%r, name=%r',
-                             key, len(account_ids), average, name)
-            if average is None or name is None:
-                continue
-            if isinstance(name, str):
-                # A localised team name arrives as UTF-8 bytes.
-                name = name.decode('utf-8', 'replace')
-            self._probed_each = True
-            # A literal average sign rather than an entity: the field shows
-            # plain text until the battle view re-sets it as HTML.
-            badge = self._badges.markup(self._settings.metric('battle'), average) if views.html_team_names() else None
-            data[key] = u'%s  \u00d8 %s' % (name, badge or '%d' % round(average))
-
-    def _average(self, account_ids):
-        """Mean chosen rating of the players whose rating is known, or None."""
-        values = []
-        for account_id in account_ids:
-            if not account_id:
-                continue
-            if self._lookup.needs_fetch(PLAYERS, account_id):
-                self._request(account_id)
-            entry = self._lookup.get(PLAYERS, account_id)
-            value = self._settings.rating(entry, 'battle')
-            if value is not None:
-                values.append(value)
-        return sum(values) / float(len(values)) if values else None
 
     def _mark(self, component, vInfoVO):
         data = component.get()

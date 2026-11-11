@@ -184,13 +184,11 @@ class Badges(object):
         if window is not None:
             value = entry.stat('winrate', window)
             if value is not None:
-                text = winrate(value, settings.winrate_decimal())
-                color = self._scales.color('winrate', value, 'percent') if self._scales else None
                 # `or` rather than a branch on the colour: a band the scale
                 # gives is still no badge when the client cannot load one,
                 # and dropping the figure would be worse than drawing it
-                # plainly.
-                parts.append(self._pill(text, color) or _DIM % text)
+                # plainly. `winrate_markup` makes that choice once.
+                parts.append(self.winrate_markup(value, settings.winrate_decimal()))
         window = settings.extra('battles', surface)
         if window is not None:
             value = entry.stat('battles', window)
@@ -278,6 +276,18 @@ class Badges(object):
         if value is None:
             return ''
         return ' ' + _DIM % ('%d' % round(value))
+
+    def winrate_markup(self, value, decimal=False):
+        """A win rate as its badge, or as plain grey text when none can draw.
+
+        The site's own nine-step win rate scale gives the band. Here rather
+        than at each caller because three of them now want the same figure
+        drawn the same way: a player's row, a tank's record, and a team's
+        average.
+        """
+        text = winrate(value, decimal)
+        color = self._scales.color('winrate', value, 'percent') if self._scales else None
+        return self._pill(text, color) or _DIM % text
 
     def picture(self, text, color):
         """(resource path, width, height) of a badge of arbitrary text, or None.

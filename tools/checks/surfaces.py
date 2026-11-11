@@ -116,6 +116,11 @@ def check_battle_panels():
     stats.invalidateArenaInfo()
     check('the ally team name gains its average WNX as plain text',
           stats.arena_info['allyTeamName'].startswith(u'DOUBT  \u00d8 '))
+    # The line over a team reads as the lines under it: the same two
+    # figures in the same order. A side's win rate was the one the rows
+    # had and the team name did not.
+    check('and the average win rate beside it, since the rows show one',
+          u'%' in stats.arena_info['allyTeamName'])
     check('a team with no known rating keeps its name as it was',
           stats.arena_info['enemyTeamName'] == 'SMTHG')
 
