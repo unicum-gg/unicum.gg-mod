@@ -70,6 +70,16 @@ package unicum
 
       private static const WIDTH:RegExp = /width="(\d+)"/i;
 
+      // The same, every match of it. A team average was one badge when
+      // this was written and is two since the win rate joined it, and a
+      // field sized from the first `width` alone clips everything after
+      // it -- the figure is drawn, in a box one badge wide.
+      private static const WIDTHS:RegExp = /width="(\d+)"/gi;
+
+      // Between two badges in one field, matching the space the markup
+      // puts there and what Python measures it at (battle/markup.py).
+      private static const BADGE_GAP:int = 4;
+
       // Backgrounds and hit areas, which lie under the icon and its neighbours.
       private static const BACKGROUND:RegExp = /(bg|hit|background)$/i;
 
@@ -482,7 +492,7 @@ package unicum
          var bounds:Rectangle = team.getBounds(parent);
          var y:Number = Math.round(bounds.y + (bounds.height - HEIGHT) / 2) + IMAGE_RISE;
          var local:Number = parent.globalToLocal(new Point(column[0], 0)).x;
-         var badgeWidth:Number = Number(WIDTH.exec(taken[1])[1]);
+         var badgeWidth:Number = VehicleMarkers.markupWidth(taken[1]);
          var signWidth:Number = fields[1].textWidth;
          var badgeX:Number = rightwards ? local + GAP : local - GAP - badgeWidth;
          var signX:Number = rightwards ? local + GAP + column[1] + SPACE : local - GAP - column[1] - SPACE - signWidth;
@@ -490,6 +500,21 @@ package unicum
          fields[1].width = signWidth + GUTTER * 2 + 2;
          fields[1].x = Math.round(signX - GUTTER);
          fields[1].y = Math.round(bounds.y + (bounds.height - fields[1].height) / 2);
+      }
+
+      // Every badge in a piece of markup, plus the gaps between them.
+      private static function markupWidth(markup:String) : Number
+      {
+         var total:Number = 0;
+         var count:int = 0;
+         var found:Object = null;
+         WIDTHS.lastIndex = 0;
+         while((found = WIDTHS.exec(markup)) != null)
+         {
+            total += Number(found[1]);
+            count++;
+         }
+         return total + (count > 1 ? (count - 1) * BADGE_GAP : 0);
       }
 
       private function drawIcons(icons:Object, ids:Array, ally:Boolean) : void
