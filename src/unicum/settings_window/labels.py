@@ -80,6 +80,24 @@ BATTLE_CHAT_LABELS = ('Off', 'In the battle chat', 'In a window', 'In both')
 # other.
 TEXT_SIZE_LABELS = ('Small', 'Normal', 'Large', 'Larger')
 
+# What a row is about, in the order of FIGURE_CHOICES. "On the tank" rather
+# than "Per vehicle": the row is about a player, and what changes is which of
+# their battles are counted.
+FIGURE_LABELS = ('Career', 'On the tank', 'Both')
+
+FIGURES_LABEL = 'Figures shown'
+
+_FIGURES_TOOLTIP = (
+    '{HEADER}Figures shown{/HEADER}{BODY}Which battles the numbers on a row count. '
+    'Career is every tank that player owns, which is what the rest of the mod shows. '
+    'On the tank is the record of the one they brought, in the mode being played, with '
+    'the number of battles they have in it beside the figure, since four battles and four '
+    'hundred do not read the same. Both shows the career and puts the tank under Alt. '
+    'Outside random battles there is no WN rating per vehicle to show: Wargaming computes '
+    'the expected values those scales need on random battles alone, so a skirmish or a '
+    'stronghold shows a win rate instead. A tank the site holds nothing about falls back '
+    'to the career figure, drawn in grey to say so.{/BODY}')
+
 _SURFACE_LABELS = {
     'contacts': 'Contacts list',
     'profile': 'Profile',

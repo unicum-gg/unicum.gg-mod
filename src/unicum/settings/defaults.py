@@ -53,11 +53,28 @@ SURFACES = ('contacts', 'profile', 'skirmishRoom', 'battle', 'stronghold', 'batt
 # Surfaces with a team or detachment to average.
 AVERAGED = ('skirmishRoom', 'battle', 'battleResults')
 
-# Surfaces whose rows can rest on the tank a player brought rather than on
-# their career. A battle's rows and the results screen's know which tank each
-# row is; a contact row and a profile title are not about one tank at all, and
-# the skirmish room is a lobby where nobody has brought anything yet.
-ON_TANK = ('battle',)
+# What a surface's rows are about, in the order the window lists them. The
+# order is a contract once published: the window sends an index back, so a
+# later value goes on the end and no existing one moves.
+#
+#   career  the player, every tank together -- what every other surface shows
+#   tank    the tank they brought, in the mode being played
+#   both    one of the two at rest and the other while Alt is held, where the
+#           column is a column; side by side where there is room for two
+FIGURE_CHOICES = ('career', 'tank', 'both')
+
+# Surfaces that can answer "on this tank": the ones whose rows know which
+# vehicle they are about. A contact row and a profile title are a whole
+# account, and a stronghold page is clans. Grown one surface at a time, as
+# each learns to draw it -- a dropdown over a surface that ignores it would
+# be worse than no dropdown.
+FIGURED = ('battle',)
+
+# Where each starts. The value that leaves every screen as it is today, which
+# for the battle is the career at rest with Alt showing the tank, and which
+# everywhere else is the career alone: nothing new is asked of the site until
+# somebody asks for it.
+_FIGURES_DEFAULT = {'battle': 'both'}
 
 # A Twitch login: what a channel name may be.
 _TWITCH_CHANNEL = re.compile(r'^[a-z0-9_]{3,25}$')
@@ -73,11 +90,8 @@ def _surface(surface):
     values = {'flags': True, 'rating': surface in _RATED_BY_DEFAULT}
     if surface in AVERAGED:
         values['average'] = True
-    if surface in ON_TANK:
-        # Off: the career figure is the one every other surface shows, and a
-        # row that quietly meant something else than its neighbours would be
-        # the worst of both. A player who wants the tank says so once.
-        values['onTank'] = False
+    if surface in FIGURED:
+        values['figures'] = _FIGURES_DEFAULT.get(surface, 'career')
     return values
 
 DEFAULTS = dict({

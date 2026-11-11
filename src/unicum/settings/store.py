@@ -180,15 +180,34 @@ class Settings(object):
         """
         return 'total' if metric in CAREER_ONLY else self._values['window']
 
-    def shows_on_tank(self, surface):
-        """Whether this surface's rows rest on the tank rather than the career.
+    def figures(self, surface):
+        """What this surface's rows are about: 'career', 'tank' or 'both'.
 
-        Which of the two a row shows when nothing is held. The extended info
-        key (Alt) shows the other, so the choice here is about which question
-        is worth answering at a glance and which is worth a key -- not about
-        which one is reachable.
+        'career' for a surface that was never given the choice, so a caller
+        can ask any of them without knowing which ones carry it.
         """
-        return self._values[surface].get('onTank', False)
+        return self._values[surface].get('figures', 'career')
+
+    def rests_on_tank(self, surface):
+        """Whether a row shows the tank when no key is held."""
+        return self.figures(surface) == 'tank'
+
+    def swaps_figures(self, surface):
+        """Whether the extended info key (Alt) shows the other of the two.
+
+        Only where both are wanted. Under 'career' the key has nothing to
+        swap to and must not pretend otherwise -- that choice is also the one
+        that asks the site for nothing.
+        """
+        return self.figures(surface) != 'career'
+
+    def wants_vehicle(self, surface):
+        """Whether this surface needs a per-vehicle record fetched at all.
+
+        The read behind it is the heaviest this mod asks for, so a player who
+        chose the career must never pay for it.
+        """
+        return self.figures(surface) != 'career'
 
     def vehicle_metric(self, surface):
         """The rating a per-vehicle figure on this surface uses, or None.

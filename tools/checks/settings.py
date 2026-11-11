@@ -22,10 +22,10 @@ def check_settings(workdir):
           migrated['metric'] == 'wn8'
           and migrated['stronghold'] == {'flags': True, 'rating': True}
           and migrated['skirmishRoom'] == {'flags': True, 'rating': True, 'average': False}
-          # `onTank` rides along because the battle surface carries it now; the
-          # first settings.json predates it, so it arrives at its default.
+          # `figures` rides along because the battle surface carries it now;
+          # the first settings.json predates it, so it arrives at its default.
           and migrated['battle'] == {'flags': False, 'rating': False, 'average': False,
-                                     'onTank': False}
+                                     'figures': 'both'}
           and migrated['contacts']['rating'] is False)
     migrated = validate({'contacts': {'flags': True, 'rating': 'none'},
                          'battle': {'flags': True, 'rating': 'wn7', 'average': True}})
@@ -109,6 +109,40 @@ def check_settings_window():
           and 'average' not in from_window({'contactsShow': 0})['contacts'])
     check('and read back to the same settings', validate(dict(values, **from_window(window))) == values)
     check('an index out of range is ignored', 'metric' not in from_window({'metric': 9}))
+
+    # The two twin traps of a surface key that is not a switch. The window
+    # rewrites a surface's dict whole, so a choice written beside the show
+    # dropdown has to be merged into it rather than assigned over it; and
+    # validate() reads every surface key with the same reader, which used to
+    # be the boolean one and would have turned 'tank' back into its default
+    # without a word. Either one alone makes a setting that resets itself.
+    from unicum.settings import FIGURE_CHOICES, FIGURED
+    from unicum.settings_window.labels import FIGURE_LABELS
+    check('the figures dropdown has a label for each of its values',
+          len(FIGURE_LABELS) == len(FIGURE_CHOICES))
+    for index, name in enumerate(FIGURE_CHOICES):
+        sent = from_window({'battleFigures': index})
+        check('the window sends back %s, and it survives validation' % name,
+              sent['battle']['figures'] == name
+              and validate(dict(DEFAULTS, **sent))['battle']['figures'] == name)
+    check('a figures choice rides beside what the show dropdown writes',
+          from_window({'battleShow': 1, 'battleFigures': 1})['battle']
+          == {'rating': True, 'flags': False, 'average': True, 'figures': 'tank'})
+    check('and a surface that has no such choice is never sent one',
+          [s for s in ('contacts', 'profile') if s not in FIGURED]
+          and 'contactsFigures' not in to_window(values))
+    check('an index out of range leaves the choice alone',
+          'figures' not in from_window({'battleFigures': 9}).get('battle', {}))
+
+    # The hidden switch this grew out of. It shipped for a day, settable only
+    # by hand, so the file of whoever did is owed its meaning.
+    check('a settings.json written when this was onTank is read as the tank',
+          validate({'battle': {'onTank': True}})['battle']['figures'] == 'tank')
+    check('and one that says otherwise lands on the default',
+          validate({'battle': {'onTank': False}})['battle']['figures'] == 'both'
+          and validate({'battle': {'figures': 'nonsense'}})['battle']['figures'] == 'both')
+    check('a choice already written wins over the switch it replaced',
+          validate({'battle': {'onTank': True, 'figures': 'career'}})['battle']['figures'] == 'career')
     check('the account card box shows the card by default and follows its state',
           to_window(values)[CARD_VAR] is True and to_window(values, False)[CARD_VAR] is False)
     check('the account card box is not a settings.json value', CARD_VAR not in from_window({CARD_VAR: False}))
@@ -147,7 +181,7 @@ def check_settings_window():
           [line[1] for line in lines if line[0] == u'tab'] == [u'Garage', u'Battle', u'Twitch'])
     flags = [line for line in lines if line[0] == u'dropdown' and line[1] == u'maxFlags'][0]
     check('a dropdown carries its index, its offset and its options',
-          flags[3:] == [u'1', u'1', u'1|2|3'] and len([l for l in lines if l[0] == u'dropdown']) == 31)
+          flags[3:] == [u'1', u'1', u'1|2|3'] and len([l for l in lines if l[0] == u'dropdown']) == 32)
     check('a linked Twitch shows its channel, an unlinked one a Connect button',
           [u'text', u'Channel: license__'] in lines
           and [u'button', CONNECT_VAR, u'Channel: not linked', u'Connect'] in

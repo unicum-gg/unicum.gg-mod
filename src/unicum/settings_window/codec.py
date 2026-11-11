@@ -20,6 +20,7 @@ from unicum.settings_window.labels import (_ALT_KEYS, _ALT_SCREENS,
                                            MINIMAP_NAME_LABELS,
                                            RELOAD_LABELS, SHOW_CHOICES,
                                            TEAM_CHOICES, WHEN_CHOICES)
+from unicum.settings import FIGURE_CHOICES, FIGURED
 
 _logger = logging.getLogger('unicum.settings_window.codec')
 
@@ -99,6 +100,8 @@ def to_window(values, card_shown=True, loadouts_hidden=False, battles_hidden=Fal
         window[_mode_key(mode)] = _choice_of(TEAM_CHOICES, teams['allies'], teams['enemies'])
     for surface in SURFACES:
         window[_show_key(surface)] = _choice_of(SHOW_CHOICES, values[surface]['rating'], values[surface]['flags'])
+    for surface in FIGURED:
+        window[_figures_key(surface)] = FIGURE_CHOICES.index(values[surface]['figures'])
     return window
 
 def from_window(raw):
@@ -152,6 +155,13 @@ def from_window(raw):
             changes[surface] = {'rating': rating, 'flags': flags}
             if surface in AVERAGED:
                 changes[surface]['average'] = rating
+    for surface in FIGURED:
+        index = _index(raw.get(_figures_key(surface)), FIGURE_CHOICES)
+        if index is not None:
+            # Into whatever this surface already has in `changes`, not over
+            # it: the show dropdown above writes its own dict for the same
+            # surface, and the last one to assign would win.
+            changes.setdefault(surface, {})['figures'] = FIGURE_CHOICES[index]
     modes = {}
     for mode in MODES:
         index = _index(raw.get(_mode_key(mode)), TEAM_CHOICES)
@@ -164,6 +174,10 @@ def from_window(raw):
 
 def _show_key(surface):
     return surface + 'Show'
+
+
+def _figures_key(surface):
+    return surface + 'Figures'
 
 def _mode_key(mode):
     return 'mode%s' % (mode[0].upper() + mode[1:])

@@ -24,6 +24,8 @@ from unicum.settings_window.labels import (_ALT_SCREENS, _CHOICE_WIDTH,
                                            MEASURE_LABEL, MINIMAP_NAME_LABELS,
                                            RELOAD_LABELS, REPLAYS_LABEL,
                                            RESET_BUTTON, RESET_LABEL,
+                                           FIGURE_LABELS, FIGURES_LABEL,
+                                           _FIGURES_TOOLTIP,
                                            RESET_VAR, SHOW_CHOICES,
                                            SOURCE_VAR, SUPPORT_VAR,
                                            TEAM_CHOICES, WHEN_CHOICES,
@@ -32,8 +34,8 @@ from unicum.settings_window.labels import (_ALT_SCREENS, _CHOICE_WIDTH,
                                            GARAGE_CHAT_LABEL, HIDE_LABEL,
                                            PANEL_TEXT_LABEL, BATTLE_TEXT_LABEL,
                                            TEXT_SIZE_LABELS, REPLAYS_TOOLTIP)
-from unicum.settings_window.codec import (_alt_key, _menu_key, _mode_key,
-                                          _show_key, to_window)
+from unicum.settings_window.codec import (_alt_key, _figures_key, _menu_key,
+                                          _mode_key, _show_key, to_window)
 
 _logger = logging.getLogger('unicum.settings_window.page')
 
@@ -165,6 +167,8 @@ def template(values, channel=u'', linked=False, card_shown=True,
     battle = [
         _heading(templates, 'Battle'),
         show('battle'),
+        choice(FIGURES_LABEL, _figures_key('battle'), list(FIGURE_LABELS),
+               tooltip=_FIGURES_TOOLTIP),
         templates.createEmpty(_SPACER),
     ]
     battle.extend(choice(_MODE_LABELS[mode], _mode_key(mode), [c[0] for c in TEAM_CHOICES],
@@ -267,6 +271,7 @@ def native_page(values, channel=u'', linked=False, card_shown=True,
     tab(u'Battle')
     group(0, u'What and when')
     show('battle')
+    dropdown(FIGURES_LABEL, _figures_key('battle'), list(FIGURE_LABELS))
     for key, label in _ALT_SCREENS:
         dropdown(label, _alt_key(key), WHEN_CHOICES)
     group(0, u'Tools')

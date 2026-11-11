@@ -247,14 +247,17 @@ def check_alt_swaps_to_the_tank():
             self.down = down
 
     class Settings(object):
-        def __init__(self, waiting=(), on_tank=False):
-            self._waiting, self._on_tank = waiting, on_tank
+        def __init__(self, waiting=(), figures='both'):
+            self._waiting, self._figures = waiting, figures
 
         def alt_only(self, surface):
             return surface in self._waiting
 
-        def shows_on_tank(self, surface):
-            return self._on_tank
+        def rests_on_tank(self, surface):
+            return self._figures == 'tank'
+
+        def swaps_figures(self, surface):
+            return self._figures != 'career'
 
     drawing = BattleFlags(None, None, None, None, Settings())
 
@@ -286,20 +289,30 @@ def check_alt_swaps_to_the_tank():
     # with nothing held, and Alt is the glance at the career instead. Holding
     # a key is fine for a second opinion and no way to read the figure you
     # came for.
-    drawing._settings = Settings(on_tank=True)
+    drawing._settings = Settings(figures='tank')
     drawing.alt = Alt(False)
     check('a row set to rest on the tank needs no key at all', drawing._on_tank())
     drawing.alt = Alt(True)
     check('and Alt shows the career it rests away from', not drawing._on_tank())
-    drawing._settings = Settings(on_tank=True, waiting=['panel', 'tab', 'loading'])
+    drawing._settings = Settings(figures='tank', waiting=['panel', 'tab', 'loading'])
     check('with every surface waiting for Alt, a revealed row arrives as it rests',
           drawing._on_tank())
 
-    from unicum.settings.defaults import DEFAULTS, ON_TANK
-    check('the choice lives on the battle surface and rests on the career',
-          ON_TANK == ('battle',) and DEFAULTS['battle']['onTank'] is False)
-    check('and no surface without a tank to rest on carries it',
-          not [s for s in ('contacts', 'profile', 'skirmishRoom') if 'onTank' in DEFAULTS[s]])
+    # The third value: the career alone, where Alt has nothing to swap to and
+    # must not pretend it has.
+    drawing._settings = Settings(figures='career')
+    drawing.alt = Alt(True)
+    check('under the career alone, holding Alt swaps nothing', not drawing._on_tank())
+    drawing.alt = Alt(False)
+    check('and it rests on the career too', not drawing._on_tank())
+
+    from unicum.settings.defaults import DEFAULTS, FIGURE_CHOICES, FIGURED
+    check('the choice lives on the battle surface and starts where it is today',
+          FIGURED == ('battle',) and DEFAULTS['battle']['figures'] == 'both')
+    check('its values are the three a row can be about, career first',
+          FIGURE_CHOICES == ('career', 'tank', 'both')),
+    check('and no surface that has no tank to speak of carries it',
+          not [s for s in ('contacts', 'profile', 'stronghold') if 'figures' in DEFAULTS[s]])
 
     # Read once for the battle. It cannot change inside one, and this is
     # asked for every player on every pass.
@@ -385,8 +398,14 @@ def check_a_tank_is_asked_for_before_alt():
         def alt_only(self, surface):
             return False
 
-        def shows_on_tank(self, surface):
+        def rests_on_tank(self, surface):
             return False
+
+        def swaps_figures(self, surface):
+            return True
+
+        def wants_vehicle(self, surface):
+            return True
 
     class Badges(object):
         def rating(self, entry, settings, surface):

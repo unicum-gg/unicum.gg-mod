@@ -13,7 +13,8 @@ import logging
 
 from unicum.settings.defaults import (_RATED_BY_DEFAULT, _TWITCH_CHANNEL,
                                       AVERAGED, BATTLE_CHAT_CHOICES, DEFAULTS,
-                                      EXTRAS, MAX_FLAGS, MAX_PANEL, METRICS,
+                                      EXTRAS, FIGURE_CHOICES, FIGURED,
+                                      MAX_FLAGS, MAX_PANEL, METRICS,
                                       MIN_PANEL, MINIMAP_NAME_CHOICES, MODES,
                                       RELOAD_CHOICES, SURFACES,
                                       TEXT_SIZE_CHOICES, WINDOWS)
@@ -101,9 +102,31 @@ def validate(raw):
         values['maxFlags'] = min(max(max_flags, 1), MAX_FLAGS)
     for surface in SURFACES:
         given = raw.get(surface) if isinstance(raw.get(surface), dict) else {}
-        values[surface] = dict((key, _bool(given.get(key), default))
+        # Not every key on a surface is a switch any more. One table rather
+        # than a branch per key: a new choice declares its reader here and
+        # the loop stays one line, and a key with no reader keeps the switch
+        # behaviour that every other one has.
+        values[surface] = dict((key, _SURFACE_READERS.get(key, _bool)(given.get(key), default))
                                for key, default in DEFAULTS[surface].items())
     return values
+
+def _figures_legacy(raw, migrated):
+    """`onTank`, the switch this choice grew out of, read as a choice.
+
+    It shipped for a day with no window of its own and no way to set it but
+    a hand edit, which is exactly who is owed the migration: the file says
+    `onTank: true` and means "the tank", and nothing else can mean that.
+    """
+    for surface in FIGURED:
+        given = raw.get(surface)
+        if not isinstance(given, dict) or 'figures' in given:
+            continue
+        if given.get('onTank') is True:
+            section = dict(migrated.get(surface) or given)
+            section['figures'] = 'tank'
+            migrated[surface] = section
+    return migrated
+
 
 def _migrate(raw):
     """Read settings.json as earlier versions wrote it.
@@ -130,7 +153,7 @@ def _migrate(raw):
             if isinstance(section.get('rating'), basestring):
                 section['rating'] = section['rating'] != 'none'
                 migrated[surface] = section
-    return migrated
+    return _figures_legacy(raw, migrated)
 
 def twitch_channel(value):
     """A Twitch channel name as typed, "#Name" or a channel URL, as its login; else ''."""
@@ -163,3 +186,11 @@ def panel_size(value):
 
 def _bool(value, default):
     return value if isinstance(value, bool) else default
+
+
+def _figures(value, default):
+    return value if value in FIGURE_CHOICES else default
+
+
+# Keys of a surface dict that are not switches, and how each is read.
+_SURFACE_READERS = {'figures': _figures}

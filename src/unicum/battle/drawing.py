@@ -289,11 +289,12 @@ class Drawing(object):
     def _on_tank(self):
         """Whether the battle rows are showing the tank rather than the career.
 
-        `onTank` says which of the two a row rests on and Alt shows the
-        other, so the key is a glance at the figure not currently drawn
-        rather than the only road to one of them. Holding a key to read a
-        number is fine for a second opinion and no way to read the number you
-        came for.
+        The surface's `figures` choice says which of the two a row rests on
+        and Alt shows the other, so the key is a glance at the figure not
+        currently drawn rather than the only road to one of them. Holding a
+        key to read a number is fine for a second opinion and no way to read
+        the number you came for. Under 'career' the key swaps nothing, which
+        is the choice that also asks the site for nothing.
 
         One answer for the three surfaces, because they are drawn from one
         string of markers: the panel, the Tab screen and the loading screen
@@ -301,8 +302,10 @@ class Drawing(object):
         only where at least one of them shows without it; where all three
         wait, the key is spent on revealing and the rows arrive as they rest.
         """
-        at_rest = self._settings.shows_on_tank('battle')
+        at_rest = self._settings.rests_on_tank('battle')
         if self.alt is None or not self.alt.down:
+            return at_rest
+        if not self._settings.swaps_figures('battle'):
             return at_rest
         if not any(not self._settings.alt_only(surface) for surface in _ALT_SURFACES):
             return at_rest
@@ -326,7 +329,8 @@ class Drawing(object):
         flags = ''
         if self._settings.shows_flags('battle'):
             flags = self._textures.markup(entry, self._settings['maxFlags'])
-        mode = self._tank_mode() if tank_id else None
+        mode = (self._tank_mode()
+                if tank_id and self._settings.wants_vehicle('battle') else None)
         if mode is not None:
             # Asked for as the battle loads, beside the roster, and not on the
             # first press. Waiting for the press was the cheaper of the two and

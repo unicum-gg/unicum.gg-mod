@@ -32,6 +32,7 @@ from __future__ import absolute_import
 
 from unicum.settings.defaults import (AVERAGED, BATTLE_CHAT_CHOICES,
                                       CAREER_ONLY, DEFAULTS, EXTRAS,
+                                      FIGURE_CHOICES, FIGURED,
                                       MAX_FLAGS, MAX_PANEL, METRICS,
                                       MIN_PANEL, MINIMAP_NAME_CHOICES,
                                       MODES, RELOAD_CHOICES, STORE,
