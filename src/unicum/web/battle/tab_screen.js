@@ -8,7 +8,7 @@
 //
 //   { shown,
 //     players:  { name: { image, width, height, flags: [image url],
-//                         vehicle: { scope, rating, battles } } },
+//                         vehicle: { scope, rating | winrate, battles } } },
 //     averages: { allies: { image, width, height } | null, enemies: ... } }
 //
 // `vehicle` is what this player does with the tank they brought, in this
@@ -64,9 +64,13 @@ const NAME = '[class*="UserInfo_userName_"] > [class*="UserInfo_tooltip_trigger_
 // the three. It is a child of the row, and only on the allies side.
 const LIVE_TAG = '[class*="LiveTag_liveTag"]';
 const MARK = "unicum-tab-rating";
-// The two figures of a vehicle record, in the order they are appended and
-// therefore the order they read outwards: how good, then how much.
-const VEHICLE_PARTS = ["rating", "battles"];
+// The figures of a vehicle record, in the order they are appended and
+// therefore the order they read outwards: how good, then how much. A record
+// carries `rating` OR `winrate` and never both -- outside random battles
+// there is no WN rating per vehicle to have, since those scales are built
+// from expected values computed on random battles alone, so the win rate on
+// the tank is what is left to say.
+const VEHICLE_PARTS = ["rating", "winrate", "battles"];
 const POLL_MS = 200;
 // Between a badge and whatever it stands clear of, in pixels.
 const GAP = 16;

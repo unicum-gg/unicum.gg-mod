@@ -46,7 +46,7 @@ import zlib
 from frameworks.wulf import ViewModel
 from gui.impl.pub.view_component import ViewComponent
 
-from unicum import badges, extended_info, modes, resources
+from unicum import badges, extended_info, figures, modes, resources
 from unicum.api.entry import PLAYERS
 from unicum.layouts import layout_id
 from unicum.tank_button import FEATURE, LAYOUT, compose
@@ -256,62 +256,6 @@ class TabScreen(object):
             _logger.debug('could not read the arena roster', exc_info=True)
         return found
 
-    def _count(self, battles):
-        """{image, width, height} of a battle-count pill, or {text, color}.
-
-        The one neutral band, like every battle count this mod draws: the
-        count has no scale of its own, and inventing a colour for it would
-        claim a meaning that does not exist.
-        """
-        text = badges.count(battles)
-        found = self._badges.picture(text, badges.NEUTRAL)
-        if found is not None:
-            path, width, height = found
-            return {'image': 'img://%s' % path, 'width': width, 'height': height}
-        # `text`, not `value`: the count is already shortened and grouped
-        # (844, 161k), and the page's own grouping would make "1 61k" of it.
-        return {'text': text, 'color': badges.NEUTRAL}
-
-    def _vehicle(self, metric, account_id, tank_id, mode):
-        """What this player does on this vehicle, as the page draws it.
-
-        None when there is nothing to say: an account we hold no record for,
-        or a vehicle this player has never taken into this mode. That is the
-        answer the whole figure exists for, so it is never dressed up as a
-        zero -- never played and played badly are different things.
-        """
-        record = self._lookup.vehicle(account_id, tank_id, mode)
-        if record is None or not record.known or not record.battles:
-            return None
-        shown = {'scope': record.scope or 'overall', 'battles': self._count(record.battles)}
-        value = record.rating(metric) if metric else None
-        if value is not None:
-            shown['rating'] = self._badge(metric, value)
-        return shown
-
-    def _badge(self, metric, value):
-        """{image, width, height} of a rating's badge, or {value, color}.
-
-        The IMAGE, not a shape built in CSS. The mod draws this badge
-        everywhere else -- above the vehicles, in the players panel, on the
-        results screen -- from `badge_png`, on a fixed grid: 3px of padding,
-        a 6px cell per digit, 2px between thousands, rounded corners, the
-        band's colour, white text. Reproducing that in a stylesheet gets
-        close and stays visibly not the same thing, which is what the first
-        two attempts here were. `img://` resolves in this page: the language
-        flags beside these badges are already drawn that way.
-
-        The CSS pill stays as the fallback for the session where the badge
-        folder was not in the client's resource index at startup, which is
-        the one case `Badges.image` cannot draw for.
-        """
-        found = self._badges.image(metric, value) if metric else None
-        if found is not None:
-            path, width, height = found
-            return {'image': 'img://%s' % path, 'width': width, 'height': height}
-        color = self._scales.color(metric, value) if metric else None
-        return {'value': int(round(value)), 'color': color or '#F2F2F7'}
-
     def _publish_all(self):
         for model in list(self._models().keys()):
             self._publish(model)
@@ -335,10 +279,16 @@ class TabScreen(object):
             # record then covers every mode, and says so.
             mode = modes.current_wg_mode()
             vehicle_metric = self._settings.vehicle_metric(SURFACE)
+            # A reader who chose the career pays for nothing: the pairs are
+            # never asked for and the column is never drawn. This page has
+            # room for both, so the other two choices both draw both -- what
+            # separates them is a column one pill wide, which this is not.
+            wants_vehicle = self._settings.wants_vehicle(SURFACE)
             for names, account_id, tank_id, ally in self._roster():
                 # Asked for before the player is read, so a roster whose
                 # ratings are already cached still fetches the pairs.
-                if tank_id and self._lookup.needs_vehicle(account_id, tank_id, mode):
+                if (wants_vehicle and tank_id
+                        and self._lookup.needs_vehicle(account_id, tank_id, mode)):
                     pairs.append((account_id, tank_id))
                 if self._lookup.needs_fetch(PLAYERS, account_id):
                     wanted.append(account_id)
@@ -347,10 +297,12 @@ class TabScreen(object):
                 value = self._settings.rating(entry, SURFACE)
                 shown = {}
                 if value is not None:
-                    shown.update(self._badge(metric, value))
+                    shown.update(figures.rating_pill(self._badges, self._scales, metric, value))
                     values['allies' if ally else 'enemies'].append(value)
-                if tank_id:
-                    found = self._vehicle(vehicle_metric, account_id, tank_id, mode)
+                if wants_vehicle and tank_id:
+                    found = figures.vehicle_figures(
+                        self._badges, self._scales,
+                        self._lookup.vehicle(account_id, tank_id, mode), vehicle_metric)
                     if found is not None:
                         shown['vehicle'] = found
                 if limit and entry is not None:
@@ -367,7 +319,8 @@ class TabScreen(object):
                     if not found:
                         continue
                     mean = int(round(sum(found) / float(len(found))))
-                    data['averages'][side] = self._badge(metric, mean)
+                    data['averages'][side] = figures.rating_pill(
+                        self._badges, self._scales, metric, mean)
             # Two requests, not one, and the reason is what each costs. The
             # roster answers in milliseconds off indexed player rows; the
             # per-vehicle read goes at two much larger tables and was measured

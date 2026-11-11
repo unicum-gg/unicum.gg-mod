@@ -199,6 +199,42 @@ class _VehicleScales(object):
         return '#4A92B7'
 
 
+def check_page_figures():
+    """The same figures, wrapped for a page instead of for Scaleform markup.
+
+    The Tab screen and the results screen draw the badge as three fields they
+    put in a style rather than as `<IMG>` markup. One drawing, two wrappings:
+    this is the second one.
+    """
+    import tempfile
+    from unicum import figures
+
+    badges = _badges(tempfile.mkdtemp(), _VehicleScales())
+
+    shown = figures.vehicle_figures(badges, _VehicleScales(), _Record(), 'wnx')
+    check('a record drawn for a page carries its scope, its rating and its count',
+          shown['scope'] == 'mode' and 'rating' in shown and 'battles' in shown)
+    check('and the rating is the badge image, not a shape built in CSS',
+          shown['rating']['image'].startswith('img://') and shown['rating']['width'] > 0)
+
+    # Outside random battles there is no rating to draw; the win rate is.
+    shown = figures.vehicle_figures(badges, _VehicleScales(), _Record(wnx=None), 'wnx')
+    check('a mode with no WN rating draws the win rate in its place',
+          'rating' not in shown and 'winrate' in shown and 'battles' in shown)
+    check('with neither, the count stands alone',
+          'winrate' not in figures.vehicle_figures(
+              badges, _VehicleScales(), _Record(wnx=None, winrate=None), 'wnx'))
+
+    check('a pair with no record at all is nothing, never a zero',
+          figures.vehicle_figures(badges, None, None, 'wnx') is None
+          and figures.vehicle_figures(badges, None, _Record(known=False), 'wnx') is None
+          and figures.vehicle_figures(badges, None, _Record(battles=0), 'wnx') is None)
+
+    check("the tank's whole record says so, for the page to draw it quieter",
+          figures.vehicle_figures(badges, _VehicleScales(),
+                                  _Record(scope='overall'), 'wnx')['scope'] == 'overall')
+
+
 def check_plain_rating():
     """The grey number a row falls back to, and why it is not a pill."""
     import tempfile
