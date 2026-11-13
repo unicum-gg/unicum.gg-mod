@@ -138,20 +138,29 @@ def check_settings_preview(workdir):
     check('turning the flags off takes them out of the preview too',
           u'<IMG src="PL.png"/>' not in preview.lines(badges, textures, settings)[0][1])
 
-    # ------------------------------------------- what each of the pills is
+    # ----------------------------------------- each pill carries its name
     settings.update({'battle': {'flags': True, 'rating': True, 'figures': 'both'},
                      'metric': 'wnx', 'window': 'recent',
                      'winrate': 'total', 'battles': 'total'})
-    named = preview.lines(badges, textures, settings)
-    check('every pill of the resting row is named, in the order it was drawn',
-          named[0][2] == u'languages \u00b7 WNX, last 30 days \u00b7 win rate, overall '
-                         u'\u00b7 battles, overall')
-    check('and the tank row names what a tank answers with, either figure',
-          u'on the tank' in named[1][2] and u'battles on the tank' in named[1][2])
+    named = preview.lines(badges, textures, settings)[0][1]
+    check('the rating badge carries its metric and its period',
+          u'>WNX 30d<' in named)
+    check('the win rate and the count carry theirs, each with its own period',
+          u'>WR all<' in named and u'>battles all<' in named)
+    check('a name is smaller and dimmer than the figure it names',
+          named.count(u'size="8"') == 4 and named.count(u'#8a8a7e') == 4)
+    check("and it comes after its badge, so it settles at the badge foot",
+          named.index(u'>WNX 30d<') > named.index(u'wnx.'))
+
+    tank = preview.lines(badges, textures, settings)[1][1]
+    check('the tank row is named once, for the group',
+          u'>on the tank<' in tank and u'>WNX 30d<' not in tank)
 
     settings.update({'battles': 'off', 'winrate': 'off', 'battle': {'flags': False}})
+    bare = preview.lines(badges, textures, settings)[0][1]
     check('a pill that is not drawn is not named either',
-          preview.lines(badges, textures, settings)[0][2] == u'WNX, last 30 days')
+          u'>WNX 30d<' in bare and u'>WR all<' not in bare
+          and u'>battles all<' not in bare and u'>spoken<' not in bare)
     settings.update({'battles': 'total', 'winrate': 'total', 'battle': {'flags': True}})
 
     settings.update({'battle': {'rating': False, 'average': False, 'flags': False}})
@@ -172,8 +181,8 @@ def check_settings_preview(workdir):
 
     rows = preview_lines((badges, textures, settings))
     check('a caption is joined to its row with spaces, never a tab',
-          len(rows) == 2 and rows[0][0].startswith(u'at rest   ')
-          and not [field for row in rows for field in row if u'	' in field])
+          len(rows) == 2 and rows[0].startswith(u'at rest   ')
+          and not [row for row in rows if u'	' in row])
 
     # ------------------------------------------------ the garage's own row
     from unicum.settings_window.page import garage_preview_lines
@@ -182,9 +191,9 @@ def check_settings_preview(workdir):
                      'battles': 'total', 'winrate': 'total'})
     garage = garage_preview_lines((badges, textures, settings))
     check('the garage row says which of the five screens it is a row of',
-          len(garage) == 1 and garage[0][0].startswith(u'Contacts list   '))
-    check('and it carries its own legend, so no row of numbers goes unnamed',
-          garage[0][1] and u'WNX' in garage[0][1])
+          len(garage) == 1 and garage[0].startswith(u'Contacts list   '))
+    check('and no number in it goes unnamed',
+          u'>WNX 30d<' in garage[0] or u'>WNX all<' in garage[0])
 
     # A battle count is shortened past ten thousand wherever it is drawn:
     # the badge is an image and each distinct number is a file, so the limit
@@ -197,12 +206,12 @@ def check_settings_preview(workdir):
     settings.update({'battle': {'rating': True, 'flags': False, 'figures': 'career'}})
     battle_row = preview_lines((badges, textures, settings))[0]
     check('so the two previews carry the same count badge',
-          u'23k' in garage[0][0] and u'23k' in battle_row[0])
+          u'23k' in garage[0] and u'23k' in battle_row)
 
     settings.update({'contacts': {'rating': False, 'flags': False}})
     after = garage_preview_lines((badges, textures, settings))
     check('with contacts off it falls through to the next screen that is on',
-          len(after) == 1 and after[0][0].startswith(u'Profile   '))
+          len(after) == 1 and after[0].startswith(u'Profile   '))
 
     for surface in ('contacts', 'profile', 'skirmishRoom', 'stronghold', 'battleResults'):
         settings.update({surface: {'rating': False, 'flags': False, 'average': False}})

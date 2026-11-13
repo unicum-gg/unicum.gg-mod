@@ -50,22 +50,19 @@ _API_PREVIEW = True
 _logger = logging.getLogger('unicum.settings_window.page')
 
 def _joined(rows, prefix=u''):
-    """((drawn row, legend), ...): the markup as one field, its legend after.
-
-    Two fields rather than one because they are drawn differently: the row
-    is markup and the legend is plain text, and the line that draws markup
-    does not escape anything put in it.
+    """(drawn row, ...): each row as one field, its caption in front of it.
 
     A tab character would be read as the end of a field in the native page,
     so it never appears in one. Captions are this module's own words and a
-    surface's own label, so there is nothing to escape.
+    surface's own label, so there is nothing to escape, and the badges that
+    follow are the mod's own markup.
     """
     out = []
-    for caption, markup, legend in rows:
+    for caption, markup in rows:
         if not markup:
             continue
         said = u', '.join(part for part in (prefix, caption) if part)
-        out.append((u'%s   %s' % (said, markup) if said else markup, legend))
+        out.append(u'%s   %s' % (said, markup) if said else markup)
     return tuple(out)
 
 
@@ -175,10 +172,7 @@ def template(values, channel=u'', linked=False, card_shown=True,
         templates.createNumericStepper('Flags per player or clan', 'maxFlags', window['maxFlags'], 1, MAX_FLAGS, 1),
     ]
     if _API_PREVIEW:
-        for drawn, legend in garage_preview_lines(drawing):
-            garage.append(templates.createLabel(drawn))
-            if legend:
-                garage.append(templates.createLabel(legend))
+        garage.extend(templates.createLabel(row) for row in garage_preview_lines(drawing))
     garage.append(templates.createEmpty(_SPACER))
     garage.extend(show(surface) for surface in _GARAGE_SURFACES)
     garage.append(choice(RESULTS_FIGURES_LABEL, _figures_key('battleResults'),
@@ -251,10 +245,7 @@ def template(values, channel=u'', linked=False, card_shown=True,
                tooltip=_FIGURES_TOOLTIP),
     ]
     if _API_PREVIEW:
-        for drawn, legend in preview_lines(drawing):
-            battle.append(templates.createLabel(drawn))
-            if legend:
-                battle.append(templates.createLabel(legend))
+        battle.extend(templates.createLabel(row) for row in preview_lines(drawing))
     battle.append(templates.createEmpty(_SPACER))
     battle.extend(choice(_MODE_LABELS[mode], _mode_key(mode), [c[0] for c in TEAM_CHOICES],
                          tooltip=_MODES_TOOLTIP if mode == MODES[0] else None) for mode in MODES)
@@ -325,10 +316,8 @@ def native_page(values, channel=u'', linked=False, card_shown=True,
         lines.append(u'checkbox\t%s\t%s\t%d' % (var, label, 1 if window[var] else 0))
 
     def preview_rows(rows):
-        for drawn, legend in rows:
-            lines.append(u'preview\t' + drawn)
-            if legend:
-                lines.append(u'text\t' + legend)
+        for row in rows:
+            lines.append(u'preview\t' + row)
 
     tab(u'Garage')
     group(0, u'Stats')

@@ -193,8 +193,7 @@ class Badges(object):
         if window is not None:
             value = entry.stat('battles', window)
             if value is not None:
-                text = count(value)
-                parts.append(self._pill(text, NEUTRAL) or _DIM % text)
+                parts.append(self.count_markup(value))
         if not parts:
             return ''
         return ' ' + _GAP.join(parts)
@@ -288,6 +287,17 @@ class Badges(object):
         text = winrate(value, decimal)
         color = self._scales.color('winrate', value, 'percent') if self._scales else None
         return self._pill(text, color) or _DIM % text
+
+    def count_markup(self, battles):
+        """A battle count as its badge, or as plain grey text when none draws.
+
+        Named rather than inlined because the settings preview builds the
+        same row one piece at a time, to put each piece's name beside it.
+        Two places asking for a battle count is two chances to round it
+        differently, and this is the one that rounds it.
+        """
+        text = count(battles)
+        return self._pill(text, NEUTRAL) or _DIM % text
 
     def picture(self, text, color):
         """(resource path, width, height) of a badge of arbitrary text, or None.
