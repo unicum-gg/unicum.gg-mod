@@ -39,9 +39,9 @@ const CORNER = 3
 // face, small enough to sit inside the badge's own 12px without making it
 // any bigger. Capitals and digits only -- a tag is a code, WNX or WR, and a
 // code set in mixed case reads as a word that has been cut short.
-const CAPTION_HEIGHT = 6
-const CAPTION_SIZE = 5
-const CAPTION_BASELINE = 4.6
+const CAPTION_HEIGHT = 8
+const CAPTION_SIZE = 7
+const CAPTION_BASELINE = 6.2
 const CAPTION_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 
 const output = path.resolve(import.meta.dirname, '..', '..', 'src', 'unicum', 'badge_glyphs.json')

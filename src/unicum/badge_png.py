@@ -173,12 +173,18 @@ TAG_BAND = '#1F1F1F'
 
 
 def tag_size(value, tag):
-    """(width, height) of the whole image: the badge plus the chip's overhang."""
-    width, height = width_of(value), HEIGHT
-    chip, rows = _chip_size(tag)
+    """(width, height) of the whole image: the badge plus the chip's overhang.
+
+    The height is the badge's own, always. These images sit inline in a row
+    of ordinary badges and flags, and Scaleform lines an inline image up by
+    its bottom edge: one a few pixels taller than its neighbours lifts its
+    own badge off the line they share, and the row goes crooked. So the
+    chip overhangs to the right only.
+    """
+    chip, _ = _chip_size(tag)
     if not chip:
-        return width, height
-    return width + chip - TAG_OVERLAP, height + rows - TAG_OVERLAP
+        return width_of(value), HEIGHT
+    return width_of(value) + chip - TAG_OVERLAP, HEIGHT
 
 
 def _chip_size(tag):
@@ -194,12 +200,12 @@ def tagged_pixels(value, hex_color, tag):
     """(width, height, rows) for a badge with `tag` pinned to its corner.
 
     The badge itself is the badge: same width, same height, same pixels as
-    `pixels` gives, drawn into the top left of a slightly larger image. The
-    chip is a small dark box at the bottom right, overlapping the badge's
-    corner and hanging past it, with the tag in white on it.
+    `pixels` gives, drawn into the left of a slightly wider image. The chip
+    is a small dark box sitting on the badge's bottom right corner and
+    hanging past its right edge, with the tag in white on it.
     """
     chip, rows = _chip_size(tag)
-    badge_width, _ = width_of(value), HEIGHT
+    badge_width = width_of(value)
     if not chip:
         width, pixel_rows = pixels(value, hex_color)
         return width, HEIGHT, pixel_rows

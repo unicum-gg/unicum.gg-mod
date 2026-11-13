@@ -149,29 +149,42 @@ def check_settings_preview(workdir):
 
     named = preview.lines(badges, textures, settings)[0][1]
     check('each badge carries what it is, in the badge and not beside it',
-          u'.wnx.' in named and u'.wr.' in named and u'.btl.' in named
+          u'.wnx' in named and u'.wr' in named and u'.btl' in named
           and u'<font' not in named)
+    # The chip has been redesigned twice and kept its file name both times,
+    # which left every badge already on disk being served at the new one's
+    # width. The size is in the name now.
+    chip_w, chip_h = badge_png._chip_size(u'WNX')
+    check('and its file name says what size chip drew it',
+          u'.wnx%dx%d.' % (chip_w, chip_h) in named)
 
     # The chip hangs off the corner rather than sitting inside it, which is
-    # what keeps the figure's last digit readable. So the image is a little
-    # wider and taller than the badge, and the badge itself is untouched.
+    # what keeps the figure's last digit readable. To the right only: these
+    # images sit inline among plain badges and flags, and Scaleform lines an
+    # inline image up by its bottom edge, so one pixel of extra height would
+    # lift its badge off the line the row shares. This is the check that
+    # caught that, and it is here to catch it again.
     chip, rows = badge_png._chip_size(u'WNX')
     width, height = badge_png.tag_size(2291, u'WNX')
-    check('a tagged badge is the badge, with the chip hanging off its corner',
-          width == badge_png.width_of(2291) + chip - badge_png.TAG_OVERLAP
-          and height == badge_png.HEIGHT + rows - badge_png.TAG_OVERLAP)
+    check('a tagged badge is the badge, with the chip hanging off to its right',
+          width == badge_png.width_of(2291) + chip - badge_png.TAG_OVERLAP)
+    check('and it is exactly as tall as a badge with no chip, so a row stays level',
+          height == badge_png.HEIGHT
+          and len(badge_png.tagged_pixels(2291, '#7E3BC9', u'WNX')[2]) == badge_png.HEIGHT)
     check('and the badge under it is pixel for pixel the badge drawn anywhere else',
           badge_png.tagged_pixels(2291, '#7E3BC9', u'WNX')[2][0][:badge_png.width_of(2291) * 4]
           == badge_png.pixels(2291, '#7E3BC9')[1][0])
+    check('the chip is tall enough to read and still inside the badge it marks',
+          4 < rows < badge_png.HEIGHT)
 
     tank = preview.lines(badges, textures, settings)[1][1]
     check('the tank row carries the same chips, its caption saying whose battles',
-          u'.wnx.' in tank and u'.btl.' in tank)
+          u'.wnx' in tank and u'.btl' in tank)
 
     settings.update({'battles': 'off', 'winrate': 'off', 'battle': {'flags': False}})
     bare = preview.lines(badges, textures, settings)[0][1]
     check('a badge that is not drawn carries no chip either',
-          u'.wnx.' in bare and u'.wr.' not in bare and u'.btl.' not in bare
+          u'.wnx' in bare and u'.wr' not in bare and u'.btl' not in bare
           and u'PL.png' not in bare)
     settings.update({'battles': 'total', 'winrate': 'total', 'battle': {'flags': True}})
 
@@ -205,7 +218,7 @@ def check_settings_preview(workdir):
     check('the garage row says which of the five screens it is a row of',
           len(garage) == 1 and garage[0].startswith(u'Contacts list   '))
     check('and no number in it goes unnamed',
-          u'.wnx.' in garage[0])
+          u'.wnx' in garage[0])
 
     # A battle count is shortened past ten thousand wherever it is drawn:
     # the badge is an image and each distinct number is a file, so the limit

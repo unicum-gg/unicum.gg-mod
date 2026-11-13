@@ -251,7 +251,15 @@ class Badges(object):
         # drawing that groups it by thousands, and the name only has to be
         # unique and spellable.
         key = text if isinstance(text, basestring) else '%d' % text
-        name = '%s.%s.%s.png' % (_slug(key), _slug(tag).lower(), color.lstrip('#').lower())
+        chip, rows = badge_png._chip_size(tag)
+        # The chip's size is in the name, and it is there for one reason: a
+        # badge already on disk is never drawn again, and this chip has been
+        # redesigned twice. Both times the file kept its name, so every
+        # player who had seen the old one kept seeing it, stretched to the
+        # new one's width. Size in the name, and a redesign simply asks for
+        # a file nobody has.
+        name = '%s.%s%dx%d.%s.png' % (_slug(key), _slug(tag).lower(), chip, rows,
+                                      color.lstrip('#').lower())
         if not self._ensure(name, lambda: badge_png.tagged_png(text, color, tag)):
             return ''
         width, height = badge_png.tag_size(text, tag)
