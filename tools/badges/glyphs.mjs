@@ -35,13 +35,15 @@ const BASELINE = 9.5
 const MARGIN = 1
 const CORNER = 3
 
-// The corner tag the settings window's preview stamps on a badge: the same
-// face, small enough to sit inside the badge's own 12px without making it
-// any bigger. Capitals and digits only -- a tag is a code, WNX or WR, and a
-// code set in mixed case reads as a word that has been cut short.
-const CAPTION_HEIGHT = 8
-const CAPTION_SIZE = 7
-const CAPTION_BASELINE = 6.2
+// The corner tag the settings window's preview pins to a badge: the same
+// face, sized to be read rather than merely to fit. It is most of the
+// badge's own 12px, which is the point -- at seven pixels it was present
+// without being legible, which is no use to the reader it exists for.
+// Capitals and digits only: a tag is a code, WNX or WR, and a code set in
+// mixed case reads as a word that has been cut short.
+const CAPTION_HEIGHT = 10
+const CAPTION_SIZE = 9
+const CAPTION_BASELINE = 8.0
 const CAPTION_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 
 const output = path.resolve(import.meta.dirname, '..', '..', 'src', 'unicum', 'badge_glyphs.json')
