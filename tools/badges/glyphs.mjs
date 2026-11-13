@@ -35,15 +35,14 @@ const BASELINE = 9.5
 const MARGIN = 1
 const CORNER = 3
 
-// A caption under the figure, for the settings window's preview: the same
-// face at a smaller size, on its own shorter row below the badge's own.
-// Capitals and digits only. A caption is a code -- WNX, WR, 30D -- and a
+// The corner tag the settings window's preview stamps on a badge: the same
+// face, small enough to sit inside the badge's own 12px without making it
+// any bigger. Capitals and digits only -- a tag is a code, WNX or WR, and a
 // code set in mixed case reads as a word that has been cut short.
-const CAPTION_HEIGHT = 8
-const CAPTION_SIZE = 7
-const CAPTION_BASELINE = 6
+const CAPTION_HEIGHT = 6
+const CAPTION_SIZE = 5
+const CAPTION_BASELINE = 4.6
 const CAPTION_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-const TALL = HEIGHT + CAPTION_HEIGHT
 
 const output = path.resolve(import.meta.dirname, '..', '..', 'src', 'unicum', 'badge_glyphs.json')
 
@@ -138,13 +137,9 @@ async function main() {
     return [rect.map((row) => row.slice(0, CORNER)), rect.map((row) => row.slice(probe - CORNER))]
   }
   const [left, right] = await corners(HEIGHT)
-  const [tallLeft, tallRight] = await corners(TALL)
   await writeFile(output, JSON.stringify({
     height: HEIGHT, cell: DIGIT_WIDTH, margin: MARGIN, cells, digits, left, right,
-    caption: {
-      height: CAPTION_HEIGHT, cells: captionCells, glyphs: captionGlyphs,
-      left: tallLeft, right: tallRight,
-    },
+    caption: { height: CAPTION_HEIGHT, cells: captionCells, glyphs: captionGlyphs },
   }))
   console.log(`wrote ${output}`)
 }

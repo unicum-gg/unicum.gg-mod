@@ -145,31 +145,34 @@ def check_settings_preview(workdir):
                      # stands up gives no band under 56 and the career one
                      # is 54.6: a badge with no band is not drawn at all.
                      'winrate': 'recent', 'battles': 'total'})
-    from unicum.badge_png import HEIGHT, caption_height
-    from unicum.badges import _slug
+    from unicum import badge_png
 
     named = preview.lines(badges, textures, settings)[0][1]
-    check('the rating badge carries its metric and its period, in the badge',
-          _slug(u'WNX 30D') in named)
-    check('the win rate and the count carry theirs, each with its own period',
-          _slug(u'WR 30D') in named and _slug(u'BATTLES ALL') in named)
-    # The caption is part of the image, not text beside it: that is the
-    # whole difference between a badge that says what it is and a badge
-    # with a word stuck to its side.
-    check('a captioned badge is one image, as tall as both of its rows',
-          named.count(u'height="%d"' % (HEIGHT + caption_height())) == 3
+    check('each badge carries what it is, in the badge and not beside it',
+          u'.wnx.' in named and u'.wr.' in named and u'.btl.' in named
           and u'<font' not in named)
 
+    # The chip hangs off the corner rather than sitting inside it, which is
+    # what keeps the figure's last digit readable. So the image is a little
+    # wider and taller than the badge, and the badge itself is untouched.
+    chip, rows = badge_png._chip_size(u'WNX')
+    width, height = badge_png.tag_size(2291, u'WNX')
+    check('a tagged badge is the badge, with the chip hanging off its corner',
+          width == badge_png.width_of(2291) + chip - badge_png.TAG_OVERLAP
+          and height == badge_png.HEIGHT + rows - badge_png.TAG_OVERLAP)
+    check('and the badge under it is pixel for pixel the badge drawn anywhere else',
+          badge_png.tagged_pixels(2291, '#7E3BC9', u'WNX')[2][0][:badge_png.width_of(2291) * 4]
+          == badge_png.pixels(2291, '#7E3BC9')[1][0])
+
     tank = preview.lines(badges, textures, settings)[1][1]
-    check('every caption of the tank row says which tank it is about',
-          _slug(u'WNX TANK') in tank and _slug(u'BATTLES TANK') in tank
-          and _slug(u'WNX 30D') not in tank)
+    check('the tank row carries the same chips, its caption saying whose battles',
+          u'.wnx.' in tank and u'.btl.' in tank)
 
     settings.update({'battles': 'off', 'winrate': 'off', 'battle': {'flags': False}})
     bare = preview.lines(badges, textures, settings)[0][1]
-    check('a badge that is not drawn carries no caption either',
-          _slug(u'WNX 30D') in bare and _slug(u'WR 30D') not in bare
-          and _slug(u'BATTLES ALL') not in bare and u'PL.png' not in bare)
+    check('a badge that is not drawn carries no chip either',
+          u'.wnx.' in bare and u'.wr.' not in bare and u'.btl.' not in bare
+          and u'PL.png' not in bare)
     settings.update({'battles': 'total', 'winrate': 'total', 'battle': {'flags': True}})
 
     settings.update({'battle': {'rating': False, 'average': False, 'flags': False}})
@@ -202,7 +205,7 @@ def check_settings_preview(workdir):
     check('the garage row says which of the five screens it is a row of',
           len(garage) == 1 and garage[0].startswith(u'Contacts list   '))
     check('and no number in it goes unnamed',
-          _slug(u'WNX 30D') in garage[0] or _slug(u'WNX ALL') in garage[0])
+          u'.wnx.' in garage[0])
 
     # A battle count is shortened past ten thousand wherever it is drawn:
     # the badge is an image and each distinct number is a file, so the limit

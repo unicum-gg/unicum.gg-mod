@@ -79,27 +79,21 @@ def caption_cell_of(char):
     return ((_load().get('caption') or {}).get('cells') or {}).get(char, 0)
 
 
-def caption_width_of(text):
-    return 2 * PADDING + sum(caption_cell_of(char) for char in text)
-
-
-def captioned_size(value, caption):
-    """(width, height) of a badge with `caption` under its figure.
-
-    As wide as the wider of the two rows. Which one that is depends on the
-    number: WNX is wider than 412 and narrower than 23 184.
-    """
-    return max(width_of(value), caption_width_of(caption)), HEIGHT + caption_height()
-
-
 def _rgb(hex_color):
     hex_color = hex_color.lstrip('#')
     return tuple(int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
 
 
 def _band(width, height, left, right):
-    """The badge's own coverage: full, but for the rounded corners."""
+    """The badge's own coverage: full, but for the rounded corners.
+
+    A box shorter than the corner masks were rendered for is left square:
+    rounding it from a taller mask would round it by the wrong amount, and
+    a 6px chip has no room for a 2px radius anyway.
+    """
     shape = [[255] * width for _ in range(height)]
+    if len(left) != height:
+        return shape
     corner = len(left[0])
     for y in range(height):
         for x in range(corner):
@@ -164,32 +158,73 @@ def pixels(value, hex_color):
     return width, _compose(width, HEIGHT, shape, text, hex_color)
 
 
-# How much of the figure's brightness the caption keeps. Under it rather
-# than beside it, and quieter than it: the number is what is read and the
-# caption is what it is called. Full white would make them two figures.
-CAPTION_ALPHA = 0.72
+# The corner tag. Pinned to the badge's bottom right and hanging off it,
+# rather than stamped into it: a badge is drawn exactly as wide as its
+# figure, so anything laid inside the corner lands on the last digit, and
+# the digit is what is being read. Overhanging keeps the badge the size it
+# is everywhere else in the mod and keeps every digit of it visible.
+TAG_PAD = 1
+# How far the chip reaches back over the badge. Enough to read as attached
+# to it rather than as a second thing floating beside it.
+TAG_OVERLAP = 3
+# The chip's own band, dark enough for white letters to read on it against
+# any of the scales' colours.
+TAG_BAND = '#1F1F1F'
 
 
-def captioned_pixels(value, hex_color, caption):
-    """(width, height, rows) for a badge with `caption` under its figure.
+def tag_size(value, tag):
+    """(width, height) of the whole image: the badge plus the chip's overhang."""
+    width, height = width_of(value), HEIGHT
+    chip, rows = _chip_size(tag)
+    if not chip:
+        return width, height
+    return width + chip - TAG_OVERLAP, height + rows - TAG_OVERLAP
 
-    Both rows are centred, because which of the two is wider depends on the
-    number. Left-aligning them would put the caption under the start of a
-    long count and under the whole of a short one.
+
+def _chip_size(tag):
+    """(width, height) of the chip itself, (0, 0) without a glyph set for it."""
+    rows = caption_height()
+    ink = sum(caption_cell_of(char) for char in tag)
+    if not rows or not ink:
+        return 0, 0
+    return ink + 2 * TAG_PAD, rows
+
+
+def tagged_pixels(value, hex_color, tag):
+    """(width, height, rows) for a badge with `tag` pinned to its corner.
+
+    The badge itself is the badge: same width, same height, same pixels as
+    `pixels` gives, drawn into the top left of a slightly larger image. The
+    chip is a small dark box at the bottom right, overlapping the badge's
+    corner and hanging past it, with the tag in white on it.
     """
+    chip, rows = _chip_size(tag)
+    badge_width, _ = width_of(value), HEIGHT
+    if not chip:
+        width, pixel_rows = pixels(value, hex_color)
+        return width, HEIGHT, pixel_rows
+    width, height = tag_size(value, tag)
+    _, drawn = pixels(value, hex_color)
+    out = [[0] * (width * 4) for _ in range(height)]
+    for y in range(HEIGHT):
+        out[y][:badge_width * 4] = drawn[y]
+    # The chip, with the same rounded corners as a badge of its own size:
+    # a square box beside a rounded one reads as a mistake.
     masks = _load()
-    low = masks.get('caption') or {}
-    width, height = captioned_size(value, caption)
-    shape = _band(width, height, low.get('left') or masks['left'],
-                  low.get('right') or masks['right'])
-    text = [[0] * width for _ in range(height)]
-    chars = layout(value)
-    _lay(text, chars, cell_of, masks['digits'], masks['margin'],
-         (width - sum(cell_of(char) for char in chars)) // 2, 0)
-    _lay(text, caption, caption_cell_of, low.get('glyphs') or {}, masks['margin'],
-         (width - sum(caption_cell_of(char) for char in caption)) // 2, HEIGHT,
-         CAPTION_ALPHA)
-    return width, height, _compose(width, height, shape, text, hex_color)
+    shape = _band(chip, rows, masks['left'], masks['right'])
+    letters = [[0] * chip for _ in range(rows)]
+    _lay(letters, tag, caption_cell_of, (masks.get('caption') or {}).get('glyphs') or {},
+         masks['margin'], TAG_PAD, 0)
+    patch = _compose(chip, rows, shape, letters, TAG_BAND)
+    x0, y0 = width - chip, height - rows
+    for y in range(rows):
+        row = patch[y]
+        target = out[y0 + y]
+        for x in range(chip):
+            at = x * 4
+            if row[at + 3]:
+                target[(x0 + x) * 4:(x0 + x) * 4 + 4] = row[at:at + 4]
+    return width, height, out
 
 
 def _chunk(kind, data):
@@ -210,7 +245,7 @@ def png(value, hex_color):
     return _png(width, HEIGHT, rows)
 
 
-def captioned_png(value, hex_color, caption):
-    """PNG bytes of a badge with its name on a row under its figure."""
-    width, height, rows = captioned_pixels(value, hex_color, caption)
+def tagged_png(value, hex_color, tag):
+    """PNG bytes of a badge with its name pinned to its bottom right corner."""
+    width, height, rows = tagged_pixels(value, hex_color, tag)
     return _png(width, height, rows)

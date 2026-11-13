@@ -231,26 +231,30 @@ class Badges(object):
             return None
         return self._scales.color(scale, value, unit) if unit else self._scales.color(scale, value)
 
-    def captioned_markup(self, text, color, caption):
-        """htmlText for a badge carrying `caption` on a row under its figure.
+    def tagged_markup(self, text, color, tag):
+        """htmlText for a badge with `tag` pinned to its bottom right corner.
+
+        The badge keeps the size it has everywhere else in the mod; the tag
+        is a small dark chip overhanging its corner, which is what leaves
+        every digit of the figure visible.
 
         Only the settings window asks for one. A battle row is thirty lines
-        of three badges and would be ninety captions in the narrowest column
+        of three badges and would be ninety chips in the narrowest column
         this mod draws; the window is where a reader is asking what the
         figures are, and the only place with the room to answer.
 
         '' when the badge cannot draw at all, like every other badge here.
         """
-        if not self._ready or not color or not caption:
+        if not self._ready or not color or not tag:
             return ''
         # `text` may be a number, which is how a rating arrives: it is the
         # drawing that groups it by thousands, and the name only has to be
         # unique and spellable.
         key = text if isinstance(text, basestring) else '%d' % text
-        name = '%s.%s.%s.png' % (_slug(key), _slug(caption), color.lstrip('#').lower())
-        if not self._ensure(name, lambda: badge_png.captioned_png(text, color, caption)):
+        name = '%s.%s.%s.png' % (_slug(key), _slug(tag).lower(), color.lstrip('#').lower())
+        if not self._ensure(name, lambda: badge_png.tagged_png(text, color, tag)):
             return ''
-        width, height = badge_png.captioned_size(text, caption)
+        width, height = badge_png.tag_size(text, tag)
         return _IMG % ('%s/%s' % (self._res_path, name), width, height)
 
     def count_markup(self, battles):
