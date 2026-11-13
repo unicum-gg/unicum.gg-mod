@@ -38,8 +38,44 @@ from unicum.settings_window.labels import (_ALT_SCREENS, _CHOICE_WIDTH,
                                            TEXT_SIZE_LABELS, REPLAYS_TOOLTIP)
 from unicum.settings_window.codec import (_alt_key, _figures_key, _menu_key,
                                           _mode_key, _show_key, to_window)
+from unicum.settings_window import preview
+
+# Whether the modsSettingsApi page carries the preview too. Its label is
+# izeberg's component, not ours, and whether it draws markup or prints the
+# tags is not written down anywhere: this says so out loud instead of
+# pretending it was checked. The client's own settings tab draws it either
+# way, because that one is ours.
+_API_PREVIEW = True
 
 _logger = logging.getLogger('unicum.settings_window.page')
+
+def preview_lines(drawing):
+    """The sample battle rows as markup, captions included; () without the badges.
+
+    `drawing` is (badges, textures, settings) or None. None until the mod has
+    built them, which is the first moment of a session and any session where
+    the badge files could not be drawn: the window opens with one line fewer
+    rather than not at all.
+
+    The settings come through here rather than from the `values` the rest of
+    the page is built from because the preview asks them questions -- what is
+    shown, which figures, which metric -- that only the store answers. They
+    are the same values either way: the page is built from `store.values()`.
+
+    A tab character would be read as the end of the field, so the caption is
+    joined to its row with spaces. Captions are this module's own words, so
+    there is nothing to escape.
+    """
+    if not drawing:
+        return ()
+    badges, textures, settings = drawing
+    out = []
+    for caption, markup in preview.lines(badges, textures, settings):
+        if not markup:
+            continue
+        out.append(u'%s   %s' % (caption, markup) if caption else markup)
+    return out
+
 
 def _heading(templates, text):
     return templates.createLabel(u'%s  %s' % (text.upper(), _RULE))
@@ -57,7 +93,8 @@ def _button_line(templates, text, var, button, tooltip=None):
                 button=templates.createButton(width=90, height=24, text=button))
 
 def template(values, channel=u'', linked=False, card_shown=True,
-             supporter=False, loadouts_hidden=False, battles_hidden=None):
+             supporter=False, loadouts_hidden=False, battles_hidden=None,
+             drawing=None):
     """The API's page for these settings, showing `values` and the Twitch channel followed.
 
     `linked` is whether the Twitch chat can be written to, `card_shown` whether
@@ -173,8 +210,10 @@ def template(values, channel=u'', linked=False, card_shown=True,
         show('battle'),
         choice(FIGURES_LABEL, _figures_key('battle'), list(FIGURE_LABELS),
                tooltip=_FIGURES_TOOLTIP),
-        templates.createEmpty(_SPACER),
     ]
+    if _API_PREVIEW:
+        battle.extend(templates.createLabel(line) for line in preview_lines(drawing))
+    battle.append(templates.createEmpty(_SPACER))
     battle.extend(choice(_MODE_LABELS[mode], _mode_key(mode), [c[0] for c in TEAM_CHOICES],
                          tooltip=_MODES_TOOLTIP if mode == MODES[0] else None) for mode in MODES)
     battle.append(templates.createEmpty(_SPACER))
@@ -205,7 +244,8 @@ def template(values, channel=u'', linked=False, card_shown=True,
             'column1': garage, 'column2': battle}
 
 def native_page(values, channel=u'', linked=False, card_shown=True,
-                supporter=False, loadouts_hidden=False, battles_hidden=None):
+                supporter=False, loadouts_hidden=False, battles_hidden=None,
+                drawing=None):
     """The same settings for the unicum.gg tab of the game's settings window (settings_tab.py).
 
     The same variables and the same choices as template(), laid out for a
@@ -217,7 +257,8 @@ def native_page(values, channel=u'', linked=False, card_shown=True,
       group     column (0 or 1), title
       dropdown  var, label, selected index, offset, options apart by "|"
       checkbox  var, label, 1 or 0
-      text      label
+      text      label, drawn as plain text with its markup escaped
+      preview   markup, drawn as markup: the mod's own badges, nothing else
       button    var, label, button text
 
     A dropdown sends back its index plus its offset: maxFlags counts from 1.
@@ -240,6 +281,10 @@ def native_page(values, channel=u'', linked=False, card_shown=True,
 
     def checkbox(label, var):
         lines.append(u'checkbox\t%s\t%s\t%d' % (var, label, 1 if window[var] else 0))
+
+    def preview_rows():
+        for line in preview_lines(drawing):
+            lines.append(u'preview\t' + line)
 
     tab(u'Garage')
     group(0, u'Stats')
@@ -277,6 +322,7 @@ def native_page(values, channel=u'', linked=False, card_shown=True,
     group(0, u'What and when')
     show('battle')
     dropdown(FIGURES_LABEL, _figures_key('battle'), list(FIGURE_LABELS))
+    preview_rows()
     for key, label in _ALT_SCREENS:
         dropdown(label, _alt_key(key), WHEN_CHOICES)
     group(0, u'Tools')

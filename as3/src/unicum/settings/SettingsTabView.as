@@ -65,6 +65,12 @@ package unicum.settings
 
       private static const DROPDOWN_ROW:int = 45;
 
+      // A preview line. Taller than a checkbox because it carries badge
+      // images, and fixed rather than measured: Scaleform loads an inline
+      // <IMG> a frame or more after the field is filled, so anything read
+      // off the field the same frame is read before the images exist.
+      private static const PREVIEW_ROW:int = 26;
+
       private static const DROPDOWN_WIDTH:int = 180;
 
       // The first section, as General has it, under the sub-tabs' 22.
@@ -772,7 +778,11 @@ package unicum.settings
 
       private static function rowHeight(fields:Array) : int
       {
-         return fields[0] == "dropdown" ? DROPDOWN_ROW : CHECKBOX_ROW;
+         if(fields[0] == "dropdown")
+         {
+            return DROPDOWN_ROW;
+         }
+         return fields[0] == "preview" ? PREVIEW_ROW : CHECKBOX_ROW;
       }
 
       private function drawItems(items:Array) : void
@@ -843,6 +853,10 @@ package unicum.settings
          {
             this.label(fields[1], x + 3, y + 1);
          }
+         else if(kind == "preview")
+         {
+            this.markup(fields[1], x + 3, y + 1);
+         }
          else if(kind == "button")
          {
             this.label(fields[2], x + 3, y + 1);
@@ -864,6 +878,27 @@ package unicum.settings
       private function label(value:String, x:int, y:int) : void
       {
          var field:TextField = this.text(value, LABEL_COLOR, LABEL_SIZE, LABEL_FONT);
+         field.x = x;
+         field.y = y;
+         this._content.addChild(field);
+      }
+
+      /** A line of ready-made markup, drawn as markup.
+       *
+       * The sibling of `text` that does NOT escape its angle brackets,
+       * because here they are the whole point: the value is a string of
+       * <IMG> tags this mod built from its own badge files, the same ones
+       * it writes into a player's name in battle. Nothing that came from
+       * outside the mod may be passed here.
+       */
+      private function markup(value:String, x:int, y:int) : void
+      {
+         var field:TextField = new TextField();
+         field.autoSize = TextFieldAutoSize.LEFT;
+         field.selectable = false;
+         field.mouseEnabled = false;
+         field.htmlText = "<font face='" + LABEL_FONT + "' size='" + LABEL_SIZE +
+                          "' color='" + LABEL_COLOR + "'>" + value + "</font>";
          field.x = x;
          field.y = y;
          this._content.addChild(field);

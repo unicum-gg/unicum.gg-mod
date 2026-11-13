@@ -32,11 +32,20 @@ class SettingsTab(object):
         self._link = link
         self._chat = None
         self._published = {}  # view name -> page it was last handed
+        self._drawing = None  # (badges, flag textures, settings), once built
         self._failed = set()  # views whose properties could not be reached, logged once
 
     def install(self):
         self._session.repeat(_TICK_SECONDS, self._tick)
         _logger.info('installed')
+
+    def follow_badges(self, badges, textures):
+        """Hand over what the preview draws with. See the API window's own.
+
+        Nothing else to do: the tab republishes whenever the page text
+        changes, and a preview that appears makes it change.
+        """
+        self._drawing = (badges, textures, self._settings)
 
     def follow_twitch(self, chat):
         """Show the channel `chat` follows on the Twitch sub-tab."""
@@ -51,7 +60,8 @@ class SettingsTab(object):
             self._settings.values(), channel, linked and link.twitch == 'ready', card_shown,
             supporter=bool(link is not None and link.supporter),
             loadouts_hidden=bool(link is not None and link.loadouts_hidden),
-            battles_hidden=link.battles_hidden if linked else None)
+            battles_hidden=link.battles_hidden if linked else None,
+            drawing=self._drawing)
 
     def _tick(self):
         try:

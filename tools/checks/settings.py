@@ -86,6 +86,80 @@ def check_settings(workdir):
           not settings.shows('contacts') and not settings.shows_flags('battle'))
 
 
+def check_settings_preview(workdir):
+    """The sample battle row the window draws, so a choice can be seen at all.
+
+    The point of the preview is that it is not a second drawing: it runs the
+    same badges the battle runs. So the checks are about what it asks for,
+    not about what comes out -- the shape of a badge is checked where badges
+    are checked.
+    """
+    import tempfile
+
+    from unicum.runtime.session import Session
+    from unicum.settings import Settings
+    from unicum.settings_window import preview
+    from unicum.settings_window.page import preview_lines
+
+    from checks.extras import _VehicleScales, _badges
+
+    badges = _badges(tempfile.mkdtemp(), _VehicleScales())
+
+    class Textures(object):
+        """Stands in for the flag cache: one tag per country, up to the limit."""
+
+        def markup(self, entry, limit=None):
+            codes = entry.flags[:limit] if limit else []
+            return u''.join(u'<IMG src="%s.png"/>' % code for code in codes)
+
+    settings = Settings(Session(generation=0), store=os.path.join(workdir, 'preview.json'))
+    textures = Textures()
+
+    settings.update({'battle': {'figures': 'career', 'rating': True, 'flags': True}})
+    lines = preview.lines(badges, textures, settings)
+    check('the career choice previews one row, with no caption to disambiguate',
+          len(lines) == 1 and lines[0][0] == u'' and u'<IMG' in lines[0][1])
+
+    settings.update({'battle': {'figures': 'both'}})
+    both = preview.lines(badges, textures, settings)
+    check('asking for both previews the resting row and the one Alt swaps to',
+          len(both) == 2 and [caption for caption, _ in both] == [u'at rest', u'with Alt']
+          and both[0][1] != both[1][1])
+
+    settings.update({'battle': {'figures': 'tank'}})
+    tank = preview.lines(badges, textures, settings)
+    check('and the tank choice previews the tank row alone',
+          len(tank) == 1 and tank[0][1] == both[1][1])
+
+    # The flags are the one part a reader can turn off on its own, so it is
+    # the one that proves the preview reads the live settings rather than a
+    # snapshot taken when the window opened.
+    settings.update({'battle': {'flags': False}})
+    check('turning the flags off takes them out of the preview too',
+          u'<IMG src="PL.png"/>' not in preview.lines(badges, textures, settings)[0][1])
+
+    settings.update({'battle': {'rating': False, 'average': False, 'flags': False}})
+    check('a surface showing nothing previews nothing, rather than an empty row',
+          preview.lines(badges, textures, settings) == [])
+
+    # A preview is a convenience; the settings window is not. Anything that
+    # goes wrong drawing it must cost the line, never the window.
+    class Broken(object):
+        def markup(self, entry, limit=None):
+            raise RuntimeError('no flags today')
+
+    settings.update({'battle': {'rating': True, 'flags': True, 'figures': 'both'}})
+    check('a drawing that throws costs the preview and not the window',
+          preview.lines(badges, Broken(), settings) == [])
+    check('and no badges at all means no rows asked for',
+          preview_lines(None) == ())
+
+    rows = preview_lines((badges, textures, settings))
+    check('a caption is joined to its row with spaces, never a tab',
+          len(rows) == 2 and rows[0].startswith(u'at rest   ')
+          and not [row for row in rows if u'\t' in row])
+
+
 def check_res_mods_version():
     """The newest res_mods folder is picked by version, not by spelling."""
     from unicum.config import _version_key
@@ -258,7 +332,8 @@ def check_settings_registration(workdir):
     drawn = []
 
     def fake_template(values, channel=u'', linked=False, card_shown=True,
-                      supporter=False, loadouts_hidden=False, battles_hidden=None):
+                      supporter=False, loadouts_hidden=False, battles_hidden=None,
+                      drawing=None):
         """Stands in for `page.template`, which needs the client's own builders."""
         drawn.append((loadouts_hidden, battles_hidden))
         return {'linkage': LINKAGE}

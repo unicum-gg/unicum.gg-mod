@@ -64,6 +64,10 @@ def start(generation=0):
         scales = RatingScales(_session)
         flags = FlagCache(_session)
         badges = Badges(scales)
+        # Both settings windows draw their preview with these: the same
+        # badges and the same flag files the battle itself draws with.
+        window.follow_badges(badges, flags)
+        tab.follow_badges(badges, flags)
         # One reader of the extended info key for every surface that can wait
         # for it: the battle screens, the skirmish room and the stronghold.
         from unicum.extended_info import ExtendedInfo
