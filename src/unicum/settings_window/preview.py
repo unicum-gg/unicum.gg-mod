@@ -21,6 +21,8 @@ from __future__ import absolute_import
 
 import logging
 
+from unicum import badges as badge_lib
+
 _logger = logging.getLogger('unicum.settings_window.preview')
 
 # What the sample player has done. Both windows carry every metric, so the
@@ -59,75 +61,70 @@ def _record():
                    ratings=dict(_VEHICLE['ratings']))
 
 
-# The name beside a badge: smaller and dimmer than the figure, on the same
-# baseline, so it settles at the bottom right of the image it names rather
-# than reading as another figure. 8 against the badge's own 10.
-_TAG = '<font face="$FieldFont" size="8" color="#8a8a7e">%s</font>'
-
-# How a period is said in a tag. Short because it sits inside a line of
-# badges: "last 30 days" there would be longer than the figure it qualifies.
-_WHEN = {'recent': '30d', 'total': 'all'}
-
-
-def _tagged(markup, name):
-    """A drawn figure with its name against it, or '' when nothing was drawn."""
-    if not markup:
-        return u''
-    return markup + _TAG % name
+# How a period is said on a caption. Short because it sits under a figure
+# and must not make the badge wider than the number it is about. Capitals
+# because the caption glyphs are capitals: a caption is a code, and a code
+# in mixed case reads as a word that was cut short.
+_WHEN = {'recent': '30D', 'total': 'ALL'}
 
 
 def _career(badges, textures, settings, entry, surface):
     """The row as it reads about the player's whole account."""
     parts = []
+    # The flags carry no caption. A flag is a flag, which is the one figure
+    # on the row nobody has ever had to ask about.
     if settings.shows_flags(surface):
-        flags = textures.markup(entry, settings['maxFlags'])
-        if flags:
-            parts.append(_tagged(flags.strip(), u'spoken'))
+        parts.append(textures.markup(entry, settings['maxFlags']).strip())
     # Built a piece at a time rather than through `rating` and `extras`,
-    # which return the whole group: a name has to go against each badge, and
-    # there is nowhere to put one between two badges already joined. Every
-    # piece is still the real one, so only the order is restated here, and
-    # the order is three items long and checked.
+    # which return the whole group already joined: a caption belongs to one
+    # badge and there is no way to give one to a badge inside a finished
+    # string. Every piece is still drawn by the real builder, so what is
+    # restated here is the order, which is three items long and checked.
     metric = settings.metric(surface)
     value = settings.rating(entry, surface)
     if metric is not None and value is not None:
-        parts.append(_tagged(badges.markup(metric, value) or u'%d' % round(value),
-                             u'%s %s' % (metric.upper(), _WHEN[settings['window']])))
+        parts.append(badges.captioned_markup(
+            int(round(value)), badges.band(metric, int(round(value))),
+            u'%s %s' % (metric.upper(), _WHEN[settings['window']])))
     window = settings.extra('winrate', surface)
     if window is not None:
         found = entry.stat('winrate', window)
         if found is not None:
-            parts.append(_tagged(badges.winrate_markup(found, settings.winrate_decimal()),
-                                 u'WR %s' % _WHEN[window]))
+            parts.append(badges.captioned_markup(
+                badge_lib.winrate(found, settings.winrate_decimal()),
+                badges.band('winrate', found, 'percent'), u'WR %s' % _WHEN[window]))
     window = settings.extra('battles', surface)
     if window is not None:
         found = entry.stat('battles', window)
         if found is not None:
-            parts.append(_tagged(badges.count_markup(found), u'battles %s' % _WHEN[window]))
-    return u'  '.join(parts)
+            parts.append(badges.captioned_markup(badge_lib.count(found),
+                                                 badge_lib.NEUTRAL,
+                                                 u'BATTLES %s' % _WHEN[window]))
+    return u'  '.join(part for part in parts if part)
 
 
 def _tank(badges, textures, settings, entry, surface):
     """The row as it reads about the tank that player brought."""
     parts = []
     if settings.shows_flags(surface):
-        flags = textures.markup(entry, settings['maxFlags'])
-        if flags:
-            parts.append(_tagged(flags.strip(), u'spoken'))
-    # The whole group at once here, unlike the career row: what a tank
-    # answers with is not a set of choices in this window but whatever the
-    # site holds, so there is no per-piece name to give. One name for the
-    # group says what it is about, which is the question being asked.
-    #
-    # The fallback is the battle's own: with nothing in hand, the career
-    # figure in plain grey rather than an empty column, so the preview shows
-    # what an unknown tank really looks like instead of showing nothing.
-    drawn = badges.vehicle(_record(), settings, surface)
-    if drawn:
-        parts.append(_tagged(drawn.strip(), u'on the tank'))
-    else:
-        parts.append(_tagged(badges.plain(entry, settings, surface).strip(),
-                             u'career, no record for this tank'))
+        parts.append(textures.markup(entry, settings['maxFlags']).strip())
+    # Every caption here says TANK, because that is the whole of what this
+    # row answers and the only thing that separates it from the one above.
+    record = _record()
+    metric = settings.vehicle_metric(surface)
+    value = record.rating(metric) if metric else None
+    if value is not None:
+        parts.append(badges.captioned_markup(int(round(value)),
+                                             badges.band(metric, int(round(value))),
+                                             u'%s TANK' % metric.upper()))
+    elif record.winrate is not None:
+        # No WN rating for this mode and there never will be: those scales
+        # are built on random battles alone. The win rate is what survives.
+        parts.append(badges.captioned_markup(
+            badge_lib.winrate(record.winrate, settings.winrate_decimal()),
+            badges.band('winrate', record.winrate, 'percent'), u'WR TANK'))
+    parts.append(badges.captioned_markup(badge_lib.count(record.battles),
+                                         badge_lib.NEUTRAL, u'BATTLES TANK'))
     return u'  '.join(part for part in parts if part)
 
 

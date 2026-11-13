@@ -35,6 +35,16 @@ const BASELINE = 9.5
 const MARGIN = 1
 const CORNER = 3
 
+// A caption under the figure, for the settings window's preview: the same
+// face at a smaller size, on its own shorter row below the badge's own.
+// Capitals and digits only. A caption is a code -- WNX, WR, 30D -- and a
+// code set in mixed case reads as a word that has been cut short.
+const CAPTION_HEIGHT = 8
+const CAPTION_SIZE = 7
+const CAPTION_BASELINE = 6
+const CAPTION_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+const TALL = HEIGHT + CAPTION_HEIGHT
+
 const output = path.resolve(import.meta.dirname, '..', '..', 'src', 'unicum', 'badge_glyphs.json')
 
 async function loadFont() {
@@ -47,16 +57,16 @@ async function loadFont() {
   return opentype.parse(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength))
 }
 
-async function alpha(svg, width) {
+async function alpha(svg, width, height = HEIGHT) {
   const { data, info } = await sharp(Buffer.from(svg), { density: 72 })
     .ensureAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true })
-  if (info.width !== width || info.height !== HEIGHT) {
-    throw new Error(`rendered ${info.width}x${info.height}, expected ${width}x${HEIGHT}`)
+  if (info.width !== width || info.height !== height) {
+    throw new Error(`rendered ${info.width}x${info.height}, expected ${width}x${height}`)
   }
   const rows = []
-  for (let y = 0; y < HEIGHT; y++) {
+  for (let y = 0; y < height; y++) {
     const row = []
     for (let x = 0; x < width; x++) {
       row.push(data[(y * width + x) * info.channels + 3])
@@ -87,17 +97,54 @@ async function main() {
     )
     cells[char] = cell
   }
-  // The corners from a narrow rounded rectangle: its outer columns.
-  const probe = 4 * CORNER
-  const rect = await alpha(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${probe}" height="${HEIGHT}">` +
-    `<rect width="${probe}" height="${HEIGHT}" rx="${RADIUS}" fill="#FFFFFF"/></svg>`,
-    probe,
+  // The caption's own glyphs, each as wide as its own advance asks: these
+  // are letters, and letters forced into one cell look like a ransom note.
+  const captionGlyphs = {}
+  const captionCells = {}
+  for (const char of CAPTION_CHARS) {
+    const glyph = font.charToGlyph(char)
+    const advance = (glyph.advanceWidth / font.unitsPerEm) * CAPTION_SIZE
+    const cell = Math.max(1, Math.ceil(advance))
+    const width = cell + 2 * MARGIN
+    const d = glyph
+      .getPath(MARGIN + (cell - advance) / 2, CAPTION_BASELINE, CAPTION_SIZE)
+      .toPathData(2)
+    captionGlyphs[char] = await alpha(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${CAPTION_HEIGHT}">` +
+      `<path d="${d}" fill="#FFFFFF"/></svg>`,
+      width,
+      CAPTION_HEIGHT,
+    )
+    captionCells[char] = cell
+  }
+  // A space carries a width and no ink, like the one between thousands in a
+  // figure: `_lay` walks past a character it holds no mask for, advancing by
+  // its cell. Without this line a caption of two words ran into one.
+  captionCells[' '] = Math.max(
+    1,
+    Math.round((font.charToGlyph(' ').advanceWidth / font.unitsPerEm) * CAPTION_SIZE),
   )
-  const left = rect.map((row) => row.slice(0, CORNER))
-  const right = rect.map((row) => row.slice(probe - CORNER))
+  // The corners from a narrow rounded rectangle: its outer columns. Twice,
+  // because a captioned badge is a taller rectangle and the same radius on
+  // a taller box is not the same mask stretched.
+  const probe = 4 * CORNER
+  const corners = async (height) => {
+    const rect = await alpha(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${probe}" height="${height}">` +
+      `<rect width="${probe}" height="${height}" rx="${RADIUS}" fill="#FFFFFF"/></svg>`,
+      probe,
+      height,
+    )
+    return [rect.map((row) => row.slice(0, CORNER)), rect.map((row) => row.slice(probe - CORNER))]
+  }
+  const [left, right] = await corners(HEIGHT)
+  const [tallLeft, tallRight] = await corners(TALL)
   await writeFile(output, JSON.stringify({
     height: HEIGHT, cell: DIGIT_WIDTH, margin: MARGIN, cells, digits, left, right,
+    caption: {
+      height: CAPTION_HEIGHT, cells: captionCells, glyphs: captionGlyphs,
+      left: tallLeft, right: tallRight,
+    },
   }))
   console.log(`wrote ${output}`)
 }

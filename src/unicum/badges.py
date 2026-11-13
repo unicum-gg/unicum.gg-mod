@@ -27,6 +27,8 @@ import logging
 import os
 
 from unicum import badge_png, config
+from unicum.badge_text import (MARKER as _MARKER, _drawable, _slug,
+                               badge_width, count, winrate)
 
 _logger = logging.getLogger('unicum.badges')
 
@@ -72,76 +74,6 @@ NEUTRAL = '#4a4a4a'
 # met, thirty at a time as a battle loads, in a folder that never stops
 # growing. Rounded to thousands the whole set is about a thousand files and
 # stays that way for good.
-_COMPACT_FROM = 10000
-
-
-def count(battles):
-    """A battle count as a badge draws it: 844, or 161k past ten thousand.
-
-    Rounded to whole thousands rather than to a decimal. `161.8k` would be
-    ten times as many distinct badges as `161k`, and the count of distinct
-    badges is the count of PNG files this mod writes into the player's game
-    folder (see `_COMPACT_FROM`).
-
-    A plain space groups the thousands below that, not a comma and not a
-    dot: both are decimal separators somewhere this mod is played, and
-    "22,565" read as twenty-two is the kind of wrong nobody notices.
-    """
-    battles = int(battles)
-    if battles >= _COMPACT_FROM:
-        return '%dk' % (battles // 1000)
-    out, rest = '', abs(battles)
-    while rest >= 1000:
-        out = ' %03d%s' % (rest % 1000, out)
-        rest //= 1000
-    return '%d%s' % (rest, out)
-
-
-def winrate(value, decimal=False):
-    """A win rate as a badge draws it: '59%', or '58.7%' when asked.
-
-    Whole percent by default, to read as the rating badge beside it reads:
-    that one is an integer too, and a tenth of a point of win rate is noise
-    at a glance. It also keeps the pill four characters wide instead of six.
-    """
-    return ('%.1f%%' % value) if decimal else ('%d%%' % round(value))
-
-
-# Written with the folder; the client can load it only once it started with the folder there.
-_MARKER = 'ready.png'
-
-
-def badge_width(value):
-    return badge_png.width_of(value)
-
-
-def _slug(text):
-    """A badge's text as a file name: '58.7%' -> '58-7pct', '161k' -> '161k'.
-
-    Windows has no quarrel with a dot in a name but plenty with a percent in
-    some shells, and a name that round-trips through a resource path should
-    not need quoting anywhere. Letters, digits and hyphens only.
-    """
-    out = []
-    for char in text:
-        if char.isalnum():
-            out.append(char)
-        elif char == '%':
-            out.append('pct')
-        else:
-            out.append('-')
-    return ''.join(out)
-
-
-def _drawable(path):
-    """ResMgr.isFile, or the disk outside the client."""
-    try:
-        import ResMgr
-    except ImportError:
-        return True
-    return bool(ResMgr.isFile(path))
-
-
 class Badges(object):
 
     def __init__(self, scales=None, directory=None, res_path=None, drawable=_drawable):
@@ -287,6 +219,39 @@ class Badges(object):
         text = winrate(value, decimal)
         color = self._scales.color('winrate', value, 'percent') if self._scales else None
         return self._pill(text, color) or _DIM % text
+
+    def band(self, scale, value, unit=None):
+        """The colour this scale puts `value` in, or None without a scale.
+
+        Exposed because the settings preview draws the same badges with a
+        caption under them, and a caption changes the file, not the band:
+        asking the scale here keeps the one answer in one place.
+        """
+        if self._scales is None or value is None:
+            return None
+        return self._scales.color(scale, value, unit) if unit else self._scales.color(scale, value)
+
+    def captioned_markup(self, text, color, caption):
+        """htmlText for a badge carrying `caption` on a row under its figure.
+
+        Only the settings window asks for one. A battle row is thirty lines
+        of three badges and would be ninety captions in the narrowest column
+        this mod draws; the window is where a reader is asking what the
+        figures are, and the only place with the room to answer.
+
+        '' when the badge cannot draw at all, like every other badge here.
+        """
+        if not self._ready or not color or not caption:
+            return ''
+        # `text` may be a number, which is how a rating arrives: it is the
+        # drawing that groups it by thousands, and the name only has to be
+        # unique and spellable.
+        key = text if isinstance(text, basestring) else '%d' % text
+        name = '%s.%s.%s.png' % (_slug(key), _slug(caption), color.lstrip('#').lower())
+        if not self._ensure(name, lambda: badge_png.captioned_png(text, color, caption)):
+            return ''
+        width, height = badge_png.captioned_size(text, caption)
+        return _IMG % ('%s/%s' % (self._res_path, name), width, height)
 
     def count_markup(self, battles):
         """A battle count as its badge, or as plain grey text when none draws.
