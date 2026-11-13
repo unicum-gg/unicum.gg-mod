@@ -64,10 +64,15 @@ def _career(badges, textures, settings, entry, surface):
     flags = u''
     if settings.shows_flags(surface):
         flags = textures.markup(entry, settings['maxFlags'])
-    # `compact=True` like the players panel, which is the narrowest place
-    # these numbers have to fit and therefore the one worth previewing.
+    # `compact` is passed because the real callers differ on it: the battle
+    # passes True, the garage screens leave it False. `Badges.extras`
+    # ignores it today -- a badge count is already rounded, its width is not
+    # what bounds it -- so the two draw the same figure. Passed anyway, and
+    # passed per surface, so that the day it starts meaning something the
+    # preview means it too rather than quietly showing the other surface's
+    # row.
     return flags + badges.rating(entry, settings, surface) \
-        + badges.extras(entry, settings, surface, compact=True)
+        + badges.extras(entry, settings, surface, compact=surface == 'battle')
 
 
 def _tank(badges, textures, settings, entry, surface):
@@ -80,6 +85,21 @@ def _tank(badges, textures, settings, entry, surface):
     # figure in plain grey rather than an empty column, so the preview shows
     # what an unknown tank will really look like instead of showing nothing.
     return flags + (drawn or badges.plain(entry, settings, surface))
+
+
+def garage_surface(settings):
+    """The garage surface worth previewing, or None if none is switched on.
+
+    The Stats group above the preview is one set of choices for all of the
+    garage screens, so any of them would illustrate it. The first that is
+    actually switched on is the honest pick: a reader is shown a row from a
+    screen they will meet, not one from a screen they turned off.
+    """
+    from unicum.settings_window.labels import _GARAGE_SURFACES
+    for surface in _GARAGE_SURFACES:
+        if settings.shows(surface):
+            return surface
+    return None
 
 
 def lines(badges, textures, settings, surface='battle'):

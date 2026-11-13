@@ -49,6 +49,40 @@ _API_PREVIEW = True
 
 _logger = logging.getLogger('unicum.settings_window.page')
 
+def _joined(rows, prefix=u''):
+    """(caption, markup) pairs as single fields, captions joined with spaces.
+
+    A tab character would be read as the end of the field in the native
+    page, so it never appears in one. Captions are this module's own words
+    and a surface's own label, so there is nothing to escape.
+    """
+    out = []
+    for caption, markup in rows:
+        if not markup:
+            continue
+        said = u', '.join(part for part in (prefix, caption) if part)
+        out.append(u'%s   %s' % (said, markup) if said else markup)
+    return tuple(out)
+
+
+def garage_preview_lines(drawing):
+    """The sample garage row, named by the screen it is a row of.
+
+    Named because the Garage tab shows five screens and the Stats group
+    above the preview feeds all of them: without the name a reader cannot
+    tell which one they are being shown, and would read the row as being
+    about whichever dropdown they last touched.
+    """
+    if not drawing:
+        return ()
+    badges, textures, settings = drawing
+    surface = preview.garage_surface(settings)
+    if surface is None:
+        return ()
+    return _joined(preview.lines(badges, textures, settings, surface),
+                   _SURFACE_LABELS[surface])
+
+
 def preview_lines(drawing):
     """The sample battle rows as markup, captions included; () without the badges.
 
@@ -69,12 +103,7 @@ def preview_lines(drawing):
     if not drawing:
         return ()
     badges, textures, settings = drawing
-    out = []
-    for caption, markup in preview.lines(badges, textures, settings):
-        if not markup:
-            continue
-        out.append(u'%s   %s' % (caption, markup) if caption else markup)
-    return out
+    return _joined(preview.lines(badges, textures, settings))
 
 
 def _heading(templates, text):
@@ -136,11 +165,14 @@ def template(values, channel=u'', linked=False, card_shown=True,
                          'point is not something you read at a glance.{/BODY}'),
         choice('Battles', 'battles', [_EXTRA_LABELS[e] for e in EXTRAS],
                tooltip='{HEADER}Battles{/HEADER}{BODY}How many battles the player has, beside the rating. '
-                       'Shortened past ten thousand in the players panel, where a column is all the room '
-                       'there is, and written out in full everywhere else.{/BODY}'),
+                       'Shortened past ten thousand everywhere it is drawn: 23k rather than 23 184. The '
+                       'badge is an image and each distinct number is a file, so counting to the unit '
+                       'past ten thousand would write thousands of them into your game folder.{/BODY}'),
         templates.createNumericStepper('Flags per player or clan', 'maxFlags', window['maxFlags'], 1, MAX_FLAGS, 1),
-        templates.createEmpty(_SPACER),
     ]
+    if _API_PREVIEW:
+        garage.extend(templates.createLabel(line) for line in garage_preview_lines(drawing))
+    garage.append(templates.createEmpty(_SPACER))
     garage.extend(show(surface) for surface in _GARAGE_SURFACES)
     garage.append(choice(RESULTS_FIGURES_LABEL, _figures_key('battleResults'),
                          list(FIGURE_LABELS), tooltip=_RESULTS_FIGURES_TOOLTIP))
@@ -294,6 +326,8 @@ def native_page(values, channel=u'', linked=False, card_shown=True,
     checkbox(u'Win rate to a tenth', 'winrateDecimal')
     dropdown(u'Battles', 'battles', [_EXTRA_LABELS[e] for e in EXTRAS])
     dropdown(u'Flags per player or clan', 'maxFlags', [str(n) for n in range(1, MAX_FLAGS + 1)], offset=1)
+    for line in garage_preview_lines(drawing):
+        lines.append(u'preview\t' + line)
     group(0, u'Garage')
     checkbox(u'Tank menu button', 'tankButton')
     checkbox(u'Right-click a player', _menu_key('players'))

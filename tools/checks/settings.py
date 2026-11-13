@@ -159,6 +159,38 @@ def check_settings_preview(workdir):
           len(rows) == 2 and rows[0].startswith(u'at rest   ')
           and not [row for row in rows if u'\t' in row])
 
+    # ------------------------------------------------ the garage's own row
+    from unicum.settings_window.page import garage_preview_lines
+
+    settings.update({'contacts': {'rating': True, 'flags': True},
+                     'battles': 'total', 'winrate': 'total'})
+    garage = garage_preview_lines((badges, textures, settings))
+    check('the garage row says which of the five screens it is a row of',
+          len(garage) == 1 and garage[0].startswith(u'Contacts list   '))
+
+    # A battle count is shortened past ten thousand wherever it is drawn:
+    # the badge is an image and each distinct number is a file, so the limit
+    # is the count of files, not the width of a column. The window's tooltip
+    # said otherwise for a while, and this is here so it cannot say it again
+    # without something going red.
+    from unicum.badges import count
+    check('a battle count reads the same in the garage as in the battle',
+          count(23184) == '23k' and count(9999) == '9 999')
+    settings.update({'battle': {'rating': True, 'flags': False, 'figures': 'career'}})
+    battle_row = preview_lines((badges, textures, settings))[0]
+    check('so the two previews carry the same count badge',
+          u'23k' in garage[0] and u'23k' in battle_row)
+
+    settings.update({'contacts': {'rating': False, 'flags': False}})
+    after = garage_preview_lines((badges, textures, settings))
+    check('with contacts off it falls through to the next screen that is on',
+          len(after) == 1 and after[0].startswith(u'Profile   '))
+
+    for surface in ('contacts', 'profile', 'skirmishRoom', 'stronghold', 'battleResults'):
+        settings.update({surface: {'rating': False, 'flags': False, 'average': False}})
+    check('and with every garage screen off there is nothing to preview',
+          garage_preview_lines((badges, textures, settings)) == ())
+
 
 def check_res_mods_version():
     """The newest res_mods folder is picked by version, not by spelling."""

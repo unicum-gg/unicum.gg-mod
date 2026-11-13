@@ -14,8 +14,8 @@ from unicum.settings_window.labels import (linked_notice, CONNECT_VAR,
                                            DISCORD_URL, DISCORD_VAR, LINKAGE,
                                            LINKS, RESET_VAR, SOURCE_URL,
                                            SOURCE_VAR, SUPPORT_VAR)
-from unicum.settings_window.page import (channel_label, native_page,
-                                         preview_lines, template)
+from unicum.settings_window.page import (channel_label, garage_preview_lines,
+                                         native_page, preview_lines, template)
 
 _logger = logging.getLogger('unicum.settings_window.window')
 
@@ -67,11 +67,11 @@ class SettingsWindow(object):
         self._chat = None
         # (channel followed, Twitch chat writable, game linked, account name,
         # card shown, supports the site, loadouts hidden, battles hidden,
-        # the drawn preview rows) as the page shows them. It has to match what `_register` unpacks and
+        # the drawn battle rows, the drawn garage row) as the page shows them. It has to match what `_register` unpacks and
         # what `_check_state` builds: `install` registers off this one, before
         # the link has answered anything. A field added to two of the three
         # and not to the seed took the whole mod down at every start.
-        self._state = (u'', False, False, None, True, False, False, None, ())
+        self._state = (u'', False, False, None, True, False, False, None, (), ())
         self._alive = True
         self._api = None
         # (badges, flag textures, settings) once the mod has built them.
@@ -116,7 +116,8 @@ class SettingsWindow(object):
         state = (self._chat.channel if self._chat is not None else u'',
                  linked and link.twitch == 'ready', linked, link.name if linked else None,
                  self._card_shown(), self._supporter(), self._hidden(),
-                 self._battles_hidden(), tuple(preview_lines(self._drawing)))
+                 self._battles_hidden(), tuple(preview_lines(self._drawing)),
+                 tuple(garage_preview_lines(self._drawing)))
         if state == self._state:
             return
         self._state = state
@@ -142,7 +143,7 @@ class SettingsWindow(object):
 
     def _register(self):
         (channel, writable, linked, name, card_shown, supporter, hidden,
-         battles_hidden, _drawn) = self._state
+         battles_hidden, _drawn, _garage_drawn) = self._state
         self._api.setModTemplate(LINKAGE, template(self._settings.values(), channel, writable, card_shown,
                                                    supporter, hidden, battles_hidden,
                                                    drawing=self._drawing),
