@@ -59,6 +59,48 @@ def _record():
                    ratings=dict(_VEHICLE['ratings']))
 
 
+def legend(settings, surface, on_tank=False):
+    """What the drawn row's pills are, named in the order they were drawn.
+
+    A badge is a number on a colour and nothing else. Three of them in a
+    line is three numbers nobody can name: a reader seeing 2 291 has no way
+    to know it is WNX rather than WN8, and no way to know whether the 412
+    beside it is a career or a month. The scales differ enough that reading
+    one as the other is worse than reading nothing.
+
+    Written from the same choices that drew the row, so it is a reading of
+    what is on screen rather than a second description of it. It changes as
+    the dropdowns change, which is what makes it teach instead of just
+    telling.
+
+    Plain text: it goes in a line that escapes its markup, and there is
+    nothing here that wants any.
+    """
+    from unicum.settings_window.labels import _EXTRA_LABELS, _WINDOW_LABELS
+    parts = []
+    if settings.shows_flags(surface):
+        parts.append(u'languages')
+    if on_tank:
+        # One pill or the other, never both: outside random battles there is
+        # no WN rating per vehicle, so the tank answers with a win rate.
+        # Named together because which one arrives depends on the battle,
+        # not on anything in this window.
+        metric = settings.vehicle_metric(surface)
+        parts.append((u'%s on the tank, or its win rate' % metric.upper()) if metric
+                     else u'win rate on the tank')
+        parts.append(u'battles on the tank')
+        return u' \u00b7 '.join(parts)
+    metric = settings.metric(surface)
+    if metric is not None:
+        parts.append(u'%s, %s' % (metric.upper(),
+                                  _WINDOW_LABELS[settings['window']].lower()))
+    for name, said in ((u'winrate', u'win rate'), (u'battles', u'battles')):
+        window = settings.extra(name, surface)
+        if window is not None:
+            parts.append(u'%s, %s' % (said, _EXTRA_LABELS[window].lower()))
+    return u' \u00b7 '.join(parts)
+
+
 def _career(badges, textures, settings, entry, surface):
     """The row as it reads about the player's whole account."""
     flags = u''
@@ -103,7 +145,7 @@ def garage_surface(settings):
 
 
 def lines(badges, textures, settings, surface='battle'):
-    """[(caption, markup)] of what a row on this surface will look like.
+    """[(caption, markup, legend)] of what a row on this surface will look like.
 
     One line for a surface showing one thing, two for 'both': what sits
     there at rest, and what the extended info key swaps it to. The captions
@@ -118,12 +160,15 @@ def lines(badges, textures, settings, surface='battle'):
             return []
         entry = _entry()
         figures = settings.figures(surface)
+        career = (_career(badges, textures, settings, entry, surface),
+                  legend(settings, surface))
+        tank = (_tank(badges, textures, settings, entry, surface),
+                legend(settings, surface, on_tank=True))
         if figures == 'career':
-            return [(u'', _career(badges, textures, settings, entry, surface))]
+            return [(u'',) + career]
         if figures == 'tank':
-            return [(u'', _tank(badges, textures, settings, entry, surface))]
-        return [(u'at rest', _career(badges, textures, settings, entry, surface)),
-                (u'with Alt', _tank(badges, textures, settings, entry, surface))]
+            return [(u'',) + tank]
+        return [(u'at rest',) + career, (u'with Alt',) + tank]
     except Exception:
         # A preview is a convenience and the window is not. Whatever goes
         # wrong in here, the settings must still open.
