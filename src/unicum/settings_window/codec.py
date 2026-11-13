@@ -47,6 +47,37 @@ def read_native(text):
             buttons.append(str(var))
     return raw, buttons
 
+def read_peek(text):
+    """The tab's peeked values: a choice made but not yet applied.
+
+    Sent on every change, so the preview can show what the choice would
+    look like before it is saved. An empty dict means nothing is pending,
+    which is also what the tab sends when Apply, OK or Cancel settles it.
+
+    Its lines carry a field more than a change does ("peek\tvar\tkind\t
+    value"), which is what keeps `read_native` from reading them as changes
+    and saving them: that one counts fields and skips anything that is not
+    three.
+    """
+    peek = {}
+    for line in (text or u'').split(u'\n'):
+        parts = line.split(u'\t')
+        if len(parts) != 4 or parts[0] != u'peek':
+            continue
+        _, var, kind, value = parts
+        if not var:
+            # The settling line: everything pending is gone.
+            return {}
+        if kind == u'd':
+            try:
+                peek[str(var)] = int(value)
+            except ValueError:
+                continue
+        elif kind == u'c':
+            peek[str(var)] = value == u'1'
+    return peek
+
+
 def apply_window(raw, settings, link):
     """A page's values into settings.json, and the site-owned boxes into the link.
 

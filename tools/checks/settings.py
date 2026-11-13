@@ -97,8 +97,10 @@ def check_settings_preview(workdir):
     import tempfile
 
     from unicum.runtime.session import Session
-    from unicum.settings import Settings
+    from unicum.settings import METRICS, Settings, validate
+    from unicum.settings.validating import _merge
     from unicum.settings_window import preview
+    from unicum.settings_window.codec import from_window
     from unicum.settings_window.page import preview_lines
 
     from checks.extras import _VehicleScales, _badges
@@ -242,6 +244,40 @@ def check_settings_preview(workdir):
         settings.update({surface: {'rating': False, 'flags': False, 'average': False}})
     check('and with every garage screen off there is nothing to preview',
           garage_preview_lines((badges, textures, settings)) == ())
+
+    # ------------------------------------ a choice seen before it is saved
+    #
+    # The tab holds a change until Apply, like the client's own settings do.
+    # So the preview was showing what was already saved, which is the one
+    # thing nobody opens a preview to find out.
+    from unicum.settings_window.codec import read_native, read_peek
+
+    sent = u'peek\tmetric\td\t1\nbattleShow\td\t2\npeek\twinrateDecimal\tc\t1'
+    peeked = read_peek(sent)
+    check('a peeked choice is read, and only the peeked ones',
+          peeked == {'metric': 1, 'winrateDecimal': True})
+    raw, _ = read_native(sent)
+    check('and a peek is never read as a change, so it is never saved',
+          raw == {'battleShow': 2})
+    check('the settling line says nothing is pending any more',
+          read_peek(u'peek\t\t\t') == {})
+
+    # The preview drawn off a peeked metric is the one the player is about
+    # to choose, not the one on disk.
+    settings.update({'metric': 'wnx', 'window': 'recent',
+                     'battle': {'rating': True, 'flags': False, 'figures': 'career'},
+                     'winrate': 'off', 'battles': 'off'})
+    saved = preview_lines((badges, textures, settings))
+
+    merged = settings.values()
+    _merge(merged, from_window({'metric': METRICS.index('wn8')}))
+    shadow = Settings.__new__(Settings)
+    shadow._values = validate(merged)
+    peeking = preview_lines((badges, textures, shadow))
+    check('a peeked rating previews the badge the player is about to choose',
+          u'.wn8' in peeking[0] and u'.wnx' in saved[0])
+    check('and what is on disk has not moved',
+          settings['metric'] == 'wnx')
 
 
 def check_res_mods_version():

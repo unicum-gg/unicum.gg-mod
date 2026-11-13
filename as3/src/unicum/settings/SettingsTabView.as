@@ -317,6 +317,7 @@ package unicum.settings
             this._shell.send(key + "	" + pending[key]);
          }
          this.memory.pending = {};
+         this.unpeek();
          // The window shows its own tab again once the settings come back.
          // A shell of an older build has no hold: the window's own handler
          // must still run after this one.
@@ -332,10 +333,24 @@ package unicum.settings
       private function change(key:String, kind:String, value:String) : void
       {
          this.memory.pending[key] = kind + "	" + value;
+         // Python hears it at once, as a peek and not as a change. The
+         // preview's whole job is to show what a choice WOULD look like,
+         // and a preview that waits for Apply is a preview of what you
+         // already had. Nothing is saved: the real send is in onCommit.
+         this._shell.send("peek	" + key + "	" + kind + "	" + value);
          if(this._window != null && this._window.applyBtn != null)
          {
             this._window.applyBtn.enabled = true;
          }
+      }
+
+      // Nothing is pending any more, so the preview goes back to showing
+      // what is saved. Sent on Apply, on OK and on the window closing
+      // without either: after a Cancel the peeked values are gone and a
+      // preview still showing them would be showing a choice nobody made.
+      private function unpeek() : void
+      {
+         this._shell.send("peek			");
       }
 
       private function pending(key:String) : String
