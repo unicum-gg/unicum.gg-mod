@@ -87,6 +87,21 @@ FIGURE_LABELS = ('Career', 'On the tank', 'Both')
 
 FIGURES_LABEL = 'Figures shown'
 
+# The same choice in the Garage column, which holds five surfaces at once, so
+# it says which one it is about. Worded like the Alt lines beside it.
+RESULTS_FIGURES_LABEL = 'Battle results: figures'
+
+_RESULTS_FIGURES_TOOLTIP = (
+    '{HEADER}Battle results: figures{/HEADER}{BODY}Which battles the numbers on a row count, '
+    'on the post-battle results screen. Career is every tank that player owns. On the tank is '
+    'the record of the one they brought to this battle, in the mode it was played, with the '
+    'number of battles they have in it beside the figure. Both draws them side by side, which '
+    'this screen has room for.\n\n'
+    'The mode is read from the battle itself, so an old result opened from the notifications '
+    'is counted as the mode it was, not the mode you are playing now. Outside random battles '
+    'there is no WN rating per vehicle, so a skirmish or a stronghold shows a win rate '
+    'instead.{/BODY}')
+
 _FIGURES_TOOLTIP = (
     '{HEADER}Figures shown{/HEADER}{BODY}Which battles the numbers on a row count. '
     'Career is every tank that player owns, which is what the rest of the mod shows. '

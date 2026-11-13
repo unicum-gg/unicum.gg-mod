@@ -68,7 +68,7 @@ FIGURE_CHOICES = ('career', 'tank', 'both')
 # account, and a stronghold page is clans. Grown one surface at a time, as
 # each learns to draw it -- a dropdown over a surface that ignores it would
 # be worse than no dropdown.
-FIGURED = ('battle',)
+FIGURED = ('battle', 'battleResults')
 
 # Where each starts. The value that leaves every screen as it is today, which
 # for the battle is the career at rest with Alt showing the tank, and which

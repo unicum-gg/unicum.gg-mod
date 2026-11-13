@@ -71,7 +71,7 @@ def start(generation=0):
         alt.install()
         browser.install(_session, lookup, flags, scales, settings, alt)
         battle.install(_session, lookup, flags, badges, settings, alt)
-        battle_results.install(_session, lookup, flags, scales, settings)
+        battle_results.install(_session, lookup, flags, badges, scales, settings)
         tab_screen.install(_session, lookup, flags, badges, scales, settings, alt)
         views.install(_session)
         lobby.install(_session, lookup, flags, badges, settings, alt)

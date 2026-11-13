@@ -343,8 +343,14 @@ def check_alt_swaps_to_the_tank():
     check('and it rests on the career too', not drawing._on_tank())
 
     from unicum.settings.defaults import DEFAULTS, FIGURE_CHOICES, FIGURED
-    check('the choice lives on the battle surface and starts where it is today',
-          FIGURED == ('battle',) and DEFAULTS['battle']['figures'] == 'both')
+    check('the choice lives on the surfaces that know which tank a row is about',
+          FIGURED == ('battle', 'battleResults'))
+    # The battle keeps what it shipped with. A surface that gains the choice
+    # later starts on the career, so nothing a reader already had changes
+    # under them and nothing new is asked of the site unheard.
+    check('the battle starts where it is today, a new surface on the career',
+          DEFAULTS['battle']['figures'] == 'both'
+          and DEFAULTS['battleResults']['figures'] == 'career')
     check('its values are the three a row can be about, career first',
           FIGURE_CHOICES == ('career', 'tank', 'both')),
     check('and no surface that has no tank to speak of carries it',

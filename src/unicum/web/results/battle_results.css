@@ -30,6 +30,61 @@
     color: #e9e4d6;
 }
 
+/* What this player has done on the tank they brought, between their own
+   rating and their flags. The row reads outwards from its table, so the
+   account's number stays nearest it and the tank's sits just beyond. */
+.UnicumResults_vehicle {
+    position: absolute;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+}
+
+/* On the allies' side the group is to the left of the row, so its own
+   order reverses: the rating still ends up nearest the table. */
+.UnicumResults_vehicle--left {
+    flex-direction: row-reverse;
+}
+
+/* The tank's whole record rather than this mode's, which is what a
+   skirmish, a stronghold or any mode Wargaming publishes no per-vehicle
+   statistics for comes back as. Quieter, so a wider set of battles is not
+   claimed in the same voice as this one. */
+.UnicumResults_vehicle--overall {
+    opacity: 0.6;
+}
+
+.UnicumResults_pill {
+    flex-shrink: 0;
+    background-position: center center;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+}
+
+/* The gap between the figure and the count, carried by the count rather
+   than by a sibling rule: the group reverses on the allies' side, so the
+   margin has to change side with it. */
+.UnicumResults_pill--battles {
+    margin-left: 4rem;
+}
+
+.UnicumResults_vehicle--left .UnicumResults_pill--battles {
+    margin-left: 0;
+    margin-right: 4rem;
+}
+
+/* The fallback only: a pill carrying its image has no text. */
+.UnicumResults_pill:not(:empty) {
+    height: 18rem;
+    line-height: 18rem;
+    padding: 0 5rem;
+    border-radius: 3rem;
+    font-size: 13rem;
+    font-weight: bold;
+    color: #ffffff;
+}
+
 .UnicumResults_flags {
     position: absolute;
     display: flex;

@@ -285,6 +285,23 @@ def check_alt_only():
           and validate(dict(values, **from_window(window))) == values)
 
 
+def _asked_badges():
+    """A Badges that really draws, into a folder nobody keeps."""
+    import tempfile
+
+    from checks.extras import _VehicleScales, _badges
+    return _badges(tempfile.mkdtemp(), _VehicleScales())
+
+
+def _refuse(account_id, tank_id):
+    """A vehicle reader that fails the check if it is ever called.
+
+    The career choice must cost nothing: not a drawing, and not the read
+    behind it. A flag would say the row came out empty; this says why.
+    """
+    raise AssertionError('asked for a vehicle record on the career choice')
+
+
 def check_battle_results():
     """Who the post-battle results decorate, and with what."""
     from unicum.battle_results import averages, decorations
@@ -294,11 +311,17 @@ def check_battle_results():
             self.flags, self.value = flags, value
 
     class Settings(object):
-        def __init__(self, rating=True, flags=True):
-            self._rating, self._flags = rating, flags
+        def __init__(self, rating=True, flags=True, figures='career'):
+            self._rating, self._flags, self._figures = rating, flags, figures
 
         def metric(self, surface):
             return 'wnx' if self._rating else None
+
+        def wants_vehicle(self, surface):
+            return self._figures != 'career'
+
+        def vehicle_metric(self, surface):
+            return 'wnx'
 
         def shows_flags(self, surface):
             return self._flags
@@ -321,8 +344,10 @@ def check_battle_results():
             return '#4A92B7' if metric == 'wnx' else None
 
     entries = {1: Entry(['PL', 'XX', 'DE', 'FR'], 1933.6), 2: Entry(['FR'], 2500), 3: Entry([], None)}
-    players = [(1, ['Kretek_PL'], True), (2, ['Real_Name', 'Made_Up'], False), (3, ['Nothing'], True),
-               (4, ['Unknown'], False)]
+    # The fourth field is the tank that player brought, None for one the
+    # results do not name: a bot, or somebody who never spawned.
+    players = [(1, ['Kretek_PL'], True, 2849), (2, ['Real_Name', 'Made_Up'], False, 3873),
+               (3, ['Nothing'], True, 1281), (4, ['Unknown'], False, None)]
     shown = decorations(players, entries.get, Settings(), Flags(), Scales())
     check('the results show a player\'s rating and the flags that draw, up to the limit',
           shown['Kretek_PL'] == {'score': {'value': 1934, 'color': '#4A92B7'}, 'flags': ['img://flags/PL.png']})
@@ -332,9 +357,40 @@ def check_battle_results():
     check('without a rating shown, the flags alone stay',
           decorations(players[:1], entries.get, Settings(rating=False), Flags(), Scales())
           == {'Kretek_PL': {'score': None, 'flags': ['img://flags/PL.png']}})
+    check('on the career alone, no tank is drawn and none is asked for',
+          'vehicle' not in shown['Kretek_PL']
+          and decorations(players[:1], entries.get, Settings(), Flags(), Scales(),
+                          _asked_badges(), _refuse) == {'Kretek_PL': shown['Kretek_PL']})
     entries[5] = Entry([], 1000.0)
     check('each team\'s average is that of its players with a rating',
-          averages(players + [(5, ['Other'], True)], entries.get, Settings(), Scales())
+          averages(players + [(5, ['Other'], True, None)], entries.get, Settings(), Scales())
           == {'allies': {'value': 1467, 'color': '#4A92B7'}, 'enemies': {'value': 2500, 'color': '#4A92B7'}})
     check('no average without a rating shown',
           averages(players, entries.get, Settings(rating=False), Scales()) == {'allies': None, 'enemies': None})
+
+    # ------------------------------------------------ the tank they brought
+    from checks.extras import _Record, _VehicleScales
+
+    records = {(1, 2849): _Record(), (2, 3873): _Record(wnx=None)}
+    badges = _asked_badges()
+    on_tank = decorations(players, entries.get, Settings(figures='tank'), Flags(),
+                          _VehicleScales(), badges, lambda a, t: records.get((a, t)))
+    check('a row carries what its player has done on the tank they brought',
+          on_tank['Kretek_PL']['vehicle']['scope'] == 'mode'
+          and 'rating' in on_tank['Kretek_PL']['vehicle']
+          and 'battles' in on_tank['Kretek_PL']['vehicle'])
+    check('with no rating for that mode, the win rate on the tank stands in',
+          'rating' not in on_tank['Real_Name']['vehicle']
+          and 'winrate' in on_tank['Real_Name']['vehicle'])
+    check('a tank the site holds nothing about adds nothing, and the row stays out',
+          'Nothing' not in on_tank and 'Unknown' not in on_tank)
+    check('and the rating beside it is still the career one, unchanged',
+          on_tank['Kretek_PL']['score'] == shown['Kretek_PL']['score'])
+
+    # A row whose player has neither a rating nor a flag to show used to be
+    # dropped. With a tank figure it has something to say, so it stays.
+    bare = decorations(players[:1], entries.get, Settings(rating=False, flags=False, figures='tank'),
+                       Flags(), _VehicleScales(), badges, lambda a, t: records.get((a, t)))
+    check('a row whose only figure is the tank is still drawn',
+          'vehicle' in bare['Kretek_PL'] and bare['Kretek_PL']['score'] is None
+          and not bare['Kretek_PL']['flags'])

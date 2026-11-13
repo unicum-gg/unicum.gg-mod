@@ -43,12 +43,12 @@ from gui.impl.pub.view_component import ViewComponent
 
 from unicum import config, resources
 from unicum.api.entry import PLAYERS
+from unicum.battle_results.rows import (SURFACE, averages, decorations,
+                                        mode_of, players_of)
 from unicum.layouts import layout_id
 from unicum.tank_button import FEATURE, LAYOUT, compose
 
 _logger = logging.getLogger('unicum.battle_results')
-
-SURFACE = 'battleResults'
 
 _MODULE = 'coui://gui/gameface/mods/unicum/TankButton/TankButton.js'
 _SCRIPT = 'web/results/battle_results.js'
@@ -90,59 +90,6 @@ _ON_ITEM = functools.partial(
     eval, "__import__('unicum.tank_button', None, None, ['on_item']).on_item(locals())", {})
 
 
-def players_of(results):
-    """[(account id, [the names the page may show], on the player's team)] of a battle's results.
-
-    The names are the real one, then the made-up one of an anonymized player.
-    """
-    own_team = results.reusable.personal.avatar.team
-    players = []
-    for account_id, info in results.reusable.players.getPlayerInfoIterator():
-        names = [info.realName]
-        if info.fakeName and info.fakeName != info.realName:
-            names.append(info.fakeName)
-        players.append((account_id, names, info.team == own_team))
-    return players
-
-
-def averages(players, entry_of, settings, scales):
-    """{'allies': {value, color} or None, 'enemies': ...}: each team's mean known rating."""
-    metric = settings.metric(SURFACE)
-    out = {'allies': None, 'enemies': None}
-    if metric is None or not settings.shows_average(SURFACE):
-        return out
-    for side, ally in (('allies', True), ('enemies', False)):
-        values = [settings.rating(entry_of(account_id), SURFACE) for account_id, _, on_team in players
-                  if on_team == ally and entry_of(account_id) is not None]
-        values = [value for value in values if value is not None]
-        if values:
-            value = int(round(sum(values) / float(len(values))))
-            color = scales.color(metric, value)
-            out[side] = {'value': value, 'color': color} if color else None
-    return out
-
-
-def decorations(players, entry_of, settings, flags, scales):
-    """{name shown: {score, flags}} for the players with something to show, under each of their names."""
-    metric = settings.metric(SURFACE)
-    limit = settings['maxFlags'] if settings.shows_flags(SURFACE) else 0
-    out = {}
-    for account_id, names, _ in players:
-        entry = entry_of(account_id)
-        if entry is None:
-            continue
-        value = settings.rating(entry, SURFACE)
-        color = scales.color(metric, value) if value is not None else None
-        sources = [flags.source(code) for code in entry.flags[:limit]] if limit else []
-        shown = {'score': {'value': int(round(value)), 'color': color} if color else None,
-                 'flags': [source for source in sources if source]}
-        if shown['score'] or shown['flags']:
-            for name in names:
-                if name:
-                    out[name] = shown
-    return out
-
-
 class ResultsModel(ViewModel):
     __slots__ = ('onItemClick', )
 
@@ -168,10 +115,11 @@ class ResultsModel(ViewModel):
 
 class BattleResults(object):
 
-    def __init__(self, session, lookup, flags, scales, settings):
+    def __init__(self, session, lookup, flags, badges, scales, settings):
         self._session = session
         self._lookup = lookup
         self._flags = flags
+        self._badges = badges
         self._scales = scales
         self._settings = settings
         self._stamps = None
@@ -265,9 +213,9 @@ class BattleResults(object):
         self._models()[model] = (arena_id, None)
         self._load_code(model)
         self._want_replay(model, arena_id)
-        players = self._players(arena_id)
+        players, _ = self._roster(arena_id)
         if players:
-            wanted = [account_id for account_id, _, _ in players
+            wanted = [account_id for account_id, _, _, _ in players
                       if account_id and self._lookup.needs_fetch(PLAYERS, account_id)]
             if wanted:
                 self._lookup.prefetch(players=wanted, on_ready=self._publish_all)
@@ -275,15 +223,24 @@ class BattleResults(object):
         return view
 
     @staticmethod
-    def _players(arena_id):
+    def _roster(arena_id):
+        """([players], the per-vehicle mode key) of a battle, or ([], None).
+
+        The two together because they come from one object that costs a
+        service lookup to reach, and because a roster without its mode
+        cannot be asked about tanks.
+        """
         from helpers import dependency
         from skeletons.gui.battle_results import IBattleResultsService
         try:
             ctrl = dependency.instance(IBattleResultsService).getStatsCtrl(arena_id)
-            return players_of(ctrl.getResults()) if ctrl is not None else []
+            if ctrl is None:
+                return ([], None)
+            results = ctrl.getResults()
+            return (players_of(results), mode_of(results))
         except Exception:
             _logger.exception('could not read the players of battle %s', arena_id)
-            return []
+            return ([], None)
 
     def _check(self):
         """New code when a source changes, and the data again: a flag may have landed since."""
@@ -360,6 +317,21 @@ class BattleResults(object):
         except Exception:
             _logger.exception('could not ask for the replay of %s', arena_id)
 
+    def _want_vehicles(self, players, mode):
+        """Ask for the records of the tanks on screen, once each.
+
+        Only what is missing, and only when the reader asked for tanks at
+        all: this read goes at the heaviest tables the site has, and a
+        player who left the choice on the career must never pay for it.
+        """
+        if not self._settings.wants_vehicle(SURFACE):
+            return
+        pairs = [(account_id, tank_id) for account_id, _, _, tank_id in players
+                 if account_id and tank_id
+                 and self._lookup.needs_vehicle(account_id, tank_id, mode)]
+        if pairs:
+            self._lookup.prefetch(vehicles=pairs, mode=mode, on_ready=self._publish_all)
+
     def _publish_all(self):
         for model in list(self._models().keys()):
             self._publish(model)
@@ -371,10 +343,13 @@ class BattleResults(object):
             return
         shown, means = {}, {'allies': None, 'enemies': None}
         if self._settings.shows(SURFACE):
-            players = self._players(arena_id)
+            players, mode = self._roster(arena_id)
             entry_of = lambda account_id: self._lookup.get(PLAYERS, account_id)
-            shown = decorations(players, entry_of, self._settings, self._flags, self._scales)
+            vehicle_of = lambda account_id, tank_id: self._lookup.vehicle(account_id, tank_id, mode)
+            shown = decorations(players, entry_of, self._settings, self._flags,
+                                self._scales, self._badges, vehicle_of)
             means = averages(players, entry_of, self._settings, self._scales)
+            self._want_vehicles(players, mode)
         hidden = self._settings.alt_only('results') and not self._alt
         text = json.dumps({'hidden': hidden, 'players': shown, 'averages': means}, sort_keys=True)
         if text == published:
@@ -393,5 +368,5 @@ def _import(module, name):
         return None
 
 
-def install(session, lookup, flags, scales, settings):
-    BattleResults(session, lookup, flags, scales, settings).install()
+def install(session, lookup, flags, badges, scales, settings):
+    BattleResults(session, lookup, flags, badges, scales, settings).install()

@@ -25,7 +25,9 @@ from unicum.settings_window.labels import (_ALT_SCREENS, _CHOICE_WIDTH,
                                            RELOAD_LABELS, REPLAYS_LABEL,
                                            RESET_BUTTON, RESET_LABEL,
                                            FIGURE_LABELS, FIGURES_LABEL,
+                                           RESULTS_FIGURES_LABEL,
                                            _FIGURES_TOOLTIP,
+                                           _RESULTS_FIGURES_TOOLTIP,
                                            RESET_VAR, SHOW_CHOICES,
                                            SOURCE_VAR, SUPPORT_VAR,
                                            TEAM_CHOICES, WHEN_CHOICES,
@@ -103,6 +105,8 @@ def template(values, channel=u'', linked=False, card_shown=True,
         templates.createEmpty(_SPACER),
     ]
     garage.extend(show(surface) for surface in _GARAGE_SURFACES)
+    garage.append(choice(RESULTS_FIGURES_LABEL, _figures_key('battleResults'),
+                         list(FIGURE_LABELS), tooltip=_RESULTS_FIGURES_TOOLTIP))
     garage.extend([
         choice('Skirmish room: when', _alt_key('skirmishRoom'), WHEN_CHOICES,
                tooltip='{HEADER}Skirmish room{/HEADER}{BODY}While Alt is held, the members ratings and '
@@ -263,6 +267,7 @@ def native_page(values, channel=u'', linked=False, card_shown=True,
     dropdown(u'Skirmish room: when', _alt_key('skirmishRoom'), WHEN_CHOICES)
     dropdown(u'Stronghold: when', _alt_key('stronghold'), WHEN_CHOICES)
     dropdown(u'Battle results: when', _alt_key('results'), WHEN_CHOICES)
+    dropdown(RESULTS_FIGURES_LABEL, _figures_key('battleResults'), list(FIGURE_LABELS))
     group(1, u'unicum.gg')
     for var, text, word in LINKS:
         lines.append(u'button	%s	%s	%s' % (var, text, word))

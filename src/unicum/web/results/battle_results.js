@@ -5,8 +5,15 @@
 // function of `api` = { model, media, playSound, report }; returns { stop() }.
 // The players come as JSON in the model's `data`, keyed by the name the page
 // shows, and none are drawn while `hidden` (waiting for Alt):
-// { hidden, players: { name: { score: { value, color } | null, flags: [image url] } },
+// { hidden, players: { name: { score: { value, color } | null, flags: [image url],
+//                                vehicle: { scope, rating | winrate, battles } } },
 //   averages: { allies: { value, color } | null, enemies: ... } }.
+//
+// `vehicle` is what that player has done on the tank they brought to this
+// battle, in the mode it was played, and arrives only when the reader asked
+// for it and the site holds a record. Each of its figures is a pill: the
+// badge image the mod draws everywhere else, or text and a band colour when
+// the client could not load one.
 //
 // As on the battle's Tab screen, they sit outside each team's table, in two
 // columns lined up down the team: left of the allies' rows, right of the
@@ -28,9 +35,14 @@ const NAME = '[class*="AccountInfoCell_accountName_"]';
 const TABLE = "TeamEfficiency_table_";
 const BOX = "UnicumResults";
 const POLL_MS = 150;
-// Between the row's edge and the badge column, and between the two columns.
+// Between the row's edge and the badge column, and between the columns.
 const GAP = 10;
 const SPACE = 6;
+// The figures of a vehicle record, in the order they are laid out, reading
+// away from the row. There is no rating and a win rate instead outside
+// random battles, where Wargaming publishes no per-vehicle statistics, so
+// the two never appear together and the order between them does not matter.
+const VEHICLE_PARTS = ["rating", "winrate", "battles"];
 // A row is the widest ancestor of the name still about as tall as a row.
 const ROW_HEIGHT_RATIO = 3;
 
@@ -55,7 +67,26 @@ function group(value) {
     return out;
 }
 
-// { key, badge, flags } for a player: the elements, remade when what they show changes.
+// One pill: the badge image when the client could draw one, its text and
+// band colour when it could not. The width and height come with the image
+// because each badge is drawn to fit its own digits.
+function fillPill(node, pill) {
+    if (pill.image) {
+        node.style.backgroundImage = `url(${pill.image})`;
+        node.style.width = `${pill.width}rem`;
+        node.style.height = `${pill.height}rem`;
+        return;
+    }
+    // `text` is already written out, `value` is a number to group. The
+    // battle count arrives as text (844, 161k) because python shortened it,
+    // and grouping it again would make "1 61k" of a hundred and sixty-one
+    // thousand.
+    node.textContent = pill.text !== undefined ? String(pill.text) : group(pill.value);
+    node.style.backgroundColor = pill.color || "";
+}
+
+// { key, badge, vehicle, flags } for a player: the elements, remade when what
+// they show changes.
 function markerFor(text, player) {
     const key = JSON.stringify(player);
     const current = state.markers[text];
@@ -65,13 +96,31 @@ function markerFor(text, player) {
     if (current) {
         removeMarker(current);
     }
-    const marker = { key, badge: null, flags: null };
+    const marker = { key, badge: null, vehicle: null, flags: null, scope: "overall" };
     if (player.score) {
         marker.badge = document.createElement("div");
         marker.badge.className = `${BOX}_badge`;
         marker.badge.style.backgroundColor = player.score.color;
         marker.badge.textContent = group(player.score.value);
         layer.appendChild(marker.badge);
+    }
+    if (player.vehicle) {
+        // The scope rides in a class because a figure covering every mode
+        // must not read as this battle's. The class is completed in
+        // `decorate`, which is where the side is known.
+        marker.scope = player.vehicle.scope === "mode" ? "mode" : "overall";
+        marker.vehicle = document.createElement("div");
+        for (const role of VEHICLE_PARTS) {
+            const pill = player.vehicle[role];
+            if (!pill) {
+                continue;
+            }
+            const node = document.createElement("div");
+            node.className = `${BOX}_pill ${BOX}_pill--${role}`;
+            fillPill(node, pill);
+            marker.vehicle.appendChild(node);
+        }
+        layer.appendChild(marker.vehicle);
     }
     if (player.flags && player.flags.length) {
         marker.flags = document.createElement("div");
@@ -89,7 +138,7 @@ function markerFor(text, player) {
 }
 
 function removeMarker(marker) {
-    for (const element of [marker.badge, marker.flags, marker.sign]) {
+    for (const element of [marker.badge, marker.vehicle, marker.flags, marker.sign]) {
         if (element && element.parentElement) {
             element.parentElement.removeChild(element);
         }
@@ -210,30 +259,56 @@ function decorate() {
     }
     for (const side of ["left", "right"]) {
         const rows = sides[side];
-        // One badge column for the team, as wide as its widest badge.
+        // One column per kind for the team, each as wide as its widest
+        // member, so the three line up down the side instead of each row
+        // starting its flags wherever its own badge happened to end.
         let badges = 0;
+        let vehicles = 0;
         for (const item of rows) {
             if (item.marker.badge) {
                 badges = Math.max(badges, item.marker.badge.offsetWidth);
             }
+            if (item.marker.vehicle) {
+                vehicles = Math.max(vehicles, item.marker.vehicle.offsetWidth);
+            }
         }
         for (const item of rows) {
             const { marker, row } = item;
+            // The group reads away from the row, so on the left its own
+            // pills run backwards: the rating stays nearest the table on
+            // both sides.
+            if (marker.vehicle) {
+                const named = `${BOX}_vehicle ${BOX}_vehicle--${marker.scope} ${BOX}_vehicle--${side}`;
+                if (marker.vehicle.className !== named) {
+                    marker.vehicle.className = named;
+                }
+            }
+            const past = (taken) => (taken ? taken + SPACE : 0);
             if (side === "left") {
                 const edge = row.left - GAP;
+                const afterBadge = edge - past(badges);
+                const afterVehicle = afterBadge - past(vehicles);
                 if (marker.badge) {
                     place(marker.badge, edge - marker.badge.offsetWidth, row.middle);
                 }
+                if (marker.vehicle) {
+                    place(marker.vehicle, afterBadge - marker.vehicle.offsetWidth, row.middle);
+                }
                 if (marker.flags) {
-                    place(marker.flags, edge - (badges ? badges + SPACE : 0) - marker.flags.offsetWidth, row.middle);
+                    place(marker.flags, afterVehicle - marker.flags.offsetWidth, row.middle);
                 }
             } else {
                 const edge = row.right + GAP;
+                const afterBadge = edge + past(badges);
+                const afterVehicle = afterBadge + past(vehicles);
                 if (marker.badge) {
                     place(marker.badge, edge, row.middle);
                 }
+                if (marker.vehicle) {
+                    place(marker.vehicle, afterBadge, row.middle);
+                }
                 if (marker.flags) {
-                    place(marker.flags, edge + (badges ? badges + SPACE : 0), row.middle);
+                    place(marker.flags, afterVehicle, row.middle);
                 }
             }
         }
