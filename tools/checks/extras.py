@@ -321,6 +321,99 @@ def check_alt_swaps_to_the_tank():
     check('and the surfaces it asks about are the ones that exist',
           set(_ALT_SURFACES) == set(['panel', 'tab', 'loading']))
 
+    # ------------------------- a side's average, measured where its rows are
+    #
+    # The rows went on the tank and the average stayed on careers, so one
+    # column held two answers to two different questions and read as one
+    # answer that did not add up. `_on_tank` decides both now.
+    from unicum.battle.teams import TeamNames
+
+    class _Record(object):
+        def __init__(self, battles, wnx=None, winrate=None):
+            self.known, self.battles = True, battles
+            self.winrate, self._wnx = winrate, wnx
+
+        def rating(self, metric):
+            return self._wnx if metric == 'wnx' else None
+
+    class _Lookup(object):
+        def __init__(self, records=None, entries=None):
+            self._records, self._entries = records or {}, entries or {}
+
+        def vehicle(self, account_id, tank_id, mode):
+            return self._records.get((account_id, tank_id))
+
+        def needs_fetch(self, kind, account_id):
+            return False
+
+        def get(self, kind, account_id):
+            return self._entries.get(account_id)
+
+    class _Entry(object):
+        def __init__(self, wnx, winrate, battles):
+            self._stats = {'winrate': winrate, 'battles': battles}
+            self.wnx = wnx
+
+        def stat(self, name, window):
+            return self._stats.get(name)
+
+    class _Side(TeamNames):
+        def __init__(self, on_tank, lookup, settings):
+            self._on, self._lookup, self._settings = on_tank, lookup, settings
+
+        def _on_tank(self):
+            return self._on
+
+        def _tank_mode(self):
+            return 'random'
+
+        def _request(self, account_id):
+            pass
+
+    class _Reading(object):
+        """Only what the averages ask of the settings."""
+
+        def metric(self, surface):
+            return 'wnx'
+
+        def vehicle_metric(self, surface):
+            return 'wnx'
+
+        def rating(self, entry, surface):
+            return entry.wnx if entry is not None else None
+
+        def extra(self, name, surface):
+            return 'total'
+
+    pairs = [(1, 100), (2, 200), (3, 300)]
+    records = {(1, 100): _Record(80, wnx=2000, winrate=60.0),
+               (2, 200): _Record(20, wnx=1000, winrate=40.0)}
+    entries = {1: _Entry(4000, 70.0, 9000), 2: _Entry(2000, 50.0, 1000)}
+    lookup = _Lookup(records, entries)
+
+    on_tank = _Side(True, lookup, _Reading())._team_figures(pairs)
+    check('on the tank, the average is of the tanks the side brought',
+          on_tank == (1500.0, None, 50.0))
+    career = _Side(False, lookup, _Reading())._team_figures(pairs)
+    check('and on the career it is of careers, as it always was',
+          career == (3000.0, 60.0, 5000.0))
+    check('so the two are not the same number, which is the whole point',
+          on_tank[0] != career[0])
+
+    # A player the site holds nothing about is in no mean rather than in one
+    # as a zero: the third pair has no record and no entry, and neither
+    # average counts it.
+    check('a player with nothing known is in neither average',
+          len(pairs) == 3 and on_tank[0] == 1500.0 and career[0] == 3000.0)
+
+    # A skirmish has no WN rating per vehicle. The line used to vanish whole
+    # when the rating came back empty, taking the win rate and the count with
+    # it; now the figures it does have are drawn.
+    bare = {(1, 100): _Record(80, winrate=60.0), (2, 200): _Record(20, winrate=40.0)}
+    rating, winrate, count = _Side(True, _Lookup(bare), _Reading())._team_figures(pairs)
+    check('with no rating for the mode, the win rate and the count still stand',
+          rating is None and winrate == 50.0 and count == 50.0)
+
     # Read from the other end: a row set to rest on the tank shows the tank
     # with nothing held, and Alt is the glance at the career instead. Holding
     # a key is fine for a second opinion and no way to read the figure you

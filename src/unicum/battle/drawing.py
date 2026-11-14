@@ -14,7 +14,7 @@ import logging
 
 from unicum import modes, views
 from unicum.battle.markup import icon_markers, markup_width
-from unicum.battle.teams import TeamNames
+from unicum.battle.teams import TeamNames, tank_of
 from unicum.api.entry import PLAYERS
 
 _logger = logging.getLogger('unicum.battle.drawing')
@@ -38,16 +38,6 @@ _ORDERED = ('as_setVehiclesDataS', 'as_addVehiclesInfoS', 'as_updateVehiclesInfo
 # with no per-vehicle record at all, and asking the client again every pass
 # because the honest answer was None would be a read per row per second.
 _UNASKED = object()
-
-
-def tank_of(vInfo):
-    """The vehicle id Wargaming keys its own per-vehicle statistics on, or None.
-
-    `compactDescr` is that id: the same number the site stores a tank
-    snapshot under, so a pair asked for here and a row stored there are the
-    same tank without a translation table in between.
-    """
-    return getattr(getattr(vInfo, 'vehicleType', None), 'compactDescr', None)
 
 
 def _arena():
