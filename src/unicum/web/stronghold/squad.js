@@ -98,8 +98,12 @@ function squad() {
             continue;
         }
         takeOver(cell);
-        paintScore(cell, players[name].score);
-        painted++;
+        // Counted on what was DRAWN, never on what was attempted: the header
+        // is renamed off this, and a column called 30d WNX over a panel still
+        // showing Wargaming's own numbers is worse than an unnamed one.
+        if (paintScore(cell, players[name].score)) {
+            painted++;
+        }
     }
     // Only once a row has been painted, so the column is not renamed over a
     // panel that is still showing the site's own numbers.

@@ -218,11 +218,9 @@ function fillScore(cell, tag) {
 // Shared because they draw the same badge; the lookup is not, because one is
 // keyed by clan tag and the other by nickname.
 function paintScore(cell, score) {
-    // `querySelector`, not `firstChild`: this used to be a cell we had built
-    // ourselves, whose only child was its span. It is the site's cell now.
-    var span = cell.querySelector('span');
+    var span = scoreSpan(cell);
     if (!span) {
-        return;
+        return false;
     }
     if (!span.hasAttribute(LABEL_ATTR)) {
         span.setAttribute(LABEL_ATTR, span.textContent);
@@ -233,4 +231,38 @@ function paintScore(cell, score) {
         span.setAttribute('style', style);
     }
     cell.setAttribute('data-value', score ? String(score.value) : '-1');
+    return true;
+}
+
+// The element the badge is painted onto: the cell's own span where it has
+// one, a span we add where it does not.
+//
+// `querySelector`, not `firstChild`: this used to be a cell we had built
+// ourselves, whose only child was its span. It is the site's cell now, and
+// the two tables do not agree about it. The left one wraps its number in a
+// span; the preview panel on the right holds it as a bare text node, so
+// looking for a span there found nothing and the paint returned silently
+// while everything around it reported success -- the header was renamed over
+// rows still showing Wargaming's own figures.
+//
+// The cell's own text goes into LABEL_ATTR on the cell, which the teardown
+// restores, and the span is marked as ours, which the teardown removes.
+function scoreSpan(cell) {
+    var span = cell.querySelector('span');
+    if (span) {
+        return span;
+    }
+    span = cell.querySelector('[' + COL_ATTR + '="value"]');
+    if (span) {
+        return span;
+    }
+    if (!cell.hasAttribute(LABEL_ATTR)) {
+        cell.setAttribute(LABEL_ATTR, cell.textContent);
+    }
+    span = document.createElement('span');
+    span.setAttribute(ADDED_ATTR, '1');
+    span.setAttribute(COL_ATTR, 'value');
+    cell.textContent = '';
+    cell.appendChild(span);
+    return span;
 }
