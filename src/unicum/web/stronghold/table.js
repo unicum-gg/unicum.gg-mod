@@ -257,48 +257,50 @@ function scoreSpan(cell) {
         if (!cell.hasAttribute(LABEL_ATTR)) {
             cell.setAttribute(LABEL_ATTR, cell.textContent);
         }
-        span = document.createElement('span');
+        span = donorSpan();
         span.setAttribute(ADDED_ATTR, '1');
         span.setAttribute(COL_ATTR, 'value');
         cell.textContent = '';
         cell.appendChild(span);
-    }
-    // Sized on every pass, not only the one that made it: the left table is
-    // painted before this runs, but on the first pass of a fresh page it may
-    // have drawn nothing yet, and a span sized once at birth would keep the
-    // size it inherited for the life of the panel.
-    if (!span.style.fontSize) {
-        var size = badgeFontSize();
-        if (size) {
-            span.style.fontSize = size;
+    } else if (!span.className) {
+        // Born before the list had drawn anything, so it was born bare. The
+        // donor exists now, and the classes are the whole of what makes the
+        // two badges one badge.
+        var donor = donorSpan();
+        if (donor.className) {
+            span.className = donor.className;
         }
     }
     return span;
 }
 
-// The type size a badge is drawn at, read off one the site already sized.
+// An empty copy of the element the site puts a figure in, taken from the
+// detachment list on the left.
 //
-// A span we add inherits the cell it lands in, and the two tables in this
-// window do not set type the same: the preview panel on the right runs
-// larger than the detachment list on the left, so the same badge came out
-// two sizes depending on which table drew it.
+// The panel on the right holds its figure as a bare text node, so there is
+// nothing there to paint onto and one has to be made. Made by cloning the
+// list's rather than by building a span and dressing it: the two tables set
+// type differently, so a bare span inherits the panel's size and the same
+// badge comes out bigger on one side than the other. Matching that by hand
+// means a number in this file that is right until either table is restyled.
+// A clone carries the site's own classes, so the two are the same component
+// and agree by construction, whatever the site does to it later.
 //
-// Measured rather than written down. A number here would be right until the
-// day the site restyles either table, and wrong in a way nobody would think
-// to look for; reading it means the two agree by construction. Null while
-// the left table has drawn nothing yet, and the span inherits as it did.
-var badgeSize = null;
-
-function badgeFontSize() {
-    if (badgeSize !== null) {
-        return badgeSize;
-    }
+// A plain span when the list has drawn nothing yet, which is the first pass
+// of a fresh page; the branch above re-dresses it once a donor exists.
+function donorSpan() {
     var drawn = document.querySelector(
         '[class*="UnitsList_tr"] [' + TAKEN_ATTR + '] span');
     if (!drawn) {
-        return null;
+        return document.createElement('span');
     }
-    var size = window.getComputedStyle(drawn).fontSize;
-    badgeSize = size || null;
-    return badgeSize;
+    // The classes are what is wanted; everything else on the donor belongs
+    // to the row it came from. Its inline style is one clan's band colour,
+    // which `paintScore` would overwrite anyway, and its LABEL_ATTR is that
+    // clan's own figure, which the teardown would read as this cell's.
+    var copy = drawn.cloneNode(false);
+    copy.removeAttribute('style');
+    copy.removeAttribute(LABEL_ATTR);
+    copy.removeAttribute('data-value');
+    return copy;
 }
