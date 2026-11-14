@@ -80,6 +80,31 @@ _BATTLES = 'BTL'
 _ON_TANK = 'TANK'
 
 
+# What a sample row is led by. Every one of these screens hangs its
+# badges off a player's name -- a contacts row, a room line, a results
+# line, a name over a tank -- and without one the preview was a handful of
+# pills in mid-air, which is no easier to picture than the settings were.
+# Drawn in the same quiet grey as the window's own labels, so it reads as
+# the thing being decorated rather than as part of the decoration.
+_NAME = '<font face="$FieldFont" color="#969687">%s</font>'
+
+
+def _named(entry, parts):
+    """The sample name, then whatever was drawn, or '' if nothing was.
+
+    Nothing drawn means the screen is switched off, and a name on its own
+    is not a preview of anything: `lines` drops the row entirely.
+
+    The name is this module's own constant and carries no markup, which
+    matters because the line it goes into is the one line of the page that
+    draws markup instead of escaping it.
+    """
+    drawn = [part for part in parts if part]
+    if not drawn:
+        return u''
+    return u'%s  %s' % (_NAME % entry.name, u'  '.join(drawn))
+
+
 def _career(badges, textures, settings, entry, surface):
     """The row as it reads about the player's whole account."""
     parts = []
@@ -116,7 +141,7 @@ def _career(badges, textures, settings, entry, surface):
             parts.append(badges.tagged_markup(
                 badge_lib.count(found), badge_lib.NEUTRAL,
                 u'%s %s' % (_BATTLES, _WHEN[window])))
-    return u'  '.join(part for part in parts if part)
+    return _named(entry, parts)
 
 
 def _tank(badges, textures, settings, entry, surface):
@@ -144,7 +169,7 @@ def _tank(badges, textures, settings, entry, surface):
     parts.append(badges.tagged_markup(
         badge_lib.count(record.battles), badge_lib.NEUTRAL,
         u'%s %s' % (_BATTLES, _ON_TANK)))
-    return u'  '.join(part for part in parts if part)
+    return _named(entry, parts)
 
 
 def lines(badges, textures, settings, surface='battle'):

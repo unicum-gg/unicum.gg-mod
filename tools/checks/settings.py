@@ -151,8 +151,13 @@ def check_settings_preview(workdir):
 
     named = preview.lines(badges, textures, settings)[0][1]
     check('each badge carries what it is, in the badge and not beside it',
-          u'.wnx' in named and u'.wr' in named and u'.btl' in named
-          and u'<font' not in named)
+          u'.wnx' in named and u'.wr' in named and u'.btl' in named)
+    # One piece of text on the row and one only: the name the badges hang
+    # off. A caption anywhere else would mean a chip drawn beside its badge
+    # instead of into it, which is what this whole shape replaced.
+    check('and the only text on the row is the name it decorates',
+          named.count(u'<font') == 1 and u'>Player<' in named
+          and named.index(u'<font') == 0)
     # The chip has been redesigned twice and kept its file name both times,
     # which left every badge already on disk being served at the new one's
     # width. The size is in the name now.
@@ -220,7 +225,7 @@ def check_settings_preview(workdir):
                      'profile': {'rating': False, 'flags': True},
                      'battles': 'total', 'winrate': 'total'})
     garage = surface_preview_lines((badges, textures, settings), 'contacts')
-    check('a screen previews its own row, with no name on it',
+    check('a screen previews its own row, unlabelled by the screen it is from',
           len(garage) == 1 and u'.wnx' in garage[0]
           and not garage[0].startswith(u'Contacts'))
     # The whole reason there is one per screen rather than one for the
