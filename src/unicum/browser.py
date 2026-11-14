@@ -285,17 +285,49 @@ class BrowserBridge(object):
             if entry is not None and self._settings.shows_flags('stronghold'):
                 codes = entry.flags[:self._settings['maxFlags']]
             uris = [self._flags.data_uri(code) for code in codes]
-            value = self._settings.rating(entry, 'stronghold')
             answers[tag] = {
                 'flags': [uri for uri in uris if uri],
-                'score': None if value is None else {
-                    'value': value, 'color': self._scales.color(self._settings.metric('stronghold'), value)},
+                'score': self._score(self._settings.rating(entry, 'stronghold')),
             }
         if not answers:
             return
         _logger.info('sending %s clans, %s with %s', len(answers),
                      sum(1 for a in answers.values() if a['score']), self._settings.label('stronghold'))
         self._run(ref, answers_script(answers))
+
+    def _score(self, value):
+        """A rating as this page should draw it: the mod's own badge, inlined.
+
+        The same PNG the client draws in the skirmish room and over the
+        tanks, handed over as bytes the way a flag is. Not a shape built in
+        CSS beside it: that was the imitation, and an imitation of a 12px
+        badge inherits the page's type and comes out half again as big in
+        one panel and right in the other, which is what sent me measuring
+        font sizes instead of sending the badge.
+
+        `value` and `color` ride along so a page that cannot show the image
+        still has something true to draw.
+        """
+        if value is None:
+            return None
+        metric = self._settings.metric('stronghold')
+        color = self._scales.color(metric, value)
+        if not color:
+            return None
+        score = {'value': value, 'color': color}
+        try:
+            from unicum import badge_png
+            whole = int(round(value))
+            data = badge_png.png(whole, color)
+            score['image'] = 'data:image/png;base64,' + base64.b64encode(data)
+            score['width'] = badge_png.width_of(whole)
+            score['height'] = badge_png.HEIGHT
+        except Exception:
+            # The figure and its band still travel. A page drawing the
+            # number on its colour is worse than the badge and much better
+            # than nothing.
+            _logger.exception('could not draw a badge for the page')
+        return score
 
     def _answer_players(self, ref, names):
         """The same bargain `_answer` makes for clans, for the preview panel.
@@ -311,17 +343,13 @@ class BrowserBridge(object):
             self._session.callback(_RETRY_SECONDS, lambda: self._lookup.prefetch(
                 names=failed, on_ready=lambda: self._answer_players(ref, failed)))
         answers = {}
-        metric = self._settings.metric('stronghold')
         for name in names:
             if name in failed:
                 continue
             account_id = self._lookup.account_id(name)
             entry = self._lookup.get(PLAYERS, account_id) if account_id else None
-            value = self._settings.rating(entry, 'stronghold')
-            answers[name] = {
-                'score': None if value is None else {
-                    'value': value, 'color': self._scales.color(metric, value)},
-            }
+            answers[name] = {'score': self._score(
+                self._settings.rating(entry, 'stronghold'))}
         if not answers:
             return
         _logger.info('sending %s players, %s with %s', len(answers),

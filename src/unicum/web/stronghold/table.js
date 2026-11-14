@@ -201,6 +201,12 @@ function formatRating(value) {
 var BADGE_CSS = 'display:inline-block;padding:1px 5px;border-radius:3px;' +
                 'color:#FFFFFF;line-height:16px;text-shadow:none';
 
+// The badge when it arrives as the mod's own image. Its own size in pixels,
+// which is the whole point: the client draws it at twelve pixels tall and so
+// does this, in both panels, whatever type either of them sets.
+var IMAGE_CSS = 'display:inline-block;background-repeat:no-repeat;' +
+                'background-size:100% 100%;vertical-align:middle';
+
 // The column's name, in the shape the mod names a figure everywhere else:
 // the small dark chip it stamps into a badge's corner, shouted and short.
 // Same band as the chip's (badge_png.TAG_BAND), so the two read as one
@@ -225,8 +231,23 @@ function paintScore(cell, score) {
     if (!span.hasAttribute(LABEL_ATTR)) {
         span.setAttribute(LABEL_ATTR, span.textContent);
     }
-    setText(span, score ? formatRating(score.value) : '-');
-    var style = score && score.color ? BADGE_CSS + ';background-color:' + score.color : '';
+    // The badge as an image where one came: the same PNG the client draws
+    // in the skirmish room and over the tanks, so the two are the same
+    // badge rather than two drawings of one. A shape built here in CSS
+    // inherits whichever panel it lands in and comes out a different size
+    // on each, which is what it did.
+    //
+    // The text and the band stay the fallback, for a badge the client could
+    // not draw at all.
+    var style;
+    if (score && score.image) {
+        setText(span, '');
+        style = IMAGE_CSS + ';width:' + score.width + 'px;height:' + score.height +
+                'px;background-image:url(' + score.image + ')';
+    } else {
+        setText(span, score ? formatRating(score.value) : '-');
+        style = score && score.color ? BADGE_CSS + ';background-color:' + score.color : '';
+    }
     if (span.getAttribute('style') !== style) {
         span.setAttribute('style', style);
     }
