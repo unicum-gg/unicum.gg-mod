@@ -211,7 +211,13 @@ var CHIP_CSS = 'display:inline-block;padding:0 4px;border-radius:2px;' +
                'white-space:nowrap;text-shadow:none';
 
 function fillScore(cell, tag) {
-    var score = tag && clans[tag] ? clans[tag].score : null;
+    paintScore(cell, tag && clans[tag] ? clans[tag].score : null);
+}
+
+// One figure into one cell we have taken over, left table or preview panel.
+// Shared because they draw the same badge; the lookup is not, because one is
+// keyed by clan tag and the other by nickname.
+function paintScore(cell, score) {
     // `querySelector`, not `firstChild`: this used to be a cell we had built
     // ourselves, whose only child was its span. It is the site's cell now.
     var span = cell.querySelector('span');

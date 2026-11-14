@@ -20,19 +20,11 @@ import urllib
 from unicum import config
 from unicum.api import store as disk
 from unicum.api.http import parse
-from unicum.api.entry import (CLANS, PLAYERS, TAGS, VEHICLES, Entry,
+from unicum.api.batching import _chunk, _keys, _tag_key, _vehicle_key
+from unicum.api.entry import (CLANS, NAMES, PLAYERS, TAGS, VEHICLES, Entry,
                               Vehicle)
 
 _logger = logging.getLogger('unicum.api')
-
-# Ids per kind per request, the endpoint's own cap. A longer list is refused,
-# not truncated, and the contacts list alone is ~3300 ids.
-_CHUNK = 100
-
-# Vehicle pairs per request, which is the endpoint's own lower cap for them:
-# a pair costs two indexed reads where an id costs part of one, and the
-# roster this exists for is thirty.
-_VEHICLE_CHUNK = 60
 
 # Long enough to coalesce a burst of batches into one write.
 _SAVE_DELAY = 10.0
@@ -69,6 +61,12 @@ class Lookup(object):
         # asked for once per battle and would be stale before the next one.
         self._vehicles = {}
         self._tags = {}           # TAG -> (clan id or None, fetched_at)
+        # NICKNAME (lowered) -> (account id or None, fetched_at). In memory
+        # only, unlike the tags beside it, and on purpose: a clan tag is as
+        # good tomorrow as today, where a player renames and the id behind a
+        # name is the one thing a saved copy would get wrong. Re-asking costs
+        # one request in a window that is already making one.
+        self._names = {}
         self._in_flight = set()   # (kind, id or TAG)
         self._retry_at = {}       # (kind, id or TAG) -> time
         self._queued = []         # batches waiting for a turn
@@ -115,6 +113,15 @@ class Lookup(object):
         """Whether the server has answered for this tag, clan or no clan."""
         return _tag_key(tag) in self._tags
 
+    def account_id(self, name):
+        """The account id behind a nickname, or None when unknown or unasked."""
+        found = self._names.get(_tag_key(name))
+        return found[0] if found else None
+
+    def knows_name(self, name):
+        """Whether the server has answered for this nickname, account or no."""
+        return _tag_key(name) in self._names
+
     def needs_fetch(self, kind, entity_id):
         """Whether an id should be asked for: never answered, or gone stale.
 
@@ -127,7 +134,7 @@ class Lookup(object):
         entry = self._cache.get(key)
         return entry is None or self._is_stale(entry.fetched_at)
 
-    def prefetch(self, players=(), clans=(), tags=(), vehicles=(),
+    def prefetch(self, players=(), clans=(), tags=(), names=(), vehicles=(),
                  mode=None, on_ready=None):
         """Fetch whatever is missing or stale, then call on_ready once.
 
@@ -138,8 +145,14 @@ class Lookup(object):
         `vehicles` is (account id, vehicle id) pairs and `mode` the mode to
         describe them over, which ride in the same request as the roster:
         the whole point of this endpoint is that a battle costs one.
+
+        `names` is nicknames, for the one roster that prints no id at all:
+        the Stronghold detachment preview. It behaves as `tags` does, a name
+        already resolved being refreshed through its account id rather than
+        asked for by name a second time.
         """
         clans = list(clans)
+        players = list(players)
         wanted_tags = []
         for tag in tags:
             key = _tag_key(tag)
@@ -152,9 +165,21 @@ class Lookup(object):
                     self._retry_at.get((TAGS, key), 0) <= time.time() and \
                     key not in wanted_tags:
                 wanted_tags.append(key)
+        wanted_names = []
+        for name in names:
+            key = _tag_key(name)
+            known = self._names.get(key)
+            if known is not None and not self._is_stale(known[1]):
+                if known[0]:
+                    players.append(known[0])
+                continue
+            if (NAMES, key) not in self._in_flight and \
+                    self._retry_at.get((NAMES, key), 0) <= time.time() and \
+                    key not in wanted_names:
+                wanted_names.append(key)
 
         batches = _chunk(self._missing(PLAYERS, players),
-                         self._missing(CLANS, clans), wanted_tags,
+                         self._missing(CLANS, clans), wanted_tags, wanted_names,
                          self._missing_vehicles(vehicles, mode), mode)
         if not batches:
             if on_ready is not None:
@@ -230,7 +255,7 @@ class Lookup(object):
 
     def _url(self, batch):
         parts = []
-        for kind in (PLAYERS, CLANS, TAGS):
+        for kind in (PLAYERS, CLANS, TAGS, NAMES):
             if batch[kind]:
                 parts.append('%s=%s' % (kind, ','.join(
                     urllib.quote(str(value), safe='') for value in batch[kind])))
@@ -264,6 +289,17 @@ class Lookup(object):
             raw = (payload.get(CLANS) or {}).get(str(clan_id)) if clan_id else None
             if isinstance(raw, dict):
                 self._cache[(CLANS, int(clan_id))] = Entry.from_api(CLANS, raw, now)
+        # Players reached through a nickname come back under `players`,
+        # keyed by an id the batch did not name, exactly as a tag's clan does.
+        answered_names = dict((_tag_key(n), i)
+                              for n, i in (payload.get(NAMES) or {}).items())
+        for key in batch[NAMES]:
+            account_id = answered_names.get(key)
+            self._names[key] = (int(account_id) if account_id else None, now)
+            self._retry_at.pop((NAMES, key), None)
+            raw = (payload.get(PLAYERS) or {}).get(str(account_id)) if account_id else None
+            if isinstance(raw, dict):
+                self._cache[(PLAYERS, int(account_id))] = Entry.from_api(PLAYERS, raw, now)
         self._absorb_vehicles(batch, payload)
         self._dirty = True
         self._schedule_save()
@@ -351,46 +387,3 @@ def _in_battle():
     except Exception:
         _logger.debug('could not tell whether a battle is on', exc_info=True)
         return False
-
-
-def _tag_key(tag):
-    return str(tag).strip().upper()
-
-
-def _vehicle_key(account_id, tank_id, mode):
-    """What a pair is cached under: the pair AND the mode.
-
-    The mode belongs in the key because it decides the figures: the same
-    vehicle in a Random battle and in an Advance are two different records,
-    and one overwriting the other is how a reader gets shown the wrong one.
-    """
-    return (int(account_id), int(tank_id), str(mode or ''))
-
-
-def _keys(batch):
-    keys = set((kind, value) for kind in (PLAYERS, CLANS, TAGS)
-               for value in batch[kind])
-    keys.update((VEHICLES, key) for key in batch[VEHICLES])
-    return keys
-
-
-def _chunk(players, clans, tags, vehicles=(), mode=None):
-    """Requests of at most _CHUNK values per kind, kinds sharing a request.
-
-    The vehicle pairs have their own, lower ceiling, so a request carries at
-    most sixty of them beside its hundred ids.
-    """
-    vehicles = list(vehicles)
-    batches = []
-    offset = 0
-    pairs = 0
-    while (offset < max(len(players), len(clans), len(tags))
-           or pairs < len(vehicles)):
-        batches.append({PLAYERS: players[offset:offset + _CHUNK],
-                        CLANS: clans[offset:offset + _CHUNK],
-                        TAGS: tags[offset:offset + _CHUNK],
-                        VEHICLES: vehicles[pairs:pairs + _VEHICLE_CHUNK],
-                        'mode': mode})
-        offset += _CHUNK
-        pairs += _VEHICLE_CHUNK
-    return batches

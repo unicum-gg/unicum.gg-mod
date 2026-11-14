@@ -83,6 +83,15 @@ window.__unicum = {
         }
         scan();
     },
+    // Its own entry point rather than a second shape through `set`: the clan
+    // path has been working for months, and one payload for both would have
+    // had the two halves failing together.
+    setPlayers: function (answers) {
+        for (var name in answers) {
+            players[name] = answers[name];
+        }
+        scan();
+    },
     stop: stop
 };
 

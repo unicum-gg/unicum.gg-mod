@@ -38,7 +38,7 @@ from helpers import dependency
 from skeletons.gui.game_control import IBrowserController
 
 from unicum import resources
-from unicum.api.entry import CLANS
+from unicum.api.entry import CLANS, PLAYERS
 
 _logger = logging.getLogger('unicum.browser')
 
@@ -46,14 +46,11 @@ _logger = logging.getLogger('unicum.browser')
 # https://wgsh-woteu-static.wgcdn.co/auth/entry?...next=/#/battlerooms
 _STRONGHOLD_HOST_MARK = '://wgsh-'
 
-# The detachment preview on the right of that window cannot carry the mod's
-# ratings, and the reason is not in this file or in the page: /resolve takes
-# players by account id and clans by tag, and that panel gives nicknames and
-# nothing else. A clan tag is a name the API answers to, which is why the
-# list on the left works; a nickname is not. Decorating the right panel needs
-# a name lookup the site does not serve. Measured, not assumed:
-# `resolve?players=_Winnie`, `?names=`, `?nicknames=` all answer {}.
 NEED_PREFIX = '[unicum] need '
+# The detachment preview on the right of that window asks by nickname, which
+# is the only thing it prints: no account id, no clan tag. `/resolve` took
+# neither until `names` was added to it for exactly this table.
+PLAYER_PREFIX = '[unicum] player '
 # What the page says about itself when asked, which is a development thing:
 # see PROBE in web/stronghold/core.js.
 PROBE_PREFIX = '[unicum] probe '
@@ -67,7 +64,8 @@ _CONTENT_SCRIPT_DIR = 'web/stronghold'
 
 # One script in several files, joined in this order: later files use what
 # earlier ones define, and lifecycle.js runs the first scan.
-_CONTENT_SCRIPT_FILES = ('core.js', 'table.js', 'sorting.js', 'flags.js', 'lifecycle.js')
+_CONTENT_SCRIPT_FILES = ('core.js', 'table.js', 'squad.js', 'sorting.js',
+                         'flags.js', 'lifecycle.js')
 
 # Before asking again for tags whose request failed: past the lookup's own
 # retry delay, which would otherwise answer from nothing.
@@ -117,6 +115,38 @@ def answers_script(clans_by_tag):
     payload = base64.b64encode(json.dumps(clans_by_tag, sort_keys=True))
     return ("javascript:(function(){var U=window.__unicum;"
             "if(U){U.set(JSON.parse(atob('" + payload + "')));}})();void(0);")
+
+
+def players_script(players_by_name):
+    """Hand resolved players to the content script.
+
+    {nickname: {'score': {'value', 'color'} or None}}. Its own entry point
+    rather than a second shape through `set`: the clan path has been working
+    for months and a shared payload would have both halves failing together.
+
+    A player with no rating is still an answer, so the page stops asking.
+    """
+    payload = base64.b64encode(json.dumps(players_by_name, sort_keys=True))
+    return ("javascript:(function(){var U=window.__unicum;"
+            "if(U&&U.setPlayers){U.setPlayers(JSON.parse(atob('" + payload + "')));}})();void(0);")
+
+
+def parse_players(message):
+    """Nicknames asked for by the content script, or None for anything else.
+
+    Wider than a clan tag and bounded all the same: Wargaming allows letters,
+    digits and underscores, up to 24. Anything else is dropped rather than
+    sent, since the page is the one place a value could arrive from that we
+    did not write.
+    """
+    if not isinstance(message, basestring) or not message.startswith(PLAYER_PREFIX):
+        return None
+    names = []
+    for name in message[len(PLAYER_PREFIX):].split(','):
+        name = name.strip()
+        if name and len(name) <= 24 and all(c.isalnum() or c == '_' for c in name):
+            names.append(name)
+    return names
 
 
 def parse_need(message):
@@ -222,6 +252,12 @@ class BrowserBridge(object):
         if isinstance(message, basestring) and message.startswith(PROBE_PREFIX):
             _logger.info('page classes: %s', message[len(PROBE_PREFIX):])
             return
+        names = parse_players(message)
+        if names:
+            _logger.info('page needs %s players: %s', len(names), ','.join(names))
+            self._lookup.prefetch(
+                names=names, on_ready=lambda: self._answer_players(ref, names))
+            return
         tags = parse_need(message)
         if not tags:
             return
@@ -260,6 +296,38 @@ class BrowserBridge(object):
         _logger.info('sending %s clans, %s with %s', len(answers),
                      sum(1 for a in answers.values() if a['score']), self._settings.label('stronghold'))
         self._run(ref, answers_script(answers))
+
+    def _answer_players(self, ref, names):
+        """The same bargain `_answer` makes for clans, for the preview panel.
+
+        A name the server never answered is not "no such player": the page
+        would take an empty answer as final and never ask again, so it is
+        asked for again later, exactly as a tag is.
+        """
+        failed = [name for name in names if not self._lookup.knows_name(name)]
+        if failed:
+            _logger.info('no answer for %s players, asking again in %ds',
+                         len(failed), _RETRY_SECONDS)
+            self._session.callback(_RETRY_SECONDS, lambda: self._lookup.prefetch(
+                names=failed, on_ready=lambda: self._answer_players(ref, failed)))
+        answers = {}
+        metric = self._settings.metric('stronghold')
+        for name in names:
+            if name in failed:
+                continue
+            account_id = self._lookup.account_id(name)
+            entry = self._lookup.get(PLAYERS, account_id) if account_id else None
+            value = self._settings.rating(entry, 'stronghold')
+            answers[name] = {
+                'score': None if value is None else {
+                    'value': value, 'color': self._scales.color(metric, value)},
+            }
+        if not answers:
+            return
+        _logger.info('sending %s players, %s with %s', len(answers),
+                     sum(1 for a in answers.values() if a['score']),
+                     self._settings.label('stronghold'))
+        self._run(ref, players_script(answers))
 
     def _remove_scripts(self):
         """Take the observer and every flag back out of the page on unload."""

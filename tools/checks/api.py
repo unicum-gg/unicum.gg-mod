@@ -11,7 +11,7 @@ def check_browser_scope(src_root):
     if src_root not in sys.path:
         sys.path.insert(0, src_root)
     from unicum.browser import (answers_script, content_script, is_stronghold_page,
-                                parse_need)
+                                parse_need, parse_players, players_script)
 
     check('the page asking for tags is understood',
           parse_need('[unicum] need RASZ,TENTS') == ['RASZ', 'TENTS'])
@@ -19,6 +19,19 @@ def check_browser_scope(src_root):
           parse_need('Uncaught TypeError: x is undefined') is None)
     check('a malformed tag from the page is dropped',
           parse_need('[unicum] need RASZ,<img onerror=x>') == ['RASZ'])
+
+    # The preview panel's half. Its own prefix, because a nickname is wider
+    # than a tag and the two must not be read by the same rule: a 24-character
+    # name would be dropped as a tag, and a tag's reader would accept it.
+    check('the page asking for players is understood',
+          parse_players('[unicum] player _Winnie,ROK_ZIRKF') == ['_Winnie', 'ROK_ZIRKF'])
+    check('a tag request is not read as a player request, nor the reverse',
+          parse_players('[unicum] need RASZ') is None
+          and parse_need('[unicum] player _Winnie') is None)
+    check('a nickname the page mangled is dropped, the rest kept',
+          parse_players('[unicum] player _Winnie,<img onerror=x>,a b') == ['_Winnie'])
+    check('and one longer than Wargaming allows is dropped',
+          parse_players('[unicum] player ' + 'a' * 25) == [])
 
     # javascript: URLs are percent-decoded, and '#' would start a fragment.
     import base64
@@ -38,6 +51,16 @@ def check_browser_scope(src_root):
         'TENTS': {'flags': [], 'score': None}})
     check('the answers script survives being a URL, colours included',
           '%' not in pushed and '#' not in pushed)
+    sent = players_script({'_Winnie': {'score': {'value': 3249.4, 'color': '#8500BC'}},
+                           'Nobody': {'score': None}})
+    check('the players script survives being a URL too',
+          '%' not in sent and '#' not in sent and 'setPlayers' in sent)
+
+    from unicum.browser import PLAYER_PREFIX
+    check('the page and python agree on how players are asked for',
+          ("'%s'" % PLAYER_PREFIX) in decoded)
+    check('and the preview panel is part of the script that runs',
+          'Squad_rating' in decoded and 'Squad_ratingIcon' in decoded)
 
     check('stronghold page is scripted', is_stronghold_page(
         'https://wgsh-woteu-static.wgcdn.co/auth/entry?spa_id=1&next=/%23/battlerooms'))
@@ -92,6 +115,28 @@ def check_lookup(bigworld, src_root, api_base, label):
           lookup.clan_id(SAMPLE_CLAN_TAG) == SAMPLE_CLAN)
     for account in SAMPLE_PLAYERS:
         check('player %s resolved' % account, lookup.get(PLAYERS, account) is not None)
+
+    # The nickname round trip, asked for with the name the account came back
+    # wearing rather than a constant: a sample id cannot go stale, a sample
+    # nickname can, and the one thing worth proving here is that the two
+    # directions agree. This is what lets the Stronghold detachment preview
+    # be decorated at all, since that table prints a name and no id.
+    known = lookup.get(PLAYERS, SAMPLE_PLAYERS[0])
+    if known is not None and known.name:
+        named = []
+        lookup.prefetch(names=[known.name.upper()],
+                        on_ready=lambda: named.append(True))
+        _settle(bigworld)
+        check('a nickname, in any case, resolves to its account id',
+              named == [True]
+              and lookup.account_id(known.name) == SAMPLE_PLAYERS[0]
+              and lookup.knows_name(known.name.lower()))
+        check('and the account itself came back with it, under its id',
+              lookup.get(PLAYERS, SAMPLE_PLAYERS[0]) is not None)
+        asked = len(bigworld.fetched)
+        lookup.prefetch(names=[known.name], on_ready=lambda: named.append(True))
+        check('a name already resolved is not asked for by name again',
+              len(bigworld.fetched) == asked)
     if entry is not None:
         print('       clan %s -> %s (%s)' % (SAMPLE_CLAN, entry.countries, entry.source))
 

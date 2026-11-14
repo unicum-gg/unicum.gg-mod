@@ -4,6 +4,7 @@ from unicum import config
 PLAYERS = 'players'
 CLANS = 'clans'
 TAGS = 'tags'
+NAMES = 'names'
 VEHICLES = 'vehicles'
 
 

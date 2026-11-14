@@ -70,4 +70,5 @@ function flags() {
 function scan() {
     flags();
     table();
+    squad();
 }

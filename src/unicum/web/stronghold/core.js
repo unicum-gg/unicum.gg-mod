@@ -22,6 +22,8 @@
 // holds two sets of flags.
 
 var NEED_PREFIX = '[unicum] need ';
+// The preview panel asks by nickname, which is all it prints.
+var PLAYER_PREFIX = '[unicum] player ';
 var PROBE_PREFIX = '[unicum] probe ';
 // A one-shot look at the page's own class names, logged to the client. Off:
 // it has been run and what it found is written down here.
@@ -63,6 +65,8 @@ if (current && current.stop) {
 
 var alive = true;  // false once stopped; listeners left on page nodes check it
 var clans = {};    // tag -> {flags, score}
+var players = {};  // nickname -> {score}, for the preview panel
+var askedPlayers = {};  // nicknames already sent, so each is asked once
 var asked = {};    // tags already reported, so each is asked for once
 var timer = null;
 
