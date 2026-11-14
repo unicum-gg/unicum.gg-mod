@@ -61,11 +61,23 @@ def _record():
                    ratings=dict(_VEHICLE['ratings']))
 
 
-# What a chip says. Three letters: it is five pixels tall and overhangs a
-# corner, so there is room for what a figure IS and not for the period it
-# covers, which is set one dropdown above it in the same window.
+# What a chip says: what the figure is, then the stretch of battles it
+# counts. Both, because they are two different questions and a reader who
+# cannot answer either is the reason the chip exists -- 2 187 says nothing
+# about being WN8 rather than WNX, and 57.8% says nothing about being a
+# month rather than a career.
+#
+# The chip hangs off the badge's right edge, so its width costs the badge
+# nothing and the three of them come to about 255px of the 346 a section
+# has. Short forms all the same: a caption longer than the figure it names
+# reads as the main event.
+_WHEN = {'recent': '30D', 'total': 'ALL'}
 _WIN_RATE = 'WR'
 _BATTLES = 'BTL'
+# What the tank row's chips say in place of a period. Which battles they
+# count is not a dropdown in this window but the mode being played, so they
+# name the tank instead.
+_ON_TANK = 'TANK'
 
 
 def _career(badges, textures, settings, entry, surface):
@@ -83,22 +95,27 @@ def _career(badges, textures, settings, entry, surface):
     metric = settings.metric(surface)
     value = settings.rating(entry, surface)
     if metric is not None and value is not None:
-        parts.append(badges.tagged_markup(int(round(value)),
-                                          badges.band(metric, int(round(value))),
-                                          metric.upper()))
+        parts.append(badges.tagged_markup(
+            int(round(value)), badges.band(metric, int(round(value))),
+            u'%s %s' % (metric.upper(), _WHEN[settings['window']])))
+    # Each of the three names its own period, because each has its own
+    # dropdown: a reader can ask for a 30-day rating beside a career win
+    # rate, and one caption covering all three would be wrong for two.
     window = settings.extra('winrate', surface)
     if window is not None:
         found = entry.stat('winrate', window)
         if found is not None:
             parts.append(badges.tagged_markup(
                 badge_lib.winrate(found, settings.winrate_decimal()),
-                badges.band('winrate', found, 'percent'), _WIN_RATE))
+                badges.band('winrate', found, 'percent'),
+                u'%s %s' % (_WIN_RATE, _WHEN[window])))
     window = settings.extra('battles', surface)
     if window is not None:
         found = entry.stat('battles', window)
         if found is not None:
-            parts.append(badges.tagged_markup(badge_lib.count(found),
-                                              badge_lib.NEUTRAL, _BATTLES))
+            parts.append(badges.tagged_markup(
+                badge_lib.count(found), badge_lib.NEUTRAL,
+                u'%s %s' % (_BATTLES, _WHEN[window])))
     return u'  '.join(part for part in parts if part)
 
 
@@ -107,24 +124,26 @@ def _tank(badges, textures, settings, entry, surface):
     parts = []
     if settings.shows_flags(surface):
         parts.append(textures.markup(entry, settings['maxFlags']).strip())
-    # The chips say what the career row's say, because they are the same
-    # figures. What changes is which battles they count, and that is what
-    # the line's own caption is for.
+    # These chips say TANK where the career row's say a period. Which
+    # battles they count is the mode being played, not a dropdown, so a
+    # period here would be a promise this window does not make.
     record = _record()
     metric = settings.vehicle_metric(surface)
     value = record.rating(metric) if metric else None
     if value is not None:
-        parts.append(badges.tagged_markup(int(round(value)),
-                                          badges.band(metric, int(round(value))),
-                                          metric.upper()))
+        parts.append(badges.tagged_markup(
+            int(round(value)), badges.band(metric, int(round(value))),
+            u'%s %s' % (metric.upper(), _ON_TANK)))
     elif record.winrate is not None:
         # No WN rating for this mode and there never will be: those scales
         # are built on random battles alone. The win rate is what survives.
         parts.append(badges.tagged_markup(
             badge_lib.winrate(record.winrate, settings.winrate_decimal()),
-            badges.band('winrate', record.winrate, 'percent'), _WIN_RATE))
-    parts.append(badges.tagged_markup(badge_lib.count(record.battles),
-                                      badge_lib.NEUTRAL, _BATTLES))
+            badges.band('winrate', record.winrate, 'percent'),
+            u'%s %s' % (_WIN_RATE, _ON_TANK)))
+    parts.append(badges.tagged_markup(
+        badge_lib.count(record.battles), badge_lib.NEUTRAL,
+        u'%s %s' % (_BATTLES, _ON_TANK)))
     return u'  '.join(part for part in parts if part)
 
 

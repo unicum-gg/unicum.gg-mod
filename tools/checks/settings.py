@@ -156,9 +156,11 @@ def check_settings_preview(workdir):
     # The chip has been redesigned twice and kept its file name both times,
     # which left every badge already on disk being served at the new one's
     # width. The size is in the name now.
-    chip_w, chip_h = badge_png._chip_size(u'WNX')
+    chip_w, chip_h = badge_png._chip_size(u'WNX 30D')
     check('and its file name says what size chip drew it',
-          u'.wnx%dx%d.' % (chip_w, chip_h) in named)
+          u'.wnx-30d%dx%d.' % (chip_w, chip_h) in named)
+    check('the chip names the period too, each figure carrying its own',
+          u'.wnx-30d' in named and u'.wr-30d' in named and u'.btl-all' in named)
 
     # The chip hangs off the corner rather than sitting inside it, which is
     # what keeps the figure's last digit readable. To the right only: these
@@ -180,8 +182,8 @@ def check_settings_preview(workdir):
           4 < rows < badge_png.HEIGHT)
 
     tank = preview.lines(badges, textures, settings)[1][1]
-    check('the tank row carries the same chips, its caption saying whose battles',
-          u'.wnx' in tank and u'.btl' in tank)
+    check('the tank row names the tank where the career row names a period',
+          u'.wnx-tank' in tank and u'.btl-tank' in tank and u'.wnx-30d' not in tank)
 
     settings.update({'battles': 'off', 'winrate': 'off', 'battle': {'flags': False}})
     bare = preview.lines(badges, textures, settings)[0][1]
