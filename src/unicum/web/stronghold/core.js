@@ -29,6 +29,11 @@ var HIDE_ATTR = 'data-unicum-hide';     // a site cell we hide
 var COL_ATTR = 'data-unicum-col';       // a cell we added, valued with its column
 var ADDED_ATTR = 'data-unicum-added';   // any node we added inside the site's table
 var SORT_ATTR = 'data-unicum-sort';     // a header we made sortable
+var TAKEN_ATTR = 'data-unicum-taken';   // a site cell we write our own figure into
+// The site's own tooltip attributes on a cell we take over: they describe
+// the site's rating, which is not what that column holds any more. Put
+// aside under 'data-unicum-was-<name>' and put back by the teardown.
+var TIP_ATTRS = ['data-tip', 'data-for'];
 
 var current = window.__unicum;
 if (current && current.v === GENERATION) {

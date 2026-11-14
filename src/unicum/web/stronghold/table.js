@@ -11,10 +11,14 @@
 //     relabelled with the members header's own text; the members header and
 //     the places cells are hidden. Sorting by free places is sorting by
 //     members, with the arrow reversed.
-//   - A column for the rating chosen in the mod's settings (RATING_TITLE,
-//     e.g. "30d WNX"), as the site's coloured badge, goes after rating;
-//     unless SHOW_RATING is false.
-//   - Rating and that column are made sortable, see sorting.js.
+//   - The rating chosen in the mod's settings (RATING_TITLE, e.g. "30d WNX")
+//     is written INTO the site's own Rating column, as the site's coloured
+//     badge, and that column is relabelled; unless SHOW_RATING is false.
+//     The site's stronghold rating is overwritten and is then not shown
+//     anywhere on the page. That is the trade, and it was asked for: a
+//     table one column narrower, and one number in the column named for it
+//     rather than two numbers meaning different things side by side.
+//   - That column is made sortable, by our figure, see sorting.js.
 //
 // The site's own cells are told apart from ours by ADDED_ATTR and addressed
 // by position among themselves, never by their English titles, so this holds
@@ -95,24 +99,12 @@ function table() {
         return;
     }
 
-    // Our header, built from the rating header so it looks the same.
-    var scoreHead = head.querySelector('[' + COL_ATTR + '="score"]');
-    if (!scoreHead) {
-        scoreHead = cells[1].cloneNode(false);
-        scoreHead.removeAttribute('data-tip');
-        scoreHead.removeAttribute('data-for');
-        scoreHead.removeAttribute(SORT_ATTR);
-        scoreHead.setAttribute(ADDED_ATTR, '1');
-        scoreHead.setAttribute(COL_ATTR, 'score');
-        var title = cells[2].querySelector('[class*="UnitsList_thTitle"]').cloneNode(false);
-        var label = document.createElement('span');
-        label.textContent = RATING_TITLE;
-        title.appendChild(label);
-        scoreHead.appendChild(title);
-    }
-    if (scoreHead.nextSibling !== cells[2]) {
-        head.insertBefore(scoreHead, cells[2]);
-    }
+    // The site's Rating header becomes ours: relabelled, and marked as the
+    // score column so sorting.js finds it where it used to find the one we
+    // inserted. Taken over rather than added, so there is no sixth column
+    // and the header row lines up with the body without being forced to.
+    var scoreHead = cells[1];
+    takeOver(scoreHead, RATING_TITLE);
 
     var rows = bodyRows();
     for (var r = 0; r < rows.length; r++) {
@@ -124,19 +116,38 @@ function table() {
             continue;
         }
         rowCells[4].setAttribute(HIDE_ATTR, '1');
-        var cell = row.querySelector('[' + COL_ATTR + '="score"]');
-        if (!cell) {
-            cell = rowCells[1].cloneNode(false);
-            cell.setAttribute(ADDED_ATTR, '1');
-            cell.setAttribute(COL_ATTR, 'score');
-            cell.appendChild(document.createElement('span'));
-        }
-        if (cell.nextSibling !== rowCells[2]) {
-            row.insertBefore(cell, rowCells[2]);
-        }
-        fillScore(cell, rowTag(rowCells[0]));
+        takeOver(rowCells[1]);
+        fillScore(rowCells[1], rowTag(rowCells[0]));
     }
     sorting(head);
+}
+
+// A site cell we write into rather than one we add. Its own text is kept in
+// LABEL_ATTR, which the teardown already restores, and TAKEN_ATTR marks what
+// else has to be undone: the badge's inline style and the sort value.
+//
+// `text` relabels it; a cell of the body passes none, because `fillScore`
+// writes its figure.
+function takeOver(cell, text) {
+    var span = cell.querySelector('span');
+    if (!span) {
+        return;
+    }
+    if (!span.hasAttribute(LABEL_ATTR)) {
+        span.setAttribute(LABEL_ATTR, span.textContent);
+    }
+    cell.setAttribute(TAKEN_ATTR, '1');
+    cell.setAttribute(COL_ATTR, 'score');
+    for (var a = 0; a < TIP_ATTRS.length; a++) {
+        var name = TIP_ATTRS[a];
+        if (cell.hasAttribute(name)) {
+            cell.setAttribute('data-unicum-was-' + name, cell.getAttribute(name));
+            cell.removeAttribute(name);
+        }
+    }
+    if (text !== undefined) {
+        setText(span, text);
+    }
 }
 
 // Places cells hidden as with the column, for rows without it.
@@ -175,7 +186,15 @@ var BADGE_CSS = 'display:inline-block;padding:1px 5px;border-radius:3px;' +
 
 function fillScore(cell, tag) {
     var score = tag && clans[tag] ? clans[tag].score : null;
-    var span = cell.firstChild;
+    // `querySelector`, not `firstChild`: this used to be a cell we had built
+    // ourselves, whose only child was its span. It is the site's cell now.
+    var span = cell.querySelector('span');
+    if (!span) {
+        return;
+    }
+    if (!span.hasAttribute(LABEL_ATTR)) {
+        span.setAttribute(LABEL_ATTR, span.textContent);
+    }
     setText(span, score ? formatRating(score.value) : '-');
     var style = score && score.color ? BADGE_CSS + ';background-color:' + score.color : '';
     if (span.getAttribute('style') !== style) {

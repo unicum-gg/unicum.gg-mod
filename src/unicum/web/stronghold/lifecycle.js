@@ -34,6 +34,26 @@ function stop() {
     for (var h = 0; h < hidden.length; h++) {
         hidden[h].removeAttribute(HIDE_ATTR);
     }
+    // A site cell we wrote into, as opposed to one we added: its text comes
+    // back with the labels below, and what is undone here is the rest of
+    // what we put on it.
+    var taken = document.querySelectorAll('[' + TAKEN_ATTR + ']');
+    for (var k = 0; k < taken.length; k++) {
+        var span = taken[k].querySelector('span');
+        if (span) {
+            span.removeAttribute('style');
+        }
+        taken[k].removeAttribute('data-value');
+        for (var a = 0; a < TIP_ATTRS.length; a++) {
+            var was = 'data-unicum-was-' + TIP_ATTRS[a];
+            if (taken[k].hasAttribute(was)) {
+                taken[k].setAttribute(TIP_ATTRS[a], taken[k].getAttribute(was));
+                taken[k].removeAttribute(was);
+            }
+        }
+        taken[k].removeAttribute(COL_ATTR);
+        taken[k].removeAttribute(TAKEN_ATTR);
+    }
     var labels = document.querySelectorAll('[' + LABEL_ATTR + ']');
     for (var j = 0; j < labels.length; j++) {
         labels[j].textContent = labels[j].getAttribute(LABEL_ATTR);

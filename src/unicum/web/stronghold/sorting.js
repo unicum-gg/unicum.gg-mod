@@ -1,4 +1,5 @@
-// Sorting the detachment list by rating or by the mod's rating column.
+// Sorting the detachment list by the mod's rating, in the site's own
+// Rating column, which the mod writes into (see table.js).
 //
 // Part of the Stronghold content script, see core.js.
 //
@@ -17,15 +18,11 @@
 // classes, UnitsList_th__desc--<hash> and __asc--<hash>. The hash changes with
 // every site build, so the names are read from its stylesheets.
 
-var sortKey = null;       // null, 'rating' or 'score'
+var sortKey = null;       // null or 'score'
 var sortOrder = 'desc';
 var sortClasses = null;   // {desc, asc, sortable}
 
 var SORT_VALUES = {
-    rating: function (row) {
-        var value = parseInt(siteCells(row)[1].textContent.replace(/\D/g, ''), 10);
-        return isNaN(value) ? -1 : value;
-    },
     score: function (row) {
         var cell = row.querySelector('[' + COL_ATTR + '="score"]');
         return cell ? parseFloat(cell.getAttribute('data-value')) : -1;
@@ -60,7 +57,10 @@ function sorting(head) {
         }
     }
     var cells = siteCells(head);
-    var ours = {rating: cells[1], score: head.querySelector('[' + COL_ATTR + '="score"]')};
+    // One column now, the site's own, holding our figure: sorting it sorts
+     // by ours. There is no second key to offer, because there is no second
+     // number left on the row to offer it for.
+    var ours = {score: head.querySelector('[' + COL_ATTR + '="score"]')};
     for (var key in ours) {
         var header = ours[key];
         if (!header) {
