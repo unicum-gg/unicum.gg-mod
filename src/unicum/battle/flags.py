@@ -250,6 +250,14 @@ class BattleFlags(Drawing):
                 on_mode += 1
         _logger.info('%s of %s tank(s) answered, %s with this mode\'s own record',
                      answered, len(pairs), on_mode)
+        # The rows redraw on their own timer, the team names do not: an
+        # average rides in the client's own arena description and is only
+        # rewritten when that description is resent. The player batch has
+        # always asked for one here (`_report`); the tank batch never did,
+        # so with the figures on the tank the average was computed once at
+        # the start of the battle, before a single tank record existed, and
+        # stayed empty for the rest of it.
+        self._redraw()
 
     def _report(self, batch):
         resolved = []
