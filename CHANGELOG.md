@@ -1,5 +1,61 @@
 # Changelog
 
+## 0.10.0
+
+### Added
+
+- The body of a refusal to the loadout sweep's log
+- What a player does on this tank, in this mode, to the battle Tab
+- Holding Alt to put a battle row on the tank that player brought
+- Choosing whether a battle row rests on the tank or on the career
+- Drawing the tank's whole record where the mode has none
+- A dropdown choosing which figures a battle row shows
+- The Tab screen honouring the figures choice, and a win rate where there is no rating
+- The average win rate beside a team's average rating
+- The results screen honouring the figures choice
+- A preview of the battle row in the settings
+- The same preview to the Garage tab, and correct what it said about counts
+- The preview naming each figure it draws
+- The preview drawing captioned badges
+- The preview following a choice before it is applied
+- The period to the corner chip
+- Every screen previewing its own row
+- The sample row carrying the name its badges hang off
+- The mod's rating taking over the stronghold table's Rating column
+- A one-shot probe for the stronghold page's class names
+- The stronghold preview panel carrying the mod's ratings
+
+### Improved
+
+- The battle Tab asking for the pairs apart from the roster
+- A battle asking for its tanks once instead of once a row
+- The preview tagging a badge in its corner, at its usual size
+- The corner chip being large enough to read
+- The probe off, with what it found written down
+- The preview panel's badge matching the list's size
+- The panel reusing the list's own badge element
+- The stronghold page drawing the mod's own badge
+
+### Fixed
+
+- Holding Alt emptying a battle row instead of putting it on the tank
+- The Alt swap guarding on a surface that does not exist
+- A skirmish row showing a bare battle count and nothing else
+- A team's average being drawn in a box one badge wide
+- The tagged badges tilting the row, and enlarge their chip
+- A team's average answering a different question from its rows
+- A team's average staying empty when its figures are the tank's
+- The average staying empty where the rows fall back to careers
+- The column's name being written into the site's header icon
+- The preview panel keeping Wargaming's numbers under our column name
+- The extended info key throwing the stronghold page's work away
+
+<!-- 3 commit(s) not shown, being invisible to a player:
+     a failed wgmods hand-off having no way to be retried
+     the bot proposing a release with nothing to tell players
+     the preview naming each badge instead of listing them underneath
+-->
+
 ## 0.9.0
 
 ### Added
