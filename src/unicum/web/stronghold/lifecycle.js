@@ -24,6 +24,7 @@ function stop() {
         clearTimeout(timer);
     }
     sortKey = null;
+    badgeSize = null;
     orderRows();
     var added = document.querySelectorAll(
         '[' + FLAG_ATTR + '], [' + ADDED_ATTR + '], style[' + STYLE_ATTR + ']');

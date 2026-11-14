@@ -253,16 +253,52 @@ function scoreSpan(cell) {
         return span;
     }
     span = cell.querySelector('[' + COL_ATTR + '="value"]');
-    if (span) {
-        return span;
+    if (!span) {
+        if (!cell.hasAttribute(LABEL_ATTR)) {
+            cell.setAttribute(LABEL_ATTR, cell.textContent);
+        }
+        span = document.createElement('span');
+        span.setAttribute(ADDED_ATTR, '1');
+        span.setAttribute(COL_ATTR, 'value');
+        cell.textContent = '';
+        cell.appendChild(span);
     }
-    if (!cell.hasAttribute(LABEL_ATTR)) {
-        cell.setAttribute(LABEL_ATTR, cell.textContent);
+    // Sized on every pass, not only the one that made it: the left table is
+    // painted before this runs, but on the first pass of a fresh page it may
+    // have drawn nothing yet, and a span sized once at birth would keep the
+    // size it inherited for the life of the panel.
+    if (!span.style.fontSize) {
+        var size = badgeFontSize();
+        if (size) {
+            span.style.fontSize = size;
+        }
     }
-    span = document.createElement('span');
-    span.setAttribute(ADDED_ATTR, '1');
-    span.setAttribute(COL_ATTR, 'value');
-    cell.textContent = '';
-    cell.appendChild(span);
     return span;
+}
+
+// The type size a badge is drawn at, read off one the site already sized.
+//
+// A span we add inherits the cell it lands in, and the two tables in this
+// window do not set type the same: the preview panel on the right runs
+// larger than the detachment list on the left, so the same badge came out
+// two sizes depending on which table drew it.
+//
+// Measured rather than written down. A number here would be right until the
+// day the site restyles either table, and wrong in a way nobody would think
+// to look for; reading it means the two agree by construction. Null while
+// the left table has drawn nothing yet, and the span inherits as it did.
+var badgeSize = null;
+
+function badgeFontSize() {
+    if (badgeSize !== null) {
+        return badgeSize;
+    }
+    var drawn = document.querySelector(
+        '[class*="UnitsList_tr"] [' + TAKEN_ATTR + '] span');
+    if (!drawn) {
+        return null;
+    }
+    var size = window.getComputedStyle(drawn).fontSize;
+    badgeSize = size || null;
+    return badgeSize;
 }
