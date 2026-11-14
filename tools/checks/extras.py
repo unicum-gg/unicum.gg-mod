@@ -414,6 +414,14 @@ def check_alt_swaps_to_the_tank():
     check('with no rating for the mode, the win rate and the count still stand',
           rating is None and winrate == 50.0 and count == 50.0)
 
+    # A mode the WN scales do not cover has no per-vehicle question to ask,
+    # so nothing is ever fetched and the rows fall through to the career
+    # group. The average used to stay empty there: one column answering two
+    # questions, which is the thing this was meant to stop.
+    empty = _Side(True, _Lookup({}, entries), _Reading())
+    check('with nothing known on the tank, the average falls back to careers',
+          empty._team_figures(pairs) == (3000.0, 60.0, 5000.0))
+
     # Read from the other end: a row set to rest on the tank shows the tank
     # with nothing held, and Alt is the glance at the career instead. Holding
     # a key is fine for a second opinion and no way to read the figure you

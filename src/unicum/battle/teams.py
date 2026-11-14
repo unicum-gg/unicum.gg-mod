@@ -148,7 +148,16 @@ class TeamNames(object):
         tank record only for somebody whose tank the site has seen.
         """
         if self._on_tank():
-            return self._tank_figures(pairs)
+            figures = self._tank_figures(pairs)
+            if any(value is not None for value in figures):
+                return figures
+            # Nothing came back, so there is nothing to average on the tank
+            # and the careers are what the rows are showing too. A mode the
+            # WN scales do not cover has no per-vehicle question to ask at
+            # all -- `_marker` falls through to the career group there, and
+            # an average that stayed empty while every row under it showed a
+            # career figure was the same column answering two questions that
+            # this was supposed to stop.
         ratings, winrates, counts = [], [], []
         winrate_window = self._settings.extra('winrate', 'battle')
         battles_window = self._settings.extra('battles', 'battle')
