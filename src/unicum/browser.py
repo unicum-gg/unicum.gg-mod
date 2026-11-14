@@ -47,6 +47,9 @@ _logger = logging.getLogger('unicum.browser')
 _STRONGHOLD_HOST_MARK = '://wgsh-'
 
 NEED_PREFIX = '[unicum] need '
+# What the page says about itself when asked, which is a development thing:
+# see PROBE in web/stronghold/core.js.
+PROBE_PREFIX = '[unicum] probe '
 
 # Scripts travel as javascript: URLs, which the browser percent-decodes, so
 # nothing sent may contain '%' or '#'. The content script lives in its own
@@ -209,6 +212,9 @@ class BrowserBridge(object):
     def _on_console(self, ref, *args):
         # The native event passes (level, message, lineNumber, source, viewId).
         message = args[1] if len(args) > 1 else None
+        if isinstance(message, basestring) and message.startswith(PROBE_PREFIX):
+            _logger.info('page classes: %s', message[len(PROBE_PREFIX):])
+            return
         tags = parse_need(message)
         if not tags:
             return

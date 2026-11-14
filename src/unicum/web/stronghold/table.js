@@ -70,6 +70,7 @@ function setText(el, text) {
 }
 
 function table() {
+    probe();
     if (!document.querySelector('style[' + STYLE_ATTR + ']')) {
         var style = document.createElement('style');
         style.setAttribute(STYLE_ATTR, '1');

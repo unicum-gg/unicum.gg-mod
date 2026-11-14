@@ -22,6 +22,12 @@
 // holds two sets of flags.
 
 var NEED_PREFIX = '[unicum] need ';
+var PROBE_PREFIX = '[unicum] probe ';
+// A one-shot look at the page's own class names, logged to the client.
+// The detachment preview on the right is not touched by any of this yet,
+// and what it would have to be written against is its class prefixes,
+// which no screenshot shows. Off once they are known.
+var PROBE = true;
 var FLAG_ATTR = 'data-unicum-flag';     // a flag box, valued with its tag
 var STYLE_ATTR = 'data-unicum-style';   // our stylesheet
 var LABEL_ATTR = 'data-unicum-label';   // a relabelled header, valued with its text
@@ -62,4 +68,33 @@ function tagOf(el) {
         return null;
     }
     return text.substring(1, text.length - 1);
+}
+
+// Every class prefix on the page with how many nodes carry it, said once.
+// A component's classes are "<Component>_<part>--<hash>", and the hash moves
+// with every site build, so a prefix is the only part worth writing against
+// and the only part worth reporting.
+var probed = false;
+
+function probe() {
+    if (!PROBE || probed) {
+        return;
+    }
+    probed = true;
+    var counts = {};
+    var nodes = document.querySelectorAll('[class]');
+    for (var i = 0; i < nodes.length; i++) {
+        var names = String(nodes[i].getAttribute('class') || '').split(/\s+/);
+        for (var n = 0; n < names.length; n++) {
+            var key = names[n].split('__')[0].split('--')[0];
+            if (key && key.indexOf('unicum') !== 0) {
+                counts[key] = (counts[key] || 0) + 1;
+            }
+        }
+    }
+    var out = [];
+    for (var k in counts) {
+        out.push(k + ':' + counts[k]);
+    }
+    console.log(PROBE_PREFIX + out.sort().join(' '));
 }
