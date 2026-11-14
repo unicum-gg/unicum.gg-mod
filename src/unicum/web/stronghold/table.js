@@ -63,9 +63,53 @@ function bodyRows() {
     return body ? Array.prototype.slice.call(body.children) : [];
 }
 
+// Text into an element the site owns, without taking anything out of it.
+//
+// `el.textContent = x` does not edit the text node that is already there: it
+// throws that node away and makes a new one. The site's React still holds
+// the old one, and at its next update of that row it calls removeChild on a
+// node whose parent is now null -- a NotFoundError, a DOMException, thrown
+// from inside React's own commit. The site catches it where it catches its
+// request, logs ">> WGSH cannot request available units [object
+// DOMException]", and the React root comes down with it.
+//
+// That is the window going black. The log has that line nine times today and
+// not once on either of the two days before, and the first of the nine is 90
+// seconds after this script first wrote into a cell of the site's own.
+//
+// So the node is edited in place and keeps the identity React knows it by.
+// React may write the site's own value back into it at any render; the next
+// scan writes ours again, which is the loop every other write here already
+// lives in. A second text node, should the site ever render one, is emptied
+// rather than left holding a stale half of the text.
 function setText(el, text) {
-    if (el.textContent !== text) {
-        el.textContent = text;
+    var written = false;
+    for (var i = 0; i < el.childNodes.length; i++) {
+        var node = el.childNodes[i];
+        if (node.nodeType !== 3) {
+            continue;
+        }
+        var want = written ? '' : text;
+        if (node.nodeValue !== want) {
+            node.nodeValue = want;
+        }
+        written = true;
+    }
+    if (!written && text !== '') {
+        el.appendChild(document.createTextNode(text));
+    }
+}
+
+// The site's own content in a cell we took over, put out of the way without
+// taking any of it out of the page: text emptied in place, elements hidden
+// with the attribute the teardown already lifts. Nothing React made leaves
+// the tree, which is the whole of the point -- see setText.
+function clearSite(cell) {
+    setText(cell, '');
+    for (var i = 0; i < cell.children.length; i++) {
+        if (!cell.children[i].hasAttribute(ADDED_ATTR)) {
+            cell.children[i].setAttribute(HIDE_ATTR, '1');
+        }
     }
 }
 
@@ -91,7 +135,7 @@ function table() {
         if (!to.hasAttribute(LABEL_ATTR)) {
             to.setAttribute(LABEL_ATTR, to.textContent);
         }
-        to.textContent = from.textContent;
+        setText(to, from.textContent);
     }
 
     if (!SHOW_RATING) {
@@ -269,29 +313,37 @@ function paintScore(cell, score) {
 // The cell's own text goes into LABEL_ATTR on the cell, which the teardown
 // restores, and the span is marked as ours, which the teardown removes.
 function scoreSpan(cell) {
-    var span = cell.querySelector('span');
+    // Ours first, then the site's. Ours is a span too, so looking for a span
+    // at all would find it and the rest of this would never run again.
+    var span = cell.querySelector('[' + COL_ATTR + '="value"]');
+    if (span) {
+        // The site goes on rendering its own figure into the cell around our
+        // span, so it is put back out of sight on every pass rather than
+        // once when the span was made.
+        clearSite(cell);
+        if (!span.className) {
+            // Born before the list had drawn anything, so it was born bare.
+            // The donor exists now, and the classes are the whole of what
+            // makes the two badges one badge.
+            var donor = donorSpan();
+            if (donor.className) {
+                span.className = donor.className;
+            }
+        }
+        return span;
+    }
+    span = cell.querySelector('span');
     if (span) {
         return span;
     }
-    span = cell.querySelector('[' + COL_ATTR + '="value"]');
-    if (!span) {
-        if (!cell.hasAttribute(LABEL_ATTR)) {
-            cell.setAttribute(LABEL_ATTR, cell.textContent);
-        }
-        span = donorSpan();
-        span.setAttribute(ADDED_ATTR, '1');
-        span.setAttribute(COL_ATTR, 'value');
-        cell.textContent = '';
-        cell.appendChild(span);
-    } else if (!span.className) {
-        // Born before the list had drawn anything, so it was born bare. The
-        // donor exists now, and the classes are the whole of what makes the
-        // two badges one badge.
-        var donor = donorSpan();
-        if (donor.className) {
-            span.className = donor.className;
-        }
+    if (!cell.hasAttribute(LABEL_ATTR)) {
+        cell.setAttribute(LABEL_ATTR, cell.textContent);
     }
+    span = donorSpan();
+    span.setAttribute(ADDED_ATTR, '1');
+    span.setAttribute(COL_ATTR, 'value');
+    clearSite(cell);
+    cell.appendChild(span);
     return span;
 }
 

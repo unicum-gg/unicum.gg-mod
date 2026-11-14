@@ -56,7 +56,10 @@ function stop() {
     }
     var labels = document.querySelectorAll('[' + LABEL_ATTR + ']');
     for (var j = 0; j < labels.length; j++) {
-        labels[j].textContent = labels[j].getAttribute(LABEL_ATTR);
+        // setText, not textContent: handing a node back is no reason to
+        // destroy it, and the teardown runs while the site's React is still
+        // holding every node it made. See setText in table.js.
+        setText(labels[j], labels[j].getAttribute(LABEL_ATTR));
         labels[j].removeAttribute(LABEL_ATTR);
     }
     var sortable = document.querySelectorAll('[' + SORT_ATTR + ']');

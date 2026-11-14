@@ -62,6 +62,21 @@ def check_browser_scope(src_root):
     check('and the preview panel is part of the script that runs',
           'Squad_rating' in decoded and 'Squad_ratingIcon' in decoded)
 
+    # Nothing the site's React made may leave the page. Assigning to
+    # `node.textContent` replaces the text node rather than editing it, which
+    # leaves React holding one whose parent is null; its next removeChild on
+    # that node throws a DOMException from inside React's own commit, the
+    # site swallows it with its request, and the whole root unmounts -- the
+    # Stronghold window goes black. The only element this script may write
+    # that way is the stylesheet it made itself.
+    import re
+    code = re.sub(r'(?m)^\s*//.*$', '', decoded)   # the rule is written out above itself
+    writes = re.findall(r'(\w+)\.textContent\s*=[^=]', code)
+    check('the page script never replaces a node the site rendered',
+          writes == ['style'])
+    check('text goes into the node the site already had',
+          'nodeValue' in decoded)
+
     check('stronghold page is scripted', is_stronghold_page(
         'https://wgsh-woteu-static.wgcdn.co/auth/entry?spa_id=1&next=/%23/battlerooms'))
     check('shop page is left alone', not is_stronghold_page(
