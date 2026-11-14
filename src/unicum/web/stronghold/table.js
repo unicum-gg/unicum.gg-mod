@@ -104,7 +104,8 @@ function table() {
     // inserted. Taken over rather than added, so there is no sixth column
     // and the header row lines up with the body without being forced to.
     var scoreHead = cells[1];
-    takeOver(scoreHead, RATING_TITLE);
+    takeOver(scoreHead);
+    headerLabel(scoreHead, RATING_TITLE);
 
     var rows = bodyRows();
     for (var r = 0; r < rows.length; r++) {
@@ -122,20 +123,11 @@ function table() {
     sorting(head);
 }
 
-// A site cell we write into rather than one we add. Its own text is kept in
-// LABEL_ATTR, which the teardown already restores, and TAKEN_ATTR marks what
-// else has to be undone: the badge's inline style and the sort value.
-//
-// `text` relabels it; a cell of the body passes none, because `fillScore`
-// writes its figure.
-function takeOver(cell, text) {
-    var span = cell.querySelector('span');
-    if (!span) {
-        return;
-    }
-    if (!span.hasAttribute(LABEL_ATTR)) {
-        span.setAttribute(LABEL_ATTR, span.textContent);
-    }
+// A site cell we write into rather than one we add. TAKEN_ATTR marks what
+// the teardown has to undo on it: the badge's inline style, the sort value,
+// and the site's own tooltip, which described the rating the column no
+// longer holds.
+function takeOver(cell) {
     cell.setAttribute(TAKEN_ATTR, '1');
     cell.setAttribute(COL_ATTR, 'score');
     for (var a = 0; a < TIP_ATTRS.length; a++) {
@@ -145,9 +137,33 @@ function takeOver(cell, text) {
             cell.removeAttribute(name);
         }
     }
-    if (text !== undefined) {
-        setText(span, text);
+}
+
+// The column's name, as the chip the mod stamps into the corner of a badge
+// everywhere else.
+//
+// Added beside the site's own header content rather than written over it.
+// That header is an icon, not a word: writing text into it put our label
+// where a glyph was, in a font that has no letters for it. The icon is
+// hidden instead, which the teardown already knows how to give back, and
+// our label is a node we added, which it already knows how to remove.
+function headerLabel(cell, text) {
+    var title = cell.querySelector('[class*="UnitsList_thTitle"]') || cell;
+    for (var i = 0; i < title.children.length; i++) {
+        var kid = title.children[i];
+        if (!kid.hasAttribute(ADDED_ATTR)) {
+            kid.setAttribute(HIDE_ATTR, '1');
+        }
     }
+    var label = title.querySelector('[' + COL_ATTR + '="title"]');
+    if (!label) {
+        label = document.createElement('span');
+        label.setAttribute(ADDED_ATTR, '1');
+        label.setAttribute(COL_ATTR, 'title');
+        label.setAttribute('style', CHIP_CSS);
+        title.appendChild(label);
+    }
+    setText(label, text);
 }
 
 // Places cells hidden as with the column, for rows without it.
@@ -183,6 +199,15 @@ function formatRating(value) {
 // The site's rating badge: the scale's colour as the background, white text.
 var BADGE_CSS = 'display:inline-block;padding:1px 5px;border-radius:3px;' +
                 'color:#FFFFFF;line-height:16px;text-shadow:none';
+
+// The column's name, in the shape the mod names a figure everywhere else:
+// the small dark chip it stamps into a badge's corner, shouted and short.
+// Same band as the chip's (badge_png.TAG_BAND), so the two read as one
+// naming and not as two.
+var CHIP_CSS = 'display:inline-block;padding:0 4px;border-radius:2px;' +
+               'background-color:#1F1F1F;color:#FFFFFF;font-size:10px;' +
+               'line-height:14px;letter-spacing:0.04em;text-transform:uppercase;' +
+               'white-space:nowrap;text-shadow:none';
 
 function fillScore(cell, tag) {
     var score = tag && clans[tag] ? clans[tag].score : null;
