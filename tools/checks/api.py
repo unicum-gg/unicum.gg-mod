@@ -56,9 +56,34 @@ def check_browser_scope(src_root):
     check('the players script survives being a URL too',
           '%' not in sent and '#' not in sent and 'setPlayers' in sent)
 
-    from unicum.browser import PLAYER_PREFIX
+    from unicum.browser import PLAYER_PREFIX, UNIT_PREFIX, parse_unit, units_script
     check('the page and python agree on how players are asked for',
           ("'%s'" % PLAYER_PREFIX) in decoded)
+
+    # A detachment's line-up, which is the one thing the page does not hold
+    # about a detachment it has not selected: the script fetches it from the
+    # site's own endpoint and sends it here to be averaged.
+    check('the page and python agree on how a line-up is sent',
+          ("'%s'" % UNIT_PREFIX) in decoded)
+    check('a line-up is read as its detachment and its members',
+          parse_unit('[unicum] unit 9170406,_Winnie,ROK_ZIRKF')
+          == ('9170406', ['_Winnie', 'ROK_ZIRKF']))
+    check('a detachment with nobody in it is still a detachment',
+          parse_unit('[unicum] unit 9170406') == ('9170406', []))
+    check('a line-up without a detachment is dropped',
+          parse_unit('[unicum] unit nine,_Winnie') is None)
+    check('a mangled member is dropped, the line-up kept',
+          parse_unit('[unicum] unit 9170406,_Winnie,<img onerror=x>')
+          == ('9170406', ['_Winnie']))
+    check('a player request is not read as a line-up, nor the reverse',
+          parse_unit('[unicum] player _Winnie') is None
+          and parse_players('[unicum] unit 9170406,_Winnie') is None)
+    averaged = units_script({'9170406': {'score': {'value': 3249.4, 'color': '#8500BC'}},
+                             '9170407': {'score': None}})
+    check('the line-up averages script survives being a URL',
+          '%' not in averaged and '#' not in averaged and 'setUnits' in averaged)
+    check('the script asks the site for a line-up the way the site does',
+          '/game_api/units/' in decoded and '/participants' in decoded)
     check('and the preview panel is part of the script that runs',
           'Squad_rating' in decoded and 'Squad_ratingIcon' in decoded)
 
@@ -76,6 +101,25 @@ def check_browser_scope(src_root):
           writes == ['style'])
     check('text goes into the node the site already had',
           'nodeValue' in decoded)
+
+    # The whole content script is ONE function, joined from seven files, so a
+    # syntax error anywhere in it stops all of it: no flags, no column, no
+    # preview panel, and nothing in the log to say why -- the page simply
+    # never answers. Parsed here when there is a parser to hand.
+    import subprocess
+    import tempfile
+    handle = tempfile.NamedTemporaryFile(suffix='.js', delete=False)
+    try:
+        handle.write(decoded)
+        handle.close()
+        try:
+            parsed = subprocess.call(['node', '--check', handle.name])
+        except OSError:
+            print('skip node is not on PATH, the page script was not parsed')
+        else:
+            check('the page script parses', parsed == 0)
+    finally:
+        os.unlink(handle.name)
 
     check('stronghold page is scripted', is_stronghold_page(
         'https://wgsh-woteu-static.wgcdn.co/auth/entry?spa_id=1&next=/%23/battlerooms'))

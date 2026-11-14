@@ -22,6 +22,10 @@ NEED_PREFIX = '[unicum] need '
 # is the only thing it prints: no account id, no clan tag. `/resolve` took
 # neither until `names` was added to it for exactly this table.
 PLAYER_PREFIX = '[unicum] player '
+# A detachment's line-up, which the page fetches from its own endpoint and
+# sends here to be rated: the unit's id, then its members' nicknames. The
+# answer is one badge for the whole detachment, see `units_script`.
+UNIT_PREFIX = '[unicum] unit '
 # What the page says about itself when asked, which is a development thing:
 # see PROBE in web/stronghold/core.js.
 PROBE_PREFIX = '[unicum] probe '
@@ -35,8 +39,8 @@ _CONTENT_SCRIPT_DIR = 'web/stronghold'
 
 # One script in several files, joined in this order: later files use what
 # earlier ones define, and lifecycle.js runs the first scan.
-_CONTENT_SCRIPT_FILES = ('core.js', 'table.js', 'squad.js', 'sorting.js',
-                         'flags.js', 'lifecycle.js')
+_CONTENT_SCRIPT_FILES = ('core.js', 'cells.js', 'table.js', 'units.js',
+                         'squad.js', 'sorting.js', 'flags.js', 'lifecycle.js')
 
 
 def is_stronghold_page(url):
@@ -91,6 +95,42 @@ def players_script(players_by_name):
     payload = base64.b64encode(json.dumps(players_by_name, sort_keys=True))
     return ("javascript:(function(){var U=window.__unicum;"
             "if(U&&U.setPlayers){U.setPlayers(JSON.parse(atob('" + payload + "')));}})();void(0);")
+
+
+def units_script(scores_by_unit):
+    """Hand each detachment's line-up average to the content script.
+
+    {unit id: {'score': {'value', 'color', 'image', ...} or None}}. A
+    detachment with nobody the site knows is still an answer, so the page
+    stops asking and draws a dash rather than waiting forever.
+    """
+    payload = base64.b64encode(json.dumps(scores_by_unit, sort_keys=True))
+    return ("javascript:(function(){var U=window.__unicum;"
+            "if(U&&U.setUnits){U.setUnits(JSON.parse(atob('" + payload + "')));}})();void(0);")
+
+
+def parse_unit(message):
+    """(unit id, [nickname, ...]) the page sent, or None for anything else.
+
+    The id travels as the page's own string and goes back as it came: it is
+    a key on both sides and nothing here does arithmetic with it. Digits
+    only, and bounded, because it is spliced into a script.
+
+    Nicknames are read by the same rule as `parse_players`, which is
+    Wargaming's own: letters, digits and underscores, up to 24. The page
+    checks them too; this is the side that matters, since the page is the
+    one place a value could arrive from that we did not write.
+    """
+    if not isinstance(message, basestring) or not message.startswith(UNIT_PREFIX):
+        return None
+    parts = [part.strip() for part in message[len(UNIT_PREFIX):].split(',')]
+    if not parts or not parts[0].isdigit() or len(parts[0]) > 12:
+        return None
+    names = []
+    for name in parts[1:]:
+        if name and len(name) <= 24 and all(c.isalnum() or c == '_' for c in name):
+            names.append(name)
+    return parts[0], names
 
 
 def parse_players(message):

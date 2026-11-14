@@ -38,9 +38,10 @@ from helpers import dependency
 from skeletons.gui.game_control import IBrowserController
 
 from unicum.browser_scripts import (NEED_PREFIX, PLAYER_PREFIX, PROBE_PREFIX,
-                                    answers_script, content_script,
+                                    UNIT_PREFIX, answers_script, content_script,
                                     is_stronghold_page, parse_need,
-                                    parse_players, players_script)
+                                    parse_players, parse_unit, players_script,
+                                    units_script)
 from unicum.api.entry import CLANS, PLAYERS
 
 _logger = logging.getLogger('unicum.browser')
@@ -175,7 +176,15 @@ class BrowserBridge(object):
         # The native event passes (level, message, lineNumber, source, viewId).
         message = args[1] if len(args) > 1 else None
         if isinstance(message, basestring) and message.startswith(PROBE_PREFIX):
-            _logger.info('page classes: %s', message[len(PROBE_PREFIX):])
+            _logger.info('page says: %s', message[len(PROBE_PREFIX):])
+            return
+        asked = parse_unit(message)
+        if asked is not None:
+            unit_id, names = asked
+            _logger.info('detachment %s: %s member(s)', unit_id, len(names))
+            self._lookup.prefetch(
+                names=names,
+                on_ready=lambda: self._answer_unit(ref, unit_id, names))
             return
         names = parse_players(message)
         if names:
@@ -210,14 +219,17 @@ class BrowserBridge(object):
             if entry is not None and self._settings.shows_flags('stronghold'):
                 codes = entry.flags[:self._settings['maxFlags']]
             uris = [self._flags.data_uri(code) for code in codes]
-            answers[tag] = {
-                'flags': [uri for uri in uris if uri],
-                'score': self._score(self._settings.rating(entry, 'stronghold')),
-            }
+            # Flags, and no rating. The clan's own figure is the same number
+            # on every detachment that clan has out, which is no help when
+            # the point is to choose between them; the column carries what
+            # each detachment's line-up averages instead (`_answer_unit`).
+            # Drawing a badge per clan for a page that no longer reads one
+            # was forty images built and base64'd per list, for nothing.
+            answers[tag] = {'flags': [uri for uri in uris if uri]}
         if not answers:
             return
-        _logger.info('sending %s clans, %s with %s', len(answers),
-                     sum(1 for a in answers.values() if a['score']), self._settings.label('stronghold'))
+        _logger.info('sending %s clans, %s with flags', len(answers),
+                     sum(1 for a in answers.values() if a['flags']))
         self._run(ref, answers_script(answers))
 
     def _score(self, value):
@@ -281,6 +293,40 @@ class BrowserBridge(object):
                      sum(1 for a in answers.values() if a['score']),
                      self._settings.label('stronghold'))
         self._run(ref, players_script(answers))
+
+    def _answer_unit(self, ref, unit_id, names):
+        """What a detachment's line-up averages, as one badge.
+
+        The mean of the members the site knows, which is the bargain every
+        other average in this mod makes: a player nobody has a figure for is
+        out of the mean rather than in it as a zero. A detachment where
+        nobody is known answers with no badge at all, and the column draws a
+        dash -- an answer, so the page stops asking.
+
+        The clan's own rating is not this and never was. It is the same
+        number on every detachment that clan has out, which is no help when
+        the point is to choose between them.
+        """
+        values = []
+        for name in names:
+            account_id = self._lookup.account_id(name)
+            entry = self._lookup.get(PLAYERS, account_id) if account_id else None
+            value = self._settings.rating(entry, 'stronghold')
+            if value is not None:
+                values.append(value)
+        score = self._score(sum(values) / float(len(values))) if values else None
+        _logger.info('detachment %s: %s of %s rated, %s', unit_id, len(values),
+                     len(names), '%d' % round(score['value']) if score else 'no badge')
+        self._run(ref, units_script({unit_id: {'score': score}}))
+        # A name the server never answered is not "no such player", so the
+        # whole line-up is asked for again and the average resent. The page
+        # repaints what it is given, so a mean that fills in corrects itself.
+        failed = [name for name in names if not self._lookup.knows_name(name)]
+        if failed:
+            _logger.info('detachment %s: %s unanswered, asking again in %ds',
+                         unit_id, len(failed), _RETRY_SECONDS)
+            self._session.callback(_RETRY_SECONDS, lambda: self._lookup.prefetch(
+                names=failed, on_ready=lambda: self._answer_unit(ref, unit_id, names)))
 
     def _remove_scripts(self):
         """Take the observer and every flag back out of the page on unload."""

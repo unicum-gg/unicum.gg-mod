@@ -95,6 +95,15 @@ window.__unicum = {
         }
         scan();
     },
+    // What a detachment's line-up averages, by unit id. Its own entry point
+    // for the same reason as setPlayers: one payload for three questions
+    // would have the three failing together.
+    setUnits: function (answers) {
+        for (var id in answers) {
+            unitScores[id] = answers[id].score;
+        }
+        scan();
+    },
     stop: stop
 };
 

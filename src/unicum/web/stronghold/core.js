@@ -25,6 +25,9 @@ var NEED_PREFIX = '[unicum] need ';
 // The preview panel asks by nickname, which is all it prints.
 var PLAYER_PREFIX = '[unicum] player ';
 var PROBE_PREFIX = '[unicum] probe ';
+// A detachment's line-up, read off the page's own endpoint and sent to be
+// rated: the unit's id, then its members' nicknames. See units.js.
+var UNIT_PREFIX = '[unicum] unit ';
 // A one-shot look at the page's own class names, logged to the client. Off:
 // it has been run and what it found is written down here.
 //
