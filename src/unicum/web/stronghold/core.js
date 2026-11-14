@@ -23,11 +23,22 @@
 
 var NEED_PREFIX = '[unicum] need ';
 var PROBE_PREFIX = '[unicum] probe ';
-// A one-shot look at the page's own class names, logged to the client.
-// The detachment preview on the right is not touched by any of this yet,
-// and what it would have to be written against is its class prefixes,
-// which no screenshot shows. Off once they are known.
-var PROBE = true;
+// A one-shot look at the page's own class names, logged to the client. Off:
+// it has been run and what it found is written down here.
+//
+// The detachment list on the left is UnitsList_*, which the rest of this
+// script is written against. The preview on the right is its own component:
+//
+//   Squad_table / Squad_thead / Squad_tbody / Squad_tr / Squad_td / Squad_th
+//   Squad_name       a member's name cell, holding Member_base
+//   Squad_rating     that member's rating cell, one per row
+//   Squad_ratingIcon the icon heading that column -- note the prefix, a
+//                    [class*="Squad_rating"] selector matches it too
+//   Member_base      the member, Member_clanTag their tag when they have one
+//
+// That is everything the right panel's rating column would need except the
+// one thing it cannot have: see the note in browser.py about names.
+var PROBE = false;
 var FLAG_ATTR = 'data-unicum-flag';     // a flag box, valued with its tag
 var STYLE_ATTR = 'data-unicum-style';   // our stylesheet
 var LABEL_ATTR = 'data-unicum-label';   // a relabelled header, valued with its text

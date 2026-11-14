@@ -46,6 +46,13 @@ _logger = logging.getLogger('unicum.browser')
 # https://wgsh-woteu-static.wgcdn.co/auth/entry?...next=/#/battlerooms
 _STRONGHOLD_HOST_MARK = '://wgsh-'
 
+# The detachment preview on the right of that window cannot carry the mod's
+# ratings, and the reason is not in this file or in the page: /resolve takes
+# players by account id and clans by tag, and that panel gives nicknames and
+# nothing else. A clan tag is a name the API answers to, which is why the
+# list on the left works; a nickname is not. Decorating the right panel needs
+# a name lookup the site does not serve. Measured, not assumed:
+# `resolve?players=_Winnie`, `?names=`, `?nicknames=` all answer {}.
 NEED_PREFIX = '[unicum] need '
 # What the page says about itself when asked, which is a development thing:
 # see PROBE in web/stronghold/core.js.
