@@ -66,22 +66,22 @@ def _joined(rows, prefix=u''):
     return tuple(out)
 
 
-def garage_preview_lines(drawing):
-    """The sample garage row, named by the screen it is a row of.
+def surface_preview_lines(drawing, surface):
+    """The sample row for one screen, drawn as that screen will draw it.
 
-    Named because the Garage tab shows five screens and the Stats group
-    above the preview feeds all of them: without the name a reader cannot
-    tell which one they are being shown, and would read the row as being
-    about whichever dropdown they last touched.
+    One per screen, each under its own dropdown. A single row for the
+    group said what the figures look like but not where: five screens that
+    can each be set to ratings, to flags alone or to nothing are five
+    different rows, and a reader setting one of them wants to see that one.
+
+    No name on it, unlike the single row it replaces: the dropdown directly
+    above says which screen this is. Nothing at all when the screen draws
+    nothing, which the dropdown above also says.
     """
     if not drawing:
         return ()
     badges, textures, settings = drawing
-    surface = preview.garage_surface(settings)
-    if surface is None:
-        return ()
-    return _joined(preview.lines(badges, textures, settings, surface),
-                   _SURFACE_LABELS[surface])
+    return _joined(preview.lines(badges, textures, settings, surface))
 
 
 def preview_lines(drawing):
@@ -101,10 +101,7 @@ def preview_lines(drawing):
     joined to its row with spaces. Captions are this module's own words, so
     there is nothing to escape.
     """
-    if not drawing:
-        return ()
-    badges, textures, settings = drawing
-    return _joined(preview.lines(badges, textures, settings))
+    return surface_preview_lines(drawing, 'battle')
 
 
 def _heading(templates, text):
@@ -170,11 +167,13 @@ def template(values, channel=u'', linked=False, card_shown=True,
                        'badge is an image and each distinct number is a file, so counting to the unit '
                        'past ten thousand would write thousands of them into your game folder.{/BODY}'),
         templates.createNumericStepper('Flags per player or clan', 'maxFlags', window['maxFlags'], 1, MAX_FLAGS, 1),
+        templates.createEmpty(_SPACER),
     ]
-    if _API_PREVIEW:
-        garage.extend(templates.createLabel(row) for row in garage_preview_lines(drawing))
-    garage.append(templates.createEmpty(_SPACER))
-    garage.extend(show(surface) for surface in _GARAGE_SURFACES)
+    for surface in _GARAGE_SURFACES:
+        garage.append(show(surface))
+        if _API_PREVIEW:
+            garage.extend(templates.createLabel(row)
+                          for row in surface_preview_lines(drawing, surface))
     garage.append(choice(RESULTS_FIGURES_LABEL, _figures_key('battleResults'),
                          list(FIGURE_LABELS), tooltip=_RESULTS_FIGURES_TOOLTIP))
     garage.extend([
@@ -327,7 +326,6 @@ def native_page(values, channel=u'', linked=False, card_shown=True,
     checkbox(u'Win rate to a tenth', 'winrateDecimal')
     dropdown(u'Battles', 'battles', [_EXTRA_LABELS[e] for e in EXTRAS])
     dropdown(u'Flags per player or clan', 'maxFlags', [str(n) for n in range(1, MAX_FLAGS + 1)], offset=1)
-    preview_rows(garage_preview_lines(drawing))
     group(0, u'Garage')
     checkbox(u'Tank menu button', 'tankButton')
     checkbox(u'Right-click a player', _menu_key('players'))
@@ -343,6 +341,7 @@ def native_page(values, channel=u'', linked=False, card_shown=True,
     group(1, u'Screens')
     for surface in _GARAGE_SURFACES:
         show(surface)
+        preview_rows(surface_preview_lines(drawing, surface))
     dropdown(u'Skirmish room: when', _alt_key('skirmishRoom'), WHEN_CHOICES)
     dropdown(u'Stronghold: when', _alt_key('stronghold'), WHEN_CHOICES)
     dropdown(u'Battle results: when', _alt_key('results'), WHEN_CHOICES)

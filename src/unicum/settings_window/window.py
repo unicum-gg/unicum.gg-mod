@@ -10,12 +10,13 @@ import json
 import logging
 
 from unicum.settings_window.codec import apply_window, read_native, to_window
-from unicum.settings_window.labels import (linked_notice, CONNECT_VAR,
+from unicum.settings_window.labels import (_GARAGE_SURFACES, linked_notice, CONNECT_VAR,
                                            DISCORD_URL, DISCORD_VAR, LINKAGE,
                                            LINKS, RESET_VAR, SOURCE_URL,
                                            SOURCE_VAR, SUPPORT_VAR)
-from unicum.settings_window.page import (channel_label, garage_preview_lines,
-                                         native_page, preview_lines, template)
+from unicum.settings_window.page import (channel_label, native_page,
+                                         preview_lines, surface_preview_lines,
+                                         template)
 
 _logger = logging.getLogger('unicum.settings_window.window')
 
@@ -117,7 +118,8 @@ class SettingsWindow(object):
                  linked and link.twitch == 'ready', linked, link.name if linked else None,
                  self._card_shown(), self._supporter(), self._hidden(),
                  self._battles_hidden(), tuple(preview_lines(self._drawing)),
-                 tuple(garage_preview_lines(self._drawing)))
+                 tuple(tuple(surface_preview_lines(self._drawing, surface))
+                       for surface in _GARAGE_SURFACES))
         if state == self._state:
             return
         self._state = state

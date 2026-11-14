@@ -147,21 +147,6 @@ def _tank(badges, textures, settings, entry, surface):
     return u'  '.join(part for part in parts if part)
 
 
-def garage_surface(settings):
-    """The garage surface worth previewing, or None if none is switched on.
-
-    The Stats group above the preview is one set of choices for all of the
-    garage screens, so any of them would illustrate it. The first that is
-    actually switched on is the honest pick: a reader is shown a row from a
-    screen they will meet, not one from a screen they turned off.
-    """
-    from unicum.settings_window.labels import _GARAGE_SURFACES
-    for surface in _GARAGE_SURFACES:
-        if settings.shows(surface):
-            return surface
-    return None
-
-
 def lines(badges, textures, settings, surface='battle'):
     """[(caption, markup)] of what a row on this surface will look like.
 

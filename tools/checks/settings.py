@@ -213,16 +213,22 @@ def check_settings_preview(workdir):
           len(rows) == 2 and rows[0].startswith(u'at rest   ')
           and not [row for row in rows if u'	' in row])
 
-    # ------------------------------------------------ the garage's own row
-    from unicum.settings_window.page import garage_preview_lines
+    # -------------------------------------------- each screen's own row
+    from unicum.settings_window.page import surface_preview_lines
 
     settings.update({'contacts': {'rating': True, 'flags': True},
+                     'profile': {'rating': False, 'flags': True},
                      'battles': 'total', 'winrate': 'total'})
-    garage = garage_preview_lines((badges, textures, settings))
-    check('the garage row says which of the five screens it is a row of',
-          len(garage) == 1 and garage[0].startswith(u'Contacts list   '))
-    check('and no number in it goes unnamed',
-          u'.wnx' in garage[0])
+    garage = surface_preview_lines((badges, textures, settings), 'contacts')
+    check('a screen previews its own row, with no name on it',
+          len(garage) == 1 and u'.wnx' in garage[0]
+          and not garage[0].startswith(u'Contacts'))
+    # The whole reason there is one per screen rather than one for the
+    # group: two screens set differently do not look alike, and a single
+    # row could only ever show one of them.
+    flags_only = surface_preview_lines((badges, textures, settings), 'profile')
+    check('and two screens set differently preview differently',
+          flags_only and u'.wnx' not in flags_only[0] and u'PL.png' in flags_only[0])
 
     # A battle count is shortened past ten thousand wherever it is drawn:
     # the badge is an image and each distinct number is a file, so the limit
@@ -238,14 +244,10 @@ def check_settings_preview(workdir):
           u'23k' in garage[0] and u'23k' in battle_row)
 
     settings.update({'contacts': {'rating': False, 'flags': False}})
-    after = garage_preview_lines((badges, textures, settings))
-    check('with contacts off it falls through to the next screen that is on',
-          len(after) == 1 and after[0].startswith(u'Profile   '))
-
-    for surface in ('contacts', 'profile', 'skirmishRoom', 'stronghold', 'battleResults'):
-        settings.update({surface: {'rating': False, 'flags': False, 'average': False}})
-    check('and with every garage screen off there is nothing to preview',
-          garage_preview_lines((badges, textures, settings)) == ())
+    check('a screen switched off previews nothing, as its own dropdown says',
+          surface_preview_lines((badges, textures, settings), 'contacts') == ())
+    check('and that is this screen only: the one beside it is untouched',
+          surface_preview_lines((badges, textures, settings), 'profile'))
 
     # ------------------------------------ a choice seen before it is saved
     #
