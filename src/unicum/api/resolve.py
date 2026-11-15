@@ -20,6 +20,7 @@ import urllib
 from unicum import config
 from unicum.api import store as disk
 from unicum.api.http import parse
+from unicum.api.waiting import Waiters
 from unicum.api.batching import _chunk, _keys, _tag_key, _vehicle_key
 from unicum.api.entry import (CLANS, NAMES, PLAYERS, TAGS, VEHICLES, Entry,
                               Vehicle)
@@ -70,6 +71,9 @@ class Lookup(object):
         self._in_flight = set()   # (kind, id or TAG)
         self._retry_at = {}       # (kind, id or TAG) -> time
         self._queued = []         # batches waiting for a turn
+        # Callers waiting on answers that are already on their way, which
+        # is not the same thing as answers this call set off. See waiting.py.
+        self._waiting = Waiters(self._in_flight)
         self._running = 0         # requests in the air
         self._store = store if store is not None else config.RESOLVE_STORE
         self._dirty = False
@@ -178,19 +182,23 @@ class Lookup(object):
                     key not in wanted_names:
                 wanted_names.append(key)
 
-        batches = _chunk(self._missing(PLAYERS, players),
-                         self._missing(CLANS, clans), wanted_tags, wanted_names,
-                         self._missing_vehicles(vehicles, mode), mode)
-        if not batches:
-            if on_ready is not None:
-                on_ready()
-            return
+        asked = set()
+        for entity_id in players:
+            asked.add((PLAYERS, entity_id))
+        for entity_id in clans:
+            asked.add((CLANS, entity_id))
+        for tag in tags:
+            asked.add((TAGS, _tag_key(tag)))
+        for name in names:
+            asked.add((NAMES, _tag_key(name)))
+        for account_id, tank_id in vehicles:
+            asked.add((VEHICLES, _vehicle_key(account_id, tank_id, mode)))
 
-        # on_ready means "everything asked for has been answered", so it
-        # waits for the last batch rather than firing per request.
-        outstanding = [len(batches)]
-        for batch in batches:
-            self._dispatch(batch, outstanding, on_ready)
+        for batch in _chunk(self._missing(PLAYERS, players),
+                            self._missing(CLANS, clans), wanted_tags, wanted_names,
+                            self._missing_vehicles(vehicles, mode), mode):
+            self._dispatch(batch)
+        self._waiting.wait(asked, on_ready)
 
     def _missing(self, kind, ids):
         out = []
@@ -216,20 +224,21 @@ class Lookup(object):
                 out.append(key)
         return out
 
-    def _dispatch(self, batch, outstanding, on_ready):
+    def _dispatch(self, batch):
         """Queue a batch, and send what the limit allows."""
         # Marked in flight on the way into the queue, not on the way out: a
-        # redraw while a batch waits must not ask for the same ids again.
+        # redraw while a batch waits must not ask for the same ids again,
+        # and a caller waiting on those ids must wait for the queue too.
         self._in_flight.update(_keys(batch))
-        self._queued.append((batch, outstanding, on_ready))
+        self._queued.append(batch)
         self._pump()
 
     def _pump(self):
         while self._session.alive and self._running < _MAX_IN_FLIGHT and self._queued:
             self._running += 1
-            self._send(*self._queued.pop(0))
+            self._send(self._queued.pop(0))
 
-    def _send(self, batch, outstanding, on_ready):
+    def _send(self, batch):
         keys = _keys(batch)
 
         def done(payload):
@@ -243,10 +252,8 @@ class Lookup(object):
             finally:
                 self._in_flight.difference_update(keys)
                 self._running -= 1
-                outstanding[0] -= 1
-                if outstanding[0] <= 0 and on_ready is not None:
-                    on_ready()
-                # After the counters, so a caller's on_ready runs before the
+                self._waiting.release()
+                # After the waiters, so a caller's on_ready runs before the
                 # next request rather than behind it.
                 self._pump()
 

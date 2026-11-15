@@ -246,7 +246,17 @@ def check_lookup(bigworld, src_root, api_base, label):
           not lookup.needs_fetch(CLANS, SAMPLE_CLAN))
     check('the stale answer is drawn during the refresh',
           lookup.get(CLANS, SAMPLE_CLAN) is stale)
+
+    # A second caller asking about the same thing while the first one's
+    # request is in the air waits for it. It has nothing to fetch, which is
+    # not the same as having nothing to wait for: firing here drew a
+    # detachment of fifteen rated players as "nobody here can be rated" for
+    # a minute, 150ms before its answer landed. See api/waiting.py.
+    second = []
+    lookup.prefetch(clans=[SAMPLE_CLAN], on_ready=lambda: second.append(True))
+    check('a caller waits for an answer already on its way', not second)
     _settle(bigworld)
+    check('and is told once it lands', second == [True])
     check('the fresh answer replaces it', not lookup.needs_fetch(CLANS, SAMPLE_CLAN)
           and lookup.get(CLANS, SAMPLE_CLAN) is not stale)
 
