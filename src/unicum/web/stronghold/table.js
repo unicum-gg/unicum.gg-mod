@@ -39,8 +39,17 @@ var TABLE_CSS = [
     '[class*="UnitsList_tr--"] > :nth-child(n+2) {' +
         ' flex: 0 0 ' + NUMBER_COLUMN_WIDTH + ' !important;' +
         ' box-sizing: border-box !important; max-width: none !important; }',
+    // The clan's column: a row of its own, so the flags can be pushed to its
+    // far end and the name keeps everything between. `min-width: 0` on what
+    // the site put in it so that its name still gives way before the flags
+    // do -- a flex item refuses to shrink past its content without it, and
+    // a long clan name would have pushed the flags out of the column.
     '[class*="UnitsList_tr--"] > :first-child {' +
-        ' flex: 1 1 0 !important; min-width: 0 !important; max-width: none !important; }',
+        ' flex: 1 1 0 !important; min-width: 0 !important; max-width: none !important;' +
+        ' display: flex !important; align-items: center !important; }',
+    '[class*="UnitsList_tr--"] > :first-child > :first-child { min-width: 0 !important; }',
+    '[class*="UnitsList_tr--"] > :first-child > [' + FLAG_ATTR + '] {' +
+        ' margin-left: auto !important; padding-left: 8px !important; }',
     // The site's sort arrow on its own header, while one of our sorts leads.
     '.unicum-unsorted::after { visibility: hidden !important; }',
     SKELETON_KEYFRAMES
