@@ -6,7 +6,37 @@
 // The app is React: rows are re-rendered and anything added is gone at the
 // next render, so every DOM change schedules a rescan. Scans only write what
 // differs, so a scan that changes nothing causes no mutation, and this settles.
+//
+// Two speeds, and the difference is whether anything flashes.
+//
+// The figures go back AT ONCE, in the same task as the write that took them
+// away. A MutationObserver runs as a microtask, so this lands before the
+// browser has painted anything and the site's own number is never seen. On
+// the debounce it was seen: a tenth of a second of the figure we replaced,
+// every time React touched a row, which is about ten frames and perfectly
+// visible.
+//
+// The full scan still waits, because the rest of it is not urgent and is
+// not cheap: the flags walk every span on the page, and nothing of theirs
+// flashes -- a flag is a node we add, and what is not there yet shows as
+// nothing rather than as somebody else's answer.
+var painting = false;
+
+function repaint() {
+    if (painting || !alive) {
+        return;
+    }
+    painting = true;
+    try {
+        table();
+        squad();
+    } finally {
+        painting = false;
+    }
+}
+
 var observer = new MutationObserver(function () {
+    repaint();
     if (timer) {
         return;
     }
