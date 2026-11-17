@@ -44,6 +44,7 @@ invisible until the next start.
 """
 import logging
 import os
+import time
 
 import ResMgr
 from frameworks.wulf import WindowLayer, WindowStatus
@@ -176,7 +177,14 @@ class SwfView(object):
             windows = getattr(dependency.instance(IGuiLoader), 'windowsManager', None)
             parent = windows.getMainWindow() if windows is not None else None
         app.loadView(SFViewLoadParams(self.alias, parent=parent))
-        _logger.info('%s loading', self.alias)
+        # With the SWF's date, because "which build is actually running" is
+        # the question that costs the most time here and the log could not
+        # answer it: a client started before a build keeps the AS3 it opened
+        # with, and from the outside that looks exactly like a bug in the new
+        # code. Now the line says which one it is.
+        stamp = self.stamp()
+        when = time.strftime('%H:%M:%S', time.localtime(stamp)) if stamp else 'unknown'
+        _logger.info('%s loading, %s of %s', self.alias, self.swf, when)
 
 
 LOBBY = SwfView('unicumLobby', 'unicum.lobby.swf', APP_NAME_SPACE.SF_LOBBY,
@@ -275,7 +283,15 @@ class Views(object):
             if stamp != self._stamps.get(view.alias):
                 self._stamps[view.alias] = stamp
                 if view.unload():
-                    _logger.info('%s changed on disk, reloading its view', view.swf)
+                    # The WINDOW is reopened, and that is all this does.
+                    # Scaleform serves the movie it already has rather than
+                    # reading the file again, so the new window runs the old
+                    # bytecode: new AS3 needs the client restarted. Said
+                    # here, because "reloading its view" read as "your code
+                    # is live" and cost an evening of looking for a bug in
+                    # code that was not running.
+                    _logger.info('%s changed on disk, reopening its window -- '
+                                 'restart the client for new AS3 to run', view.swf)
                     self._session.callback(_RELOAD_DELAY, lambda v=view: v.load(
                         dependency.instance(IAppLoader).getApp(v.app_ns)))
 
