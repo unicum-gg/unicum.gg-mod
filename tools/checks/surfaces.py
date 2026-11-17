@@ -95,6 +95,65 @@ def check_skirmish_room(bigworld):
         FakePlayerInfo(SAMPLE_PLAYERS[0]), None, None, False)
     check('a volunteer with a known language gets a flag',
           'img://gui/maps/icons/unicum/flags/' in (volunteer['region'] or ''))
+    check_room_carries_no_extras()
+
+
+def check_room_carries_no_extras():
+    """Neither of the room's lists shows a win rate or a battle count.
+
+    The room holds the narrowest name in the game, and three badges on it
+    left one letter of it. Checked against what this very surface WOULD
+    draw, rather than against a written-down string: a check comparing the
+    marker to "flags and a rating" would keep passing if the extras moved or
+    were renamed, and the point is that they are not there.
+    """
+    from unicum.lobby.flags import LobbyFlags
+    from unicum.api.entry import Entry
+
+    entry = Entry(known=True, countries=['FR'],
+                  ratings={'recent': {'wnx': 2442, 'winrate': 59.9, 'battles': 714}})
+
+    class Textures(object):
+        @staticmethod
+        def markup(*args):
+            return ' <IMG SRC="img://flag"/>'
+
+    room = LobbyFlags(None, None, Textures(), _RoomBadges(), _RoomSettings())
+    room._entry = lambda account_id: entry
+    room._waits_for_alt = lambda surface: False
+    with_extras = room._marker(1, 'skirmishRoom')
+    without = room._marker(1, 'skirmishRoom', extras=False)
+    check('the room surface has extras to leave out', with_extras != without)
+    check('and a room name carries none of them',
+          '<winrate>' not in without and '<count>' not in without)
+    check('while keeping its flags and its rating',
+          '<IMG SRC="img://flag"/>' in without and '<rating>' in without)
+
+
+class _RoomBadges(object):
+    """Badges named rather than drawn: the check is about what is included."""
+
+    @staticmethod
+    def rating(entry, settings, surface):
+        return '<rating>'
+
+    @staticmethod
+    def extras(entry, settings, surface):
+        return '<winrate><count>'
+
+
+class _RoomSettings(object):
+
+    def __getitem__(self, name):
+        return 3
+
+    @staticmethod
+    def shows(surface):
+        return True
+
+    @staticmethod
+    def shows_flags(surface):
+        return True
 
 
 def check_battle_panels():

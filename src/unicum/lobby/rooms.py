@@ -216,11 +216,22 @@ class Rooms(object):
         return _makePlayerVO
 
     def _mark_region(self, vo, account_id, surface, rating=True):
+        """Both of this window's lists: the detachment, and the volunteers.
+
+        Without the win rate and the battle count, which is the one place in
+        the mod where they are dropped. This window holds the narrowest name
+        in the game: a row is a kick button, a voice icon, a clan emblem,
+        the flags and then whatever is left, and three badges on top of that
+        left ONE letter of the name -- "N..", "a..", "S..". The figure being
+        read here is the rating, and it has a column of its own now; a win
+        rate and a count belong where a line has a line's width, which is
+        the contacts list and a profile.
+        """
         # Appended, not assigned: a roaming player already has a region code
         # there, and it is not ours to drop. And left untouched when there is
         # nothing to add, so a None stays None -- some views type this field
         # as Object and reject an empty string.
-        marker = self._marker(account_id, surface, rating)
+        marker = self._marker(account_id, surface, rating, extras=False)
         if marker:
             vo['region'] = (vo.get('region') or '') + marker
 
