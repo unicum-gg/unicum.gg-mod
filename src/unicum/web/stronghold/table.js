@@ -39,6 +39,31 @@ var TABLE_CSS = [
     '[class*="UnitsList_tr--"] > :nth-child(n+2) {' +
         ' flex: 0 0 ' + NUMBER_COLUMN_WIDTH + ' !important;' +
         ' box-sizing: border-box !important; max-width: none !important; }',
+    // Our column's figure under our column's name, on one centre line.
+    //
+    // The same cell is padded differently in the header row and in the body
+    // row, so its two boxes do not begin at the same place: the chip sits at
+    // the start of one and the badge at the start of the other, and the
+    // badge reads as pushed aside. Centring on its own does not settle it
+    // either -- centred inside boxes of different widths is still two centre
+    // lines, unless that padding is symmetric, and the site is not held to
+    // that.
+    //
+    // So the horizontal padding goes and the content is centred, in both
+    // rows: two boxes of the same width, one centre each, the same one. The
+    // vertical padding is the site's and stays -- it is what gives a row its
+    // height. No figure measured here, which is the point: a nudge in pixels
+    // would be true of this build of the site and of nothing else.
+    '[class*="UnitsList_tr--"] > [' + COL_ATTR + '="score"] {' +
+        ' display: flex !important; align-items: center !important;' +
+        ' justify-content: center !important; text-align: center !important;' +
+        ' padding-left: 0 !important; padding-right: 0 !important; }',
+    // What the header puts the chip inside, which may be the thing filling
+    // the cell rather than the chip itself. Centred both ways a wrapper can
+    // be, because which of the two it is belongs to the site's build and not
+    // to us.
+    '[class*="UnitsList_tr--"] > [' + COL_ATTR + '="score"] > * {' +
+        ' justify-content: center !important; text-align: center !important; }',
     // The clan's column: a row of its own, so the flags can be pushed to its
     // far end and the name keeps everything between. `min-width: 0` on what
     // the site put in it so that its name still gives way before the flags
