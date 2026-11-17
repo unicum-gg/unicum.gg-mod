@@ -10,6 +10,8 @@ package unicum
    import flash.text.StaticText;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
+   import flash.text.TextFormat;
+   import flash.text.TextFormatAlign;
    import flash.text.TextLineMetrics;
    import net.wg.gui.components.controls.DropdownMenu;
    import scaleform.clik.data.DataProvider;
@@ -331,7 +333,13 @@ package unicum
                cell.htmlText = markup;
             }
             var origin:Point = this._section.globalToLocal(rating.localToGlobal(new Point(0, 0)));
-            cell.x = Math.round(origin.x + (rating.width - cell.width) / 2);
+            // By the badge's declared width, like the column's name above
+            // it: a field measures an inline image only once that image has
+            // loaded, so a layout keyed on the measurement is wrong on the
+            // frames that matter and right afterwards.
+            var wide:Number = MembersSection.markupWidth(markup);
+            cell.x = MembersSection.centred(origin.x, rating.width,
+                                            wide > 0 ? wide : cell.width - GUTTER * 2);
             cell.y = Math.round(origin.y + (rating.height - cell.height) / 2);
          }
          this.updateColumnHeader(header, anchor);
@@ -391,10 +399,32 @@ package unicum
          if(this._headerText != header)
          {
             this._headerText = header;
-            this._header.defaultTextFormat = this.title().defaultTextFormat;
+            // The room's own format, minus everything that moves what is
+            // drawn sideways. It is copied for the fallback, which is words
+            // and should read like the room's other column names; but a
+            // margin or an indent in it shifts the CHIP too, and two pixels
+            // of indent is two pixels of a column that is thirty-six wide.
+            var format:TextFormat = this.title().defaultTextFormat;
+            format.leftMargin = 0;
+            format.rightMargin = 0;
+            format.indent = 0;
+            format.blockIndent = 0;
+            format.align = TextFormatAlign.LEFT;
+            this._header.defaultTextFormat = format;
             this._header.htmlText = header;
          }
-         this._header.x = Math.round(origin.x + (anchor.width - this._header.width) / 2);
+         // Centred on the chip's own width, read out of the markup, not on
+         // the field's: a Scaleform field holding nothing but an image does
+         // not measure the image, so `width` here is the field's idea of an
+         // empty line and the chip lands off its column. The figures below
+         // are centred on the same box by the same arithmetic, so the two
+         // line up by construction once both use a real width.
+         var shown:Number = MembersSection.markupWidth(header);
+         if(shown <= 0)
+         {
+            shown = this._header.width - GUTTER * 2;
+         }
+         this._header.x = MembersSection.centred(origin.x, anchor.width, shown);
          // On the room's own header line, which is where its column names
          // are. Taken from the line itself, so ours sits with the names it
          // stands among rather than at a height worked out from the title.
@@ -519,6 +549,37 @@ package unicum
       private static const COVERS:Number = 0.6;
 
       private static const WIDEST:Number = 4;
+
+      // Where a field has to be put for the IMAGE in it to sit in the middle
+      // of a column.
+      //
+      // The image is not the field: a Scaleform text field insets whatever
+      // it draws by its gutter, two pixels on each side, so centring the
+      // field leaves the image two pixels right of centre. Centring the
+      // badges by their box and the chip by its image is what put the two
+      // five pixels apart -- the same column named one place and filled
+      // another, which is exactly the kind of thing nobody can name when
+      // they see it and everybody can see.
+      private static function centred(left:Number, column:Number, drawn:Number) : Number
+      {
+         return Math.round(left + (column - drawn) / 2) - GUTTER;
+      }
+
+      // What an image in a piece of markup declares itself to be, in pixels,
+      // or 0 for markup that carries no image. The declared width is the one
+      // the badge was drawn at, which is the only width here that is true
+      // before the image has loaded.
+      private static const IMG_WIDTH:RegExp = /width="(\d+)"/i;
+
+      private static function markupWidth(markup:String) : Number
+      {
+         if(markup == null)
+         {
+            return 0;
+         }
+         var found:Object = IMG_WIDTH.exec(markup);
+         return found != null ? Number(found[1]) : 0;
+      }
 
       private static function hasText(kid:DisplayObject) : Boolean
       {
