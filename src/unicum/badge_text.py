@@ -42,15 +42,27 @@ ON_TANK = 'TANK'
 _WHEN = {'recent': '30D', 'total': 'ALL'}
 
 
-def caption(name, window):
+def caption(name, window, short=False):
     """A chip's words: "WNX 30D", "WR ALL", "BTL TANK".
 
     `window` is 'recent', 'total', or ON_TANK for the figures about one
     tank. An unknown window leaves the figure unnamed rather than guessed
     at -- a chip saying the wrong period is worse than no chip.
+
+    `short` drops what it counts and keeps what it is. For a header over a
+    ROW of figures: they all share one scope there, so saying it over each
+    of them names nothing further, and the full words do not fit -- "WR
+    TANK" is 38 pixels over a win rate badge of 32, "BTL TANK" is 42 over a
+    battle count of 20, and three of those written side by side run into
+    each other and read as one word.
+
+    The window is still required, not ignored: a figure whose period this
+    cannot name is a figure whose chip would be guessing, short or not.
     """
     when = ON_TANK if window == ON_TANK else _WHEN.get(window)
-    return u'%s %s' % (name.upper(), when) if when else u''
+    if not when:
+        return u''
+    return name.upper() if short else u'%s %s' % (name.upper(), when)
 
 
 def count(battles):

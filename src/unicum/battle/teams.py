@@ -139,7 +139,10 @@ class TeamNames(object):
         all: on the tank, in a mode the site holds nothing about, that is
         the honest answer.
 
-        Each figure carries the name of its own column. They are built
+        Each figure carries the name of its own column, named short: a
+        header over a row names what each figure IS, and all of them share
+        one scope there, so writing that scope over each of them says
+        nothing further and does not fit besides. They are built
         together because they have to stay in step: the header is drawn by
         pairing them off by position, and anything that drops one without
         the other puts every name over the wrong figure.
@@ -156,19 +159,21 @@ class TeamNames(object):
                       else self._settings.metric('battle'))
             badge = self._badges.markup(metric, average) if html else None
             parts.append((badge or u'%d' % round(average),
-                          badges.caption(metric, when or self._settings['window'])))
+                          badges.caption(metric, when or self._settings['window'], short=True)))
         if winrate is not None:
             parts.append((self._badges.winrate_markup(
                 winrate, self._settings.winrate_decimal())
                 if html else badges.winrate(winrate),
                 badges.caption(badges.WIN_RATE,
-                               when or self._settings.extra('winrate', 'battle'))))
+                               when or self._settings.extra('winrate', 'battle'),
+                               short=True)))
         if count is not None:
             whole = int(round(count))
             parts.append((self._badges.count_markup(whole) if html
                           else badges.count(whole),
                           badges.caption(badges.BATTLES,
-                                         when or self._settings.extra('battles', 'battle'))))
+                                         when or self._settings.extra('battles', 'battle'),
+                                         short=True)))
         return parts
 
     def _team_figures(self, pairs):
