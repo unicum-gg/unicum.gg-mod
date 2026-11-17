@@ -100,32 +100,75 @@ class TeamNames(object):
                 continue
             # A literal average sign rather than an entity: the field shows
             # plain text until the battle view re-sets it as HTML.
-            data[key] = u'%s  \u00d8 %s' % (name, u' '.join(parts))
+            #
+            # The column names ride after the figures, behind tabs, for the
+            # battle view to take apart and stand above them (VehicleMarkers
+            # in as3/). A tab because it is the one character markup never
+            # holds, which is the same reason the detachment room's badges
+            # travel behind one.
+            data[key] = u'%s  \u00d8 %s%s' % (
+                name, u' '.join(markup for markup, _ in parts),
+                self._column_names(parts))
+
+    def _column_names(self, parts):
+        """Tab, then a chip per column, in the figures' own order, or ''.
+
+        The chip a badge wears in the settings window, standing on its own
+        over the column it names: the two are one drawing, so a column
+        headed WR and a badge wearing WR cannot drift into two conventions.
+
+        All of them or none. The battle view pairs the Nth chip with the Nth
+        figure, so a chip that cannot be drawn would shift every name one
+        column along, and a column named for its neighbour is worse than a
+        column with no name at all.
+        """
+        chips = []
+        for _, name in parts:
+            chip = self._badges.chip_markup(name) if name else ''
+            if not chip:
+                return u''
+            chips.append(chip)
+        return u''.join(u'\t%s' % chip for chip in chips)
 
     def _team_parts(self, average, winrate, count):
-        """The side's figures as markup, in the order a row carries them.
+        """[(markup, column name)] for the side, in the order a row carries.
 
         The same three a row carries, drawn by the same builders, so the
         line over a team reads as the lines under it. A missing one is left
         out rather than drawn as a zero, and all three missing is no line at
         all: on the tank, in a mode the site holds nothing about, that is
         the honest answer.
+
+        Each figure carries the name of its own column. They are built
+        together because they have to stay in step: the header is drawn by
+        pairing them off by position, and anything that drops one without
+        the other puts every name over the wrong figure.
         """
         html = views.html_team_names()
+        on_tank = self._on_tank()
+        # On the tank, which battles a figure counts is the mode being
+        # played rather than anything chosen, so the chips say so instead of
+        # naming a period the reader never picked.
+        when = badges.ON_TANK if on_tank else None
         parts = []
         if average is not None:
-            metric = (self._settings.vehicle_metric('battle') if self._on_tank()
+            metric = (self._settings.vehicle_metric('battle') if on_tank
                       else self._settings.metric('battle'))
             badge = self._badges.markup(metric, average) if html else None
-            parts.append(badge or u'%d' % round(average))
+            parts.append((badge or u'%d' % round(average),
+                          badges.caption(metric, when or self._settings['window'])))
         if winrate is not None:
-            parts.append(self._badges.winrate_markup(
+            parts.append((self._badges.winrate_markup(
                 winrate, self._settings.winrate_decimal())
-                if html else badges.winrate(winrate))
+                if html else badges.winrate(winrate),
+                badges.caption(badges.WIN_RATE,
+                               when or self._settings.extra('winrate', 'battle'))))
         if count is not None:
             whole = int(round(count))
-            parts.append(self._badges.count_markup(whole) if html
-                         else badges.count(whole))
+            parts.append((self._badges.count_markup(whole) if html
+                          else badges.count(whole),
+                          badges.caption(badges.BATTLES,
+                                         when or self._settings.extra('battles', 'battle'))))
         return parts
 
     def _team_figures(self, pairs):
