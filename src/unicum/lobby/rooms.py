@@ -11,27 +11,31 @@ A mixin, for the reason the battles package gives.
 from __future__ import absolute_import
 
 import logging
+import time
 
 from unicum import views
 
 _logger = logging.getLogger('unicum.lobby.rooms')
 
-# Whether a detachment member's rating is drawn in a column of its own,
-# beside the room's Rating, instead of riding on the member's name.
+# Whether a detachment member's rating is drawn in the room's own Rating
+# column instead of riding on the member's name.
 #
-# OFF, and deliberately: the Python side is finished and the AS3 side is not.
-# It is handed its seven members and draws none of them, and the one probe
-# that would have said why fired on a frame where the column was legitimately
-# empty. Rather than release a column that may draw nothing, this holds it and
-# the badge stays on the name, which is where it is on every other garage
-# surface and where it was before any of this.
+# ON. The column is TAKEN OVER, not added beside: this window has no room to
+# add anything. Every position in it is baked into a Flash symbol -- the
+# window sizes nothing, the room view sizes nothing, the row renderer sizes
+# nothing -- so a column of our own could only be squeezed out of the name's
+# width, which is what was pushing the names out of the list in the first
+# place. The column that is there holds Wargaming's personal rating, which is
+# the one figure on the row nobody reads.
 #
-# Not a setting: turning it on is a decision about an unfinished thing, not a
+# The trade is the same one the Stronghold page makes, and it was asked for.
+#
+# Not a setting: it is a decision about where a figure lives, not a
 # preference, and a preference would need a name on screen.
 #
 # The sort order does not depend on it. The numbers it sorts by are published
-# either way; only the drawing is held.
-_ROOM_RATING_COLUMN = False
+# either way; only the drawing follows this.
+_ROOM_RATING_COLUMN = True
 
 
 class Rooms(object):
@@ -133,9 +137,20 @@ class Rooms(object):
         badge_by_player = u'\n'.join(badges)
         if getattr(view, 'ratingHtmlByPlayer', None) != badge_by_player:
             view.ratingHtmlByPlayer = badge_by_player
-        header = self._settings.label('skirmishRoom') if drawn else u''
+        # The column's name as the chip the mod names a figure with
+        # everywhere else, rather than as words: this is a column of badges
+        # and its name is the marking those badges wear. The words stay as
+        # the fallback, for a chip the client cannot draw.
+        header = u''
+        if drawn:
+            label = self._settings.label('skirmishRoom')
+            # Shouted, because a chip's glyphs are capitals and a letter it
+            # has none for simply does not draw: "30d WNX" came out as
+            # "30 WNX", missing its d and saying nothing about the period.
+            header = self._badges.chip_markup(label.upper()) or label
         if getattr(view, 'ratingHeader', None) != header:
             view.ratingHeader = header
+        self._say_column(enabled, drawn, badges, header, view)
         markup = ''
         if values and self._settings.shows_average('skirmishRoom') and not self._waits_for_alt('skirmishRoom'):
             average = sum(values) / float(len(values))
@@ -145,6 +160,29 @@ class Rooms(object):
             markup = badge
         if getattr(view, 'averageHtml', None) != markup:
             view.averageHtml = markup
+
+    def _say_column(self, enabled, drawn, badges, header, view):
+        """Both halves of the room's column, in one line, when they change.
+
+        What Python sent and what the view found, together: either on its
+        own says nothing. The last attempt at this column was given up on
+        because "it draws none of them" was all anybody knew, and that is
+        true of a column nobody sends badges to as much as of one that
+        cannot find its rows.
+        """
+        state = (enabled, drawn, len(badges), header)
+        now = time.time()
+        if getattr(self, '_column_said', None) == state and \
+                now - getattr(self, '_column_said_at', 0) < 5.0:
+            return
+        self._column_said = state
+        self._column_said_at = now
+        try:
+            found = view.takeRoomReport()
+        except Exception:
+            found = 'the view has no report'
+        _logger.info('room column: enabled=%s drawn=%s sent=%s header=%r -- %s',
+                     enabled, drawn, len(badges), header, found)
 
     def _mark_slots(self, slots):
         """Mark every member; the account ids seen, for the average."""

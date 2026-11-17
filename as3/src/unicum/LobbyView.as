@@ -51,6 +51,14 @@ package unicum
          return this._room != null ? this._room.sortMode : "";
       }
 
+      // What the room's lists actually found, for Python to log. A call for
+      // the same reason as takeSortMode: a property is read once by the
+      // proxy and answered from that copy ever after.
+      public function takeRoomReport() : String
+      {
+         return this._room != null ? this._room.report() : "no room tools";
+      }
+
       public function get sortLabels() : String
       {
          return this._room != null ? this._room.sortLabels : "";

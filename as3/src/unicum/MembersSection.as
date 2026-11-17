@@ -4,7 +4,10 @@ package unicum
    import flash.display.DisplayObjectContainer;
    import flash.display.Sprite;
    import flash.geom.Point;
+   import flash.geom.Rectangle;
+   import flash.utils.Dictionary;
    import flash.utils.getQualifiedClassName;
+   import flash.text.StaticText;
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
    import flash.text.TextLineMetrics;
@@ -97,6 +100,13 @@ package unicum
 
       private var _headerText:String = null;
 
+      // The room's own figures in the column we took, and whether each was
+      // visible when we took it; and the room's own name for that column.
+      // Both are put back by `giveBackColumn`.
+      private var _hidden:Dictionary = new Dictionary(true);
+
+      private var _title:DisplayObject = null;
+
       public function MembersSection(section:Sprite, onPick:Function)
       {
          this._section = section;
@@ -162,10 +172,70 @@ package unicum
          return this._section;
       }
 
+      // What this section sees, for Python to log. Every link in the chain
+      // between a member and a badge in the room's own column, counted:
+      // the rows, the room's figure field on each, who is seated, and which
+      // of them a badge arrived for.
+      public function report() : String
+      {
+         var rows:int = 0;
+         var figures:int = 0;
+         var seated:int = 0;
+         var rated:int = 0;
+         for(var slot:int = 0; slot < SLOTS; slot++)
+         {
+            var row:Object = field(this._section, "slot" + slot);
+            if(row == null)
+            {
+               continue;
+            }
+            rows++;
+            if(field(row, RATING_FIELD) is TextField)
+            {
+               figures++;
+            }
+            var taken:Object = this.data(slot);
+            if(taken != null && taken.player != null)
+            {
+               seated++;
+               if(this._badges[String(taken.player.dbID)] != null)
+               {
+                  rated++;
+               }
+            }
+         }
+         var held:int = 0;
+         for(var id:Object in this._badges)
+         {
+            held++;
+         }
+         // Where the column we took actually is, in the same space the words
+         // below are given in. Without it the two cannot be compared, and
+         // comparing them is the whole question.
+         var column:String = "none";
+         var first:TextField = field(field(this._section, "slot0"), RATING_FIELD) as TextField;
+         if(first != null)
+         {
+            var at:Point = this._section.globalToLocal(first.localToGlobal(new Point(0, 0)));
+            column = Math.round(at.x) + "," + Math.round(at.y) +
+                     "w" + Math.round(first.width) + "h" + Math.round(first.height);
+         }
+         var band:Rectangle = this.headerLine();
+         return "rows=" + rows + " figureFields=" + figures + " seated=" + seated +
+                " rated=" + rated + " held=" + held + " header=" + this._headerText +
+                " foundTitle=" + (this._title != null) +
+                " column=" + column +
+                " band=" + (band == null ? "none"
+                            : Math.round(band.y) + "h" + Math.round(band.height)) +
+                ";";
+      }
+
       public function dispose() : void
       {
          this._mode = "default";
          this.order();
+         // The room's own column, exactly as it was before the mod took it.
+         this.giveBackColumn();
          this._dropdown.removeEventListener(ListEvent.INDEX_CHANGE, this.onIndexChange);
          for each(var added:DisplayObject in [this._dropdown, this._average, this._header].concat(this._cells))
          {
@@ -207,6 +277,21 @@ package unicum
       // rides at the height of the number it stands beside.
       private function updateColumn(enabled:Boolean, header:String) : void
       {
+         // The column is ours when it has a name to put on it. Python sends
+         // one only while the surface draws ratings, so this one test covers
+         // the setting, the extended info key and the window being closed.
+         var ours:Boolean = enabled && header != null && header != "";
+         if(!ours)
+         {
+            this.giveBackColumn();
+            for(var empty:int = 0; empty < SLOTS; empty++)
+            {
+               TextField(this._cells[empty]).visible = false;
+               this._cellHtml[empty] = null;
+            }
+            this.updateColumnHeader("", null);
+            return;
+         }
          var anchor:TextField = null;
          for(var slot:int = 0; slot < SLOTS; slot++)
          {
@@ -214,20 +299,30 @@ package unicum
             var row:Object = field(this._section, "slot" + slot);
             var rating:TextField = row != null ? field(row, RATING_FIELD) as TextField : null;
             var taken:Object = this.data(slot);
-            var markup:String = null;
-            if(enabled && rating != null && taken != null && taken.player != null)
+            if(rating == null || taken == null || taken.player == null)
             {
-               markup = this._badges[String(taken.player.dbID)] as String;
+               // Nobody in this seat: the room's own cell is left exactly as
+               // the room drew it, which for an empty seat is nothing.
+               cell.visible = false;
+               this._cellHtml[slot] = null;
+               continue;
             }
+            // Somebody is in it, so the column is ours for this row whether
+            // or not we have a figure for them. A row we cannot rate shows
+            // nothing rather than Wargaming's number, because the header now
+            // says what this column holds and must not say it over somebody
+            // else's figure.
+            this.hideRoomFigure(rating);
+            if(anchor == null)
+            {
+               anchor = rating;
+            }
+            var markup:String = this._badges[String(taken.player.dbID)] as String;
             if(markup == null || markup == "")
             {
                cell.visible = false;
                this._cellHtml[slot] = null;
                continue;
-            }
-            if(anchor == null)
-            {
-               anchor = rating;
             }
             cell.visible = true;
             if(this._cellHtml[slot] != markup)
@@ -236,17 +331,53 @@ package unicum
                cell.htmlText = markup;
             }
             var origin:Point = this._section.globalToLocal(rating.localToGlobal(new Point(0, 0)));
-            cell.x = Math.round(origin.x - BADGE_GAP - cell.width);
+            cell.x = Math.round(origin.x + (rating.width - cell.width) / 2);
             cell.y = Math.round(origin.y + (rating.height - cell.height) / 2);
          }
          this.updateColumnHeader(header, anchor);
       }
 
-      // The column's name, on the line the room writes "Rating" on.
+      // The room's own figure, out of the way while ours stands in its
+      // place.
       //
-      // That line is found by where it is, not by what it is called: it sits
-      // between the title and the first row, and no field of the window's
-      // carries a name this mod could ask for.
+      // Remembered, so `giveBackColumn` puts back exactly what it took and
+      // nothing else: the room hides this field itself on a seat nobody is
+      // in, and a blanket `visible = true` would show a number where the
+      // room means to show none.
+      private function hideRoomFigure(rating:TextField) : void
+      {
+         if(this._hidden[rating] == null)
+         {
+            this._hidden[rating] = rating.visible;
+         }
+         if(rating.visible)
+         {
+            rating.visible = false;
+         }
+      }
+
+      private function giveBackColumn() : void
+      {
+         for(var key:Object in this._hidden)
+         {
+            TextField(key).visible = Boolean(this._hidden[key]);
+         }
+         this._hidden = new Dictionary(true);
+         if(this._title != null)
+         {
+            this._title.visible = true;
+            this._title = null;
+         }
+      }
+
+      // The column's name, in the room's own header band, over the column we
+      // took.
+      //
+      // The room writes "Rating" there, and that label has no name a mod can
+      // ask for: the section's named fields are the members count and the
+      // vehicles title, and this is neither. So it is found by where it is,
+      // which is the one thing about it that cannot drift: text above the
+      // first row, over this column's box.
       private function updateColumnHeader(header:String, anchor:TextField) : void
       {
          if(header == null || header == "" || anchor == null)
@@ -254,6 +385,8 @@ package unicum
             this._header.visible = false;
             return;
          }
+         var origin:Point = this._section.globalToLocal(anchor.localToGlobal(new Point(0, 0)));
+         this.hideRoomTitle(origin.x, anchor.width);
          this._header.visible = true;
          if(this._headerText != header)
          {
@@ -261,10 +394,163 @@ package unicum
             this._header.defaultTextFormat = this.title().defaultTextFormat;
             this._header.htmlText = header;
          }
-         var origin:Point = this._section.globalToLocal(anchor.localToGlobal(new Point(0, 0)));
-         this._header.x = Math.round(origin.x - BADGE_GAP - this._header.width);
+         this._header.x = Math.round(origin.x + (anchor.width - this._header.width) / 2);
+         // On the room's own header line, which is where its column names
+         // are. Taken from the line itself, so ours sits with the names it
+         // stands among rather than at a height worked out from the title.
+         // Always off the line, never off the label we hid: that label lives
+         // inside a button inside a bar, so its own `y` is given in its
+         // container's space and means nothing here. The line is read in the
+         // section's, which is the space everything else on this row uses.
+         var line:Rectangle = this.headerLine();
+         if(line != null)
+         {
+            this._header.y = Math.round(line.y + (line.height - this._header.height) / 2);
+            return;
+         }
          var band:Number = this.titleTop() + this.title().height;
          this._header.y = Math.round(band + (this._rowY[0] - band - this._header.height) / 2);
+      }
+
+      // The line the room writes its column names on, in the section's own
+      // space, or null.
+      //
+      // Read off `lblTeamVehicles`, which is the room's own field for the
+      // Vehicles title and sits on that line by construction. Named, so it
+      // cannot be confused with anything, where the height of the line was
+      // being worked out from the title's and landed a row too high.
+      private function headerLine() : Rectangle
+      {
+         var vehicles:DisplayObject = field(this._section, "lblTeamVehicles") as DisplayObject;
+         if(vehicles == null)
+         {
+            return null;
+         }
+         var origin:Point = this._section.globalToLocal(vehicles.localToGlobal(new Point(0, 0)));
+         return new Rectangle(origin.x, origin.y, vehicles.width, vehicles.height);
+      }
+
+      // The room's own name for the column, hidden while ours stands in it.
+      //
+      // Searched for once and kept. Two levels deep at most, because a label
+      // deeper than that is inside something that is not a header line, and
+      // hiding the wrong text is worse than leaving ours beside theirs --
+      // which is exactly what the first attempt did: it took any text whose
+      // CENTRE fell in the column, and the section's own title runs the full
+      // width of the panel, so its centre falls in whichever column sits in
+      // the middle. It hid the title and put our name on the title's line.
+      //
+      // So a candidate has to SIT in the column, most of its width inside
+      // it, and on the line the room writes its column names on.
+      private function hideRoomTitle(left:Number, width:Number) : void
+      {
+         if(this._title != null)
+         {
+            this._title.visible = false;
+            return;
+         }
+         var line:Rectangle = this.headerLine();
+         this._title = this.findTitle(this._section, left, width, line, 2);
+         if(this._title == null && this._section.parent != null)
+         {
+            // The room's column names are not in the section at all. They
+            // are a sortable header BAR beside it, in the section's parent,
+            // and each name is a label inside one of its buttons -- which is
+            // why a search of the section found nothing, twice, and why the
+            // section's own `lblTeamVehicles` is an empty field: it draws
+            // nothing, the bar draws everything.
+            //
+            // Deeper, because a label inside a button inside a bar is four
+            // levels down where a field of the section was one.
+            this._title = this.findTitle(
+               DisplayObjectContainer(this._section.parent), left, width, line, 4);
+         }
+         if(this._title != null)
+         {
+            this._title.visible = false;
+         }
+      }
+
+      private function findTitle(where:DisplayObjectContainer, left:Number, width:Number,
+                                 line:Rectangle, depth:int) : DisplayObject
+      {
+         for(var i:int = 0; i < where.numChildren; i++)
+         {
+            var kid:DisplayObject = where.getChildAt(i);
+            if(!kid.visible || kid == this._header || kid == this._average ||
+               this._cells.indexOf(kid) >= 0 || kid == this._dropdown ||
+               kid == this.title())
+            {
+               continue;
+            }
+            if(kid is TextField || kid is StaticText)
+            {
+               // Text, and text that says something: a header bar is full of
+               // empty fields the room never writes into, and hiding one of
+               // those would leave the name it was meant to replace on
+               // screen while this reported success.
+               if(MembersSection.hasText(kid) && this.sitsInColumn(kid, left, width, line))
+               {
+                  return kid;
+               }
+            }
+            else if(depth > 0 && kid is DisplayObjectContainer)
+            {
+               var found:DisplayObject = this.findTitle(
+                  DisplayObjectContainer(kid), left, width, line, depth - 1);
+               if(found != null)
+               {
+                  return found;
+               }
+            }
+         }
+         return null;
+      }
+
+      // How much of the COLUMN a label has to cover to be that column's
+      // name, and how many times the column it may measure.
+      //
+      // Against the column, not against the label: a name is routinely wider
+      // than the figures beneath it. The room's "Rating" is 64 wide over a
+      // 36-wide column -- it covers the column entirely and still fails a
+      // test asking for 60% of ITSELF, which is how this was rejected by two
+      // pixels. The ceiling is what keeps a banner out: the panel's own
+      // title runs the full width of the window, fourteen times the column.
+      private static const COVERS:Number = 0.6;
+
+      private static const WIDEST:Number = 4;
+
+      private static function hasText(kid:DisplayObject) : Boolean
+      {
+         if(kid is TextField)
+         {
+            var said:String = TextField(kid).text;
+            return said != null && said.replace(/^\s+|\s+$/g, "").length > 0;
+         }
+         return true;
+      }
+
+      private function sitsInColumn(kid:DisplayObject, left:Number, width:Number,
+                                    line:Rectangle) : Boolean
+      {
+         if(kid.width <= 0 || kid.height <= 0)
+         {
+            return false;
+         }
+         var origin:Point = this._section.globalToLocal(kid.localToGlobal(new Point(0, 0)));
+         var over:Number = Math.min(origin.x + kid.width, left + width) -
+                           Math.max(origin.x, left);
+         if(over <= 0 || over < width * COVERS || kid.width > width * WIDEST)
+         {
+            return false;
+         }
+         var middle:Number = origin.y + kid.height / 2;
+         if(line != null)
+         {
+            return middle >= line.y && middle <= line.y + line.height;
+         }
+         // No line to go by: anywhere above the first seat, as before.
+         return origin.y + kid.height <= this._rowY[0];
       }
 
       private function updateDropdown(labels:String) : void

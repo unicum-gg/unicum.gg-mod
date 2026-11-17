@@ -110,6 +110,22 @@ package unicum
          }
       }
 
+      // What every members list found, for Python to log. "none" when no
+      // list has been found at all, which is its own answer.
+      public function report() : String
+      {
+         if(this._sections.length == 0)
+         {
+            return "no members list found";
+         }
+         var out:Array = [];
+         for each(var section:MembersSection in this._sections)
+         {
+            out.push(section.report());
+         }
+         return out.join(" | ");
+      }
+
       public function dispose() : void
       {
          App.stage.removeEventListener(Event.ADDED, this.onAdded, true);
