@@ -71,13 +71,13 @@ def _record():
 # nothing and the three of them come to about 255px of the 346 a section
 # has. Short forms all the same: a caption longer than the figure it names
 # reads as the main event.
-_WHEN = {'recent': '30D', 'total': 'ALL'}
-_WIN_RATE = 'WR'
-_BATTLES = 'BTL'
-# What the tank row's chips say in place of a period. Which battles they
-# count is not a dropdown in this window but the mode being played, so they
-# name the tank instead.
-_ON_TANK = 'TANK'
+# The words themselves live with the rest of the mod's naming, because a
+# battle screen heads its columns with the same ones (badge_text.caption).
+# A reader should not have to learn this window's names and then the
+# battle's.
+_WIN_RATE = badge_lib.WIN_RATE
+_BATTLES = badge_lib.BATTLES
+_ON_TANK = badge_lib.ON_TANK
 
 
 # What a sample row is led by. Every one of these screens hangs its
@@ -122,7 +122,7 @@ def _career(badges, textures, settings, entry, surface):
     if metric is not None and value is not None:
         parts.append(badges.tagged_markup(
             int(round(value)), badges.band(metric, int(round(value))),
-            u'%s %s' % (metric.upper(), _WHEN[settings['window']])))
+            badge_lib.caption(metric, settings['window'])))
     # Each of the three names its own period, because each has its own
     # dropdown: a reader can ask for a 30-day rating beside a career win
     # rate, and one caption covering all three would be wrong for two.
@@ -133,14 +133,14 @@ def _career(badges, textures, settings, entry, surface):
             parts.append(badges.tagged_markup(
                 badge_lib.winrate(found, settings.winrate_decimal()),
                 badges.band('winrate', found, 'percent'),
-                u'%s %s' % (_WIN_RATE, _WHEN[window])))
+                badge_lib.caption(_WIN_RATE, window)))
     window = settings.extra('battles', surface)
     if window is not None:
         found = entry.stat('battles', window)
         if found is not None:
             parts.append(badges.tagged_markup(
                 badge_lib.count(found), badge_lib.NEUTRAL,
-                u'%s %s' % (_BATTLES, _WHEN[window])))
+                badge_lib.caption(_BATTLES, window)))
     return _named(entry, parts)
 
 
@@ -158,17 +158,17 @@ def _tank(badges, textures, settings, entry, surface):
     if value is not None:
         parts.append(badges.tagged_markup(
             int(round(value)), badges.band(metric, int(round(value))),
-            u'%s %s' % (metric.upper(), _ON_TANK)))
+            badge_lib.caption(metric, _ON_TANK)))
     elif record.winrate is not None:
         # No WN rating for this mode and there never will be: those scales
         # are built on random battles alone. The win rate is what survives.
         parts.append(badges.tagged_markup(
             badge_lib.winrate(record.winrate, settings.winrate_decimal()),
             badges.band('winrate', record.winrate, 'percent'),
-            u'%s %s' % (_WIN_RATE, _ON_TANK)))
+            badge_lib.caption(_WIN_RATE, _ON_TANK)))
     parts.append(badges.tagged_markup(
         badge_lib.count(record.battles), badge_lib.NEUTRAL,
-        u'%s %s' % (_BATTLES, _ON_TANK)))
+        badge_lib.caption(_BATTLES, _ON_TANK)))
     return _named(entry, parts)
 
 

@@ -25,6 +25,33 @@ _COMPACT_FROM = 10000
 # the folder there.
 MARKER = 'ready.png'
 
+# What a figure's chip says, in two words: what it is, then what it counts.
+#
+# One naming for the whole mod. The settings window captions its sample
+# badges with these and a battle screen heads its columns with them, and the
+# two must be the same words or a reader has to learn the window's names and
+# then the battle's. Short, because a caption longer than the figure it
+# names reads as the main event.
+WIN_RATE = 'WR'
+BATTLES = 'BTL'
+# What a chip says in place of a period when the figures are about the tank
+# a player brought: which battles those count is the mode being played, not
+# a choice anybody made, so naming a period there would promise something
+# the mod does not decide.
+ON_TANK = 'TANK'
+_WHEN = {'recent': '30D', 'total': 'ALL'}
+
+
+def caption(name, window):
+    """A chip's words: "WNX 30D", "WR ALL", "BTL TANK".
+
+    `window` is 'recent', 'total', or ON_TANK for the figures about one
+    tank. An unknown window leaves the figure unnamed rather than guessed
+    at -- a chip saying the wrong period is worse than no chip.
+    """
+    when = ON_TANK if window == ON_TANK else _WHEN.get(window)
+    return u'%s %s' % (name.upper(), when) if when else u''
+
 
 def count(battles):
     """A battle count as a badge draws it: 844, or 161k past ten thousand.

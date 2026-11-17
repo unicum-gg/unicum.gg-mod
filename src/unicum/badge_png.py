@@ -233,6 +233,35 @@ def tagged_pixels(value, hex_color, tag):
     return width, height, out
 
 
+def chip_size(tag):
+    """(width, height) of a chip standing on its own, (0, 0) without glyphs."""
+    return _chip_size(tag)
+
+
+def chip_pixels(tag):
+    """(width, height, rows) for a chip with no badge behind it.
+
+    The same chip `tagged_pixels` stamps into a badge's corner, drawn alone:
+    a column of figures is named by the chip its figures wear, so the two
+    have to be one drawing rather than two drawings of one idea.
+    """
+    chip, rows = _chip_size(tag)
+    if not chip:
+        return 0, 0, []
+    masks = _load()
+    shape = _band(chip, rows, masks['left'], masks['right'])
+    letters = [[0] * chip for _ in range(rows)]
+    _lay(letters, tag, caption_cell_of, (masks.get('caption') or {}).get('glyphs') or {},
+         masks['margin'], TAG_PAD, 0)
+    return chip, rows, _compose(chip, rows, shape, letters, TAG_BAND)
+
+
+def chip_png(tag):
+    """A chip on its own as PNG bytes, or None when it cannot be drawn."""
+    width, height, rows = chip_pixels(tag)
+    return _png(width, height, rows) if width else None
+
+
 def _chunk(kind, data):
     return (struct.pack('>I', len(data)) + kind + data
             + struct.pack('>I', zlib.crc32(kind + data) & 0xffffffff))

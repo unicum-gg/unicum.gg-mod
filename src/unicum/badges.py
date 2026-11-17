@@ -27,8 +27,9 @@ import logging
 import os
 
 from unicum import badge_png, config
-from unicum.badge_text import (MARKER as _MARKER, _drawable, _slug,
-                               badge_width, count, winrate)
+from unicum.badge_text import (BATTLES, MARKER as _MARKER, ON_TANK, WIN_RATE,
+                               _drawable, _slug, badge_width, caption, count,
+                               winrate)
 
 _logger = logging.getLogger('unicum.badges')
 
@@ -264,6 +265,29 @@ class Badges(object):
             return ''
         width, height = badge_png.tag_size(text, tag)
         return _IMG % ('%s/%s' % (self._res_path, name), width, height)
+
+    def chip_markup(self, tag):
+        """htmlText for a chip on its own: what names a column of figures.
+
+        The same chip the mod stamps into a badge's corner, which is the
+        whole point of drawing it from the same code: a column headed "WR"
+        and a badge wearing "WR" have to be the one marking, or they read as
+        two conventions and the reader has to learn both.
+
+        '' when it cannot be drawn, like every other badge here.
+        """
+        if not self._ready or not tag:
+            return ''
+        chip, rows = badge_png.chip_size(tag)
+        if not chip:
+            return ''
+        # Its size in the name, for the reason `tagged_markup` gives: a file
+        # already on disk is never drawn again, so a redesign has to ask for
+        # a name nobody has.
+        name = 'chip.%s%dx%d.png' % (_slug(tag).lower(), chip, rows)
+        if not self._ensure(name, lambda: badge_png.chip_png(tag)):
+            return ''
+        return _IMG % ('%s/%s' % (self._res_path, name), chip, rows)
 
     def count_markup(self, battles):
         """A battle count as its badge, or as plain grey text when none draws.
