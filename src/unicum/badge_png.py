@@ -145,16 +145,25 @@ def _compose(width, height, shape, text, hex_color):
     return rows
 
 
-def pixels(value, hex_color):
+def pixels(value, hex_color, width=0):
     """(width, rows of [r, g, b, a] per pixel) for a badge.
 
     `value` is a number (grouped by thousands) or a string drawn as it is.
+
+    `width` widens the badge past its own figure and centres that figure in
+    it, which is what turns a list of badges into a column: drawn to their
+    own size, "100.0%" and "9.1%" are twelve pixels apart and no two rows
+    line up. Narrower than the figure is ignored -- a column too narrow for
+    one of its values would have to cut it, and a figure cut is a figure
+    that lies.
     """
     masks = _load()
-    width = width_of(value)
+    natural = width_of(value)
+    width = max(int(width or 0), natural)
     shape = _band(width, HEIGHT, masks['left'], masks['right'])
     text = [[0] * width for _ in range(HEIGHT)]
-    _lay(text, layout(value), cell_of, masks['digits'], masks['margin'], PADDING, 0)
+    _lay(text, layout(value), cell_of, masks['digits'], masks['margin'],
+         PADDING + (width - natural) // 2, 0)
     return width, _compose(width, HEIGHT, shape, text, hex_color)
 
 
@@ -274,9 +283,9 @@ def _png(width, height, rows):
             + _chunk(b'IEND', b''))
 
 
-def png(value, hex_color):
+def png(value, hex_color, width=0):
     """PNG bytes of a badge: 8-bit RGBA, no interlacing."""
-    width, rows = pixels(value, hex_color)
+    width, rows = pixels(value, hex_color, width)
     return _png(width, HEIGHT, rows)
 
 

@@ -27,11 +27,22 @@ import logging
 import os
 
 from unicum import badge_png, config
+from unicum.badge_files import BadgeFiles
 from unicum.badge_text import (BATTLES, MARKER as _MARKER, ON_TANK, WIN_RATE,
                                _drawable, _slug, badge_width, caption, count,
                                winrate)
 
 _logger = logging.getLogger('unicum.badges')
+
+
+def _column(widths, name):
+    """The width of one column out of a caller's measurements, or 0.
+
+    0 means "draw it to its own size", which is what everywhere that is not
+    a column wants: a contacts row and a profile line put a badge after a
+    name, and padding one there would be a gap in the middle of a sentence.
+    """
+    return int((widths or {}).get(name) or 0)
 
 METRICS = ('wn7', 'wn8', 'wnx', 'pr', 'wtr')
 
@@ -81,24 +92,29 @@ class Badges(object):
         self._scales = scales
         self._dir = directory if directory is not None else config.BADGES_DIR
         self._res_path = res_path or config.BADGES_RES_PATH
-        self._drawable = drawable
-        # Names this session has already seen on disk; see `_ensure`.
-        self._on_disk = set()
-        self._ready = self._prepare()
+        # Whether a badge can be written and then drawn this session, and
+        # the writing itself: badge_files.py.
+        self._files = BadgeFiles(self._dir, self._res_path, drawable)
+        self._ready = self._files.ready
         _logger.info('rating badges %s, in %s', 'drawn' if self._ready else 'as numbers until the next start',
                      os.path.abspath(self._dir) if self._dir else '<none>')
 
-    def rating(self, entry, settings, surface):
+    def rating(self, entry, settings, surface, width=0):
         """' ' + the surface's rating as its badge, a bare number, or '' without one.
 
         A bare number when the badge cannot draw.
+
+        `width` is the column this badge stands in, when it stands in one:
+        drawn to their own size, 2 442 and 896 are eight pixels apart and no
+        two rows line up. See `picture`.
         """
         value = settings.rating(entry, surface)
         if value is None:
             return ''
-        return ' ' + (self.markup(settings.metric(surface), value) or '%d' % round(value))
+        return ' ' + (self.markup(settings.metric(surface), value, width)
+                      or '%d' % round(value))
 
-    def extras(self, entry, settings, surface, compact=False):
+    def extras(self, entry, settings, surface, compact=False, widths=None):
         """' ' + the win rate and battle count this surface shows, or ''.
 
         Badges, like the rating they sit beside, rather than text: coloured
@@ -121,17 +137,18 @@ class Badges(object):
                 # gives is still no badge when the client cannot load one,
                 # and dropping the figure would be worse than drawing it
                 # plainly. `winrate_markup` makes that choice once.
-                parts.append(self.winrate_markup(value, settings.winrate_decimal()))
+                parts.append(self.winrate_markup(value, settings.winrate_decimal(),
+                                                 _column(widths, 'winrate')))
         window = settings.extra('battles', surface)
         if window is not None:
             value = entry.stat('battles', window)
             if value is not None:
-                parts.append(self.count_markup(value))
+                parts.append(self.count_markup(value, _column(widths, 'battles')))
         if not parts:
             return ''
         return ' ' + _GAP.join(parts)
 
-    def vehicle(self, record, settings, surface):
+    def vehicle(self, record, settings, surface, widths=None):
         """' ' + what a player does on the tank they brought, or ''.
 
         Drawn as pills for the mode asked about, and in plain grey for the
@@ -164,7 +181,7 @@ class Badges(object):
         metric = settings.vehicle_metric(surface)
         value = record.rating(metric) if metric else None
         if value is not None:
-            drawn = self.markup(metric, value) if on_mode else None
+            drawn = self.markup(metric, value, _column(widths, 'rating')) if on_mode else None
             parts.append(drawn or _DIM % ('%d' % round(value)))
         elif record.winrate is not None:
             # No WN rating for this mode, and there never will be: the
@@ -176,7 +193,11 @@ class Badges(object):
             # which is what a skirmish drew until tonight.
             text = winrate(record.winrate, settings.winrate_decimal())
             color = self._scales.color('winrate', record.winrate, 'percent') if self._scales else None
-            parts.append((self._pill(text, color) if on_mode else '') or _DIM % text)
+            # The tank's win rate stands in the rating's column when there is
+            # no WN rating for the mode, so it is the rating's column it has
+            # to be as wide as.
+            parts.append((self._pill(text, color, _column(widths, 'rating'))
+                          if on_mode else '') or _DIM % text)
         # Drawn whatever the surface was told about battle counts, which is
         # the one place this mod overrides that choice and the reason is the
         # figure beside it: a career count is twenty thousand and says nothing
@@ -185,7 +206,8 @@ class Badges(object):
         # and noise. Turning counts off is a judgement about the first one.
         if record.battles:
             text = count(record.battles)
-            parts.append((self._pill(text, NEUTRAL) if on_mode else '') or _DIM % text)
+            parts.append((self._pill(text, NEUTRAL, _column(widths, 'battles'))
+                          if on_mode else '') or _DIM % text)
         if not parts:
             return ''
         return ' ' + _GAP.join(parts)
@@ -209,7 +231,7 @@ class Badges(object):
             return ''
         return ' ' + _DIM % ('%d' % round(value))
 
-    def winrate_markup(self, value, decimal=False):
+    def winrate_markup(self, value, decimal=False, width=0):
         """A win rate as its badge, or as plain grey text when none can draw.
 
         The site's own nine-step win rate scale gives the band. Here rather
@@ -219,7 +241,7 @@ class Badges(object):
         """
         text = winrate(value, decimal)
         color = self._scales.color('winrate', value, 'percent') if self._scales else None
-        return self._pill(text, color) or _DIM % text
+        return self._pill(text, color, width) or _DIM % text
 
     def band(self, scale, value, unit=None):
         """The colour this scale puts `value` in, or None without a scale.
@@ -261,7 +283,7 @@ class Badges(object):
         # a file nobody has.
         name = '%s.%s%dx%d.%s.png' % (_slug(key), _slug(tag).lower(), chip, rows,
                                       color.lstrip('#').lower())
-        if not self._ensure(name, lambda: badge_png.tagged_png(text, color, tag)):
+        if not self._files.ensure(name, lambda: badge_png.tagged_png(text, color, tag)):
             return ''
         width, height = badge_png.tag_size(text, tag)
         return _IMG % ('%s/%s' % (self._res_path, name), width, height)
@@ -285,11 +307,11 @@ class Badges(object):
         # already on disk is never drawn again, so a redesign has to ask for
         # a name nobody has.
         name = 'chip.%s%dx%d.png' % (_slug(tag).lower(), chip, rows)
-        if not self._ensure(name, lambda: badge_png.chip_png(tag)):
+        if not self._files.ensure(name, lambda: badge_png.chip_png(tag)):
             return ''
         return _IMG % ('%s/%s' % (self._res_path, name), chip, rows)
 
-    def count_markup(self, battles):
+    def count_markup(self, battles, width=0):
         """A battle count as its badge, or as plain grey text when none draws.
 
         Named rather than inlined because the settings preview builds the
@@ -298,37 +320,48 @@ class Badges(object):
         differently, and this is the one that rounds it.
         """
         text = count(battles)
-        return self._pill(text, NEUTRAL) or _DIM % text
+        return self._pill(text, NEUTRAL, width) or _DIM % text
 
-    def picture(self, text, color):
+    def picture(self, text, color, width=0):
         """(resource path, width, height) of a badge of arbitrary text, or None.
 
         What `_pill` draws, without the markup around it. The Scaleform
         surfaces want an `<IMG>` tag and the Gameface ones want the three
         pieces to put in a style, and it is the same badge either way: one
         drawing, two wrappings, rather than two drawings that can drift.
+
+        `width` widens the badge and centres the figure in it, which is what
+        makes a column of them. It rides in the FILE NAME, for the reason
+        every other size here does: a badge already on disk is never drawn
+        again, so a badge of the same value at another width has to be a
+        file nobody has.
         """
         if not self._ready or not color:
             return None
-        name = '%s.%s.png' % (_slug(text), color.lstrip('#').lower())
-        if not self._ensure(name, lambda: badge_png.png(text, color)):
+        drawn = max(int(width or 0), badge_png.width_of(text))
+        name = '%s.%s.%d.png' % (_slug(text), color.lstrip('#').lower(), drawn)
+        if not self._files.ensure(name, lambda: badge_png.png(text, color, drawn)):
             return None
-        return '%s/%s' % (self._res_path, name), badge_png.width_of(text), _HEIGHT
+        return '%s/%s' % (self._res_path, name), drawn, _HEIGHT
 
-    def _pill(self, text, color):
+    def _pill(self, text, color, width=0):
         """One badge of arbitrary text on `color`, or '' when it cannot draw."""
-        found = self.picture(text, color)
+        found = self.picture(text, color, width)
         return _IMG % found if found is not None else ''
 
-    def markup(self, metric, value):
+    def markup(self, metric, value, width=0):
         """htmlText for a rating badge, or None when it cannot draw."""
-        image = self.image(metric, value)
+        image = self.image(metric, value, width)
         if image is None:
             return None
         return _IMG % image
 
-    def image(self, metric, value):
-        """(resource path, width, height) of a rating's badge, or None when it cannot draw."""
+    def image(self, metric, value, width=0):
+        """(resource path, width, height) of a rating's badge, or None when it cannot draw.
+
+        `width` widens it into its column; the drawn width rides in the file
+        name, since a badge already on disk is never drawn again.
+        """
         if not self._ready or metric not in METRICS or value is None or self._scales is None:
             return None
         value = int(round(value))
@@ -337,55 +370,8 @@ class Badges(object):
         color = self._scales.color(metric, value)
         if not color:
             return None
-        name = '%s.%d.%s.png' % (metric, value, color.lstrip('#').lower())
-        if not self._ensure(name, lambda: badge_png.png(value, color)):
+        drawn = max(int(width or 0), badge_width(value))
+        name = '%s.%d.%s.%d.png' % (metric, value, color.lstrip('#').lower(), drawn)
+        if not self._files.ensure(name, lambda: badge_png.png(value, color, drawn)):
             return None
-        return '%s/%s' % (self._res_path, name), badge_width(value), _HEIGHT
-
-    def _ensure(self, name, draw):
-        """Whether `name` is on disk, drawing it once if it is not.
-
-        The answer is remembered for the session, and that is the whole point
-        of this method. Both callers run inside the client's VO builders, so
-        this is reached once per badge per player per redraw, and a detachment
-        list is two hundred players: without the memo that is a `stat` syscall
-        per badge, every redraw, forever, for an answer that cannot change.
-
-        It cannot change because nothing in the mod removes a badge once it is
-        written, and a file appearing is only ever good news: `_prepare` has
-        already established that the folder was there when the client started,
-        which is what makes a file written now drawable at all.
-        """
-        if name in self._on_disk:
-            return True
-        disk = os.path.join(self._dir, name)
-        if not os.path.isfile(disk) and not self._write(disk, draw()):
-            return False
-        self._on_disk.add(name)
-        return True
-
-    def _prepare(self):
-        """Whether badges can draw this session: the folder was there when the client started."""
-        if not self._dir:
-            return False
-        marker = os.path.join(self._dir, _MARKER)
-        if not os.path.isfile(marker) and not self._write(marker, badge_png.png(0, '#000000')):
-            return False
-        # `ResMgr.purge` was tried here and does not help: it drops a cached
-        # section so the next read hits the disk again, but the index itself
-        # is built once at startup, and a folder that was not in it then stays
-        # out of it. Measured in the client, drawable=False after purging.
-        return self._drawable('%s/%s' % (self._res_path, _MARKER))
-
-    @staticmethod
-    def _write(path, data):
-        try:
-            directory = os.path.dirname(path)
-            if not os.path.isdir(directory):
-                os.makedirs(directory)
-            with open(path, 'wb') as handle:
-                handle.write(data)
-            return True
-        except (IOError, OSError):
-            _logger.exception('could not write %s', path)
-            return False
+        return '%s/%s' % (self._res_path, name), drawn, _HEIGHT

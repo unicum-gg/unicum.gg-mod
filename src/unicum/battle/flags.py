@@ -55,6 +55,11 @@ class BattleFlags(Drawing):
         # The mode this battle reads a tank over, looked up once; see
         # `_tank_mode`.
         self._wg_mode = _UNASKED
+        # How wide each figure's column is in the pass being published, so
+        # every badge in one is drawn to the same width; see
+        # `Drawing._column_widths`. Empty means every badge to its own size,
+        # which is what a surface that is not a column wants.
+        self._widths = {}
         # Rows drawn on the tank in the pass being published, and whether this
         # battle has already said so once.
         self._drew_tank = 0

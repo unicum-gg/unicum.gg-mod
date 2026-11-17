@@ -12,10 +12,16 @@ from __future__ import absolute_import
 
 import logging
 
-from unicum import modes, views
+from unicum import badges, modes, views
 from unicum.battle.markup import icon_markers, markup_width
 from unicum.battle.teams import TeamNames, tank_of
 from unicum.api.entry import PLAYERS
+
+
+def _widen(widest, column, value):
+    """Keep the widest a column has had to hold."""
+    from unicum import badge_png
+    widest[column] = max(widest.get(column, 0), badge_png.width_of(value))
 
 _logger = logging.getLogger('unicum.battle.drawing')
 
@@ -93,6 +99,7 @@ class Drawing(TeamNames):
         self._markers = {}
         self._drew_tank = 0
         shows = modes.team_filter(self._settings)
+        self._widths = self._column_widths(arena, shows)
         for vInfo in arena.getVehiclesInfoIterator():
             if vInfo.isObserver() or not shows(vInfo.team):
                 continue
@@ -262,7 +269,8 @@ class Drawing(TeamNames):
                 self._request_vehicle(account_id, tank_id, mode)
             if self._on_tank():
                 record = self._lookup.vehicle(account_id, tank_id, mode)
-                drawn = self._badges.vehicle(record, self._settings, 'battle')
+                drawn = self._badges.vehicle(record, self._settings, 'battle',
+                                             widths=self._widths)
                 if drawn:
                     self._drew_tank += 1
                 # Nothing in hand, or nothing stored about this tank: the
@@ -273,8 +281,70 @@ class Drawing(TeamNames):
                 return flags, drawn or self._badges.plain(entry, self._settings, 'battle')
         # Compact: this one dict feeds the players panel, whose column is the
         # narrowest place any of these numbers has to fit.
-        return flags, (self._badges.rating(entry, self._settings, 'battle')
-                       + self._badges.extras(entry, self._settings, 'battle', compact=True))
+        return flags, (self._badges.rating(entry, self._settings, 'battle',
+                                           self._widths.get('rating', 0))
+                       + self._badges.extras(entry, self._settings, 'battle',
+                                             compact=True, widths=self._widths))
+
+    def _column_widths(self, arena, shows):
+        """The width each figure's column needs: its widest value on screen.
+
+        A column is one width for every badge in it, and that width is not
+        knowable from one row -- 2 442 and 896 are eight pixels apart, and a
+        list of badges each drawn to its own figure lines up nowhere.
+
+        The widest ON SCREEN, not the widest a figure can ever be. "9 999"
+        is twenty pixels wider than "8", so padding every count to the
+        largest a count can be would carry that on every row of a battle
+        whose counts are all two digits -- in the narrowest column this mod
+        draws.
+
+        This walks the roster the same way `_marker` does, and has to keep
+        doing so: a figure measured here and a figure drawn there that
+        disagree give a column sized for something it does not hold. The
+        check in tools/checks compares the two over a roster.
+        """
+        widest = {}
+        on_tank = self._on_tank()
+        metric = self._settings.vehicle_metric('battle')
+        decimal = self._settings.winrate_decimal()
+        winrate_window = self._settings.extra('winrate', 'battle')
+        battles_window = self._settings.extra('battles', 'battle')
+        for vInfo in arena.getVehiclesInfoIterator():
+            if vInfo.isObserver() or not shows(vInfo.team):
+                continue
+            account_id = getattr(vInfo.player, 'accountDBID', None)
+            if not account_id:
+                continue
+            entry = self._lookup.get(PLAYERS, account_id)
+            tank_id = tank_of(vInfo)
+            mode = (self._tank_mode()
+                    if tank_id and self._settings.wants_vehicle('battle') else None)
+            record = (self._lookup.vehicle(account_id, tank_id, mode)
+                      if on_tank and mode is not None else None)
+            if record is not None and record.known:
+                value = record.rating(metric) if metric else None
+                if value is not None:
+                    _widen(widest, 'rating', int(round(value)))
+                elif record.winrate is not None:
+                    _widen(widest, 'rating', badges.winrate(record.winrate, decimal))
+                if record.battles:
+                    _widen(widest, 'battles', badges.count(record.battles))
+                continue
+            value = self._settings.rating(entry, 'battle')
+            if value is not None:
+                _widen(widest, 'rating', int(round(value)))
+            if entry is None or not entry.known:
+                continue
+            if winrate_window is not None:
+                found = entry.stat('winrate', winrate_window)
+                if found is not None:
+                    _widen(widest, 'winrate', badges.winrate(found, decimal))
+            if battles_window is not None:
+                found = entry.stat('battles', battles_window)
+                if found is not None:
+                    _widen(widest, 'battles', badges.count(found))
+        return widest
 
     def _redraw(self):
         """Resend the arena description, which is what carries a team average.

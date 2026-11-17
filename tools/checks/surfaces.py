@@ -258,14 +258,26 @@ def check_badges(workdir):
     badges = Badges(Scales(), directory=folder, res_path='gui/badges', drawable=lambda path: True)
     check('a rating is one image of the rounded value on its band, sized to its digits',
           badges.markup('wnx', 3322.6) ==
-          '<IMG SRC="img://gui/badges/wnx.3323.7a4fb2.png" width="32" height="12" vspace="-3"/>')
+          '<IMG SRC="img://gui/badges/wnx.3323.7a4fb2.32.png" width="32" height="12" vspace="-3"/>')
     check('the badge is drawn into the folder the first time it is shown',
-          open(os.path.join(folder, 'wnx.3323.7a4fb2.png'), 'rb').read(8)[1:4] == b'PNG')
+          open(os.path.join(folder, 'wnx.3323.7a4fb2.32.png'), 'rb').read(8)[1:4] == b'PNG')
     check('a rating with no colour on its scale draws nothing', badges.markup('wn8', 3323) is None)
     check('a value past the drawn range draws nothing', badges.markup('wnx', MAX_VALUE + 1) is None)
     check('five digits are drawn too, which is where PR and WTR live',
           badges.markup('pr', 10400) ==
-          '<IMG SRC="img://gui/badges/pr.10400.7a4fb2.png" width="38" height="12" vspace="-3"/>')
+          '<IMG SRC="img://gui/badges/pr.10400.7a4fb2.38.png" width="38" height="12" vspace="-3"/>')
+    # A column is made by drawing every badge in it to one width, the
+    # widest it has to hold: left to their own sizes, 3 323 and 896 are
+    # eight pixels apart and no two rows line up.
+    check('a badge asked for a column is drawn to the column, not to itself',
+          badges.markup('wnx', 3322.6, 48) ==
+          '<IMG SRC="img://gui/badges/wnx.3323.7a4fb2.48.png" width="48" height="12" vspace="-3"/>')
+    check('and is its own file, so the narrow one on disk is not served for it',
+          os.path.isfile(os.path.join(folder, 'wnx.3323.7a4fb2.48.png')) and
+          os.path.isfile(os.path.join(folder, 'wnx.3323.7a4fb2.32.png')))
+    check('a column narrower than the figure is ignored rather than cutting it',
+          badges.markup('wnx', 3322.6, 10) == badges.markup('wnx', 3322.6))
+
     unknown = Badges(Scales(), directory=os.path.join(workdir, 'new-badges'), res_path='gui/new',
                      drawable=lambda path: False)
     check('a folder the client did not know at startup shows numbers until the next start',

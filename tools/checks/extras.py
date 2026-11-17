@@ -101,18 +101,22 @@ def check_extras_badges():
     out = badges.extras(entry, _Settings(winrate='total', battles='total'), 'battle')
     check('both figures are drawn as badges, not as text',
           out.count('<IMG') == 2 and '<font' not in out)
-    check('the win rate badge is painted on its own band', '59pct.4a92b7.png' in out)
+    check('the win rate badge is painted on its own band', '59pct.4a92b7.' in out)
     # The one pill with no scale behind it. A colour invented for it would
     # claim a meaning the site does not publish.
-    check('the battle count badge takes the one neutral band', '161k.4a4a4a.png' in out)
+    check('the battle count badge takes the one neutral band', '161k.4a4a4a.' in out)
     check('they are separated, since two touching images show a seam', '/> <IMG' in out)
     check('with a leading space, since they follow the rating badge', out.startswith(' '))
 
+    # Named with the width they were drawn at, like every other size in a
+    # badge's name: a badge already on disk is never drawn again, so the
+    # same figure in a wider column has to be a file nobody has.
     written = sorted(os.listdir(tmp))
+    wide = [name for name in written if name.startswith('161k.4a4a4a.')]
     check('each badge is a real file on disk',
-          '59pct.4a92b7.png' in written and '161k.4a4a4a.png' in written)
+          any(name.startswith('59pct.4a92b7.') for name in written) and len(wide) == 1)
     check('and a PNG at that',
-          open(os.path.join(tmp, '161k.4a4a4a.png'), 'rb').read(8) == '\x89PNG\r\n\x1a\n')
+          open(os.path.join(tmp, wide[0]), 'rb').read(8) == '\x89PNG\r\n\x1a\n')
 
     # Drawn once and reused: the whole reason the label is rounded.
     before = len(os.listdir(tmp))
@@ -121,7 +125,7 @@ def check_extras_badges():
     check('a nearby count reuses the badge already drawn', len(os.listdir(tmp)) == before)
 
     out = badges.extras(entry, _Settings(winrate='total', battles='total', decimal=True), 'battle')
-    check('the decimal setting reaches the badge', '58-7pct.4a92b7.png' in out)
+    check('the decimal setting reaches the badge', '58-7pct.4a92b7.' in out)
 
 
 class _Record(object):
@@ -145,9 +149,9 @@ def check_vehicle_badges():
 
     out = badges.vehicle(_Record(), settings, 'battle')
     check('the rating on this tank is drawn as a badge',
-          'wnx.1934.4a92b7.png' in out and out.count('<IMG') == 2)
+          'wnx.1934.4a92b7.' in out and out.count('<IMG') == 2)
     check('the count of battles on it comes with it, on the neutral band',
-          '70.4a4a4a.png' in out)
+          '70.4a4a4a.' in out)
     check('it leads with a space, like every group that follows a name',
           out.startswith(' '))
 
@@ -183,7 +187,7 @@ def check_vehicle_badges():
     # per vehicle and never will. The win rate is what survives.
     out = badges.vehicle(_Record(wnx=None), settings, 'battle')
     check('a mode the WN scales do not measure shows the win rate on the tank',
-          '59pct.4a92b7.png' in out and out.count('<IMG') == 2)
+          '59pct.4a92b7.' in out and out.count('<IMG') == 2)
     check('and the rating takes precedence wherever there is one',
           '59pct' not in badges.vehicle(_Record(), settings, 'battle'))
     check('with neither, the count speaks alone',
@@ -551,13 +555,13 @@ def check_a_tank_is_asked_for_before_alt():
             return True
 
     class Badges(object):
-        def rating(self, entry, settings, surface):
+        def rating(self, entry, settings, surface, width=0):
             return ' career'
 
-        def extras(self, entry, settings, surface, compact=False):
+        def extras(self, entry, settings, surface, compact=False, widths=None):
             return ''
 
-        def vehicle(self, record, settings, surface):
+        def vehicle(self, record, settings, surface, widths=None):
             return ''
 
         def plain(self, entry, settings, surface):

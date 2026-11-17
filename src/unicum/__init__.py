@@ -11,7 +11,7 @@ is nothing more than stop() followed by a fresh start().
 import logging
 
 from unicum import (auto_reload, battle, battle_results, battles, browser, config, context_menu, first_run,
-                    loadouts, lobby, measuring, minimap_names, mods_list, motion, replays, reporting,
+                    loadouts, lobby, maneuvers_probe, measuring, minimap_names, mods_list, motion, replays, reporting,
                     room_sort, settings_tab, tab_screen,
                     settings_window,
                     tank_button, twitch, twitch_panel, twitch_send, twitch_window, views)
@@ -60,6 +60,8 @@ def start(generation=0):
         window = settings_window.install(_session, settings, link)
         tab = settings_tab.install(_session, settings, link)
         mods_list.install(_session)
+        # TEMPORAIRE: sonde des Manoeuvres, a retirer apres validation.
+        maneuvers_probe.install(_session)
         lookup = Lookup(_session, config.REGION)
         scales = RatingScales(_session)
         flags = FlagCache(_session)
