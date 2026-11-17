@@ -101,7 +101,7 @@ class LobbyFlags(Rooms, Profile):
             except Exception:
                 _logger.exception('could not refresh a profile window')
 
-    def _marker(self, account_id, surface, rating=True, extras=True):
+    def _marker(self, account_id, surface, rating=True, extras=True, flags=True):
         """The surface's flags and rating, as htmlText markup.
 
         `rating` is dropped where the rating has a column of its own, which
@@ -112,12 +112,17 @@ class LobbyFlags(Rooms, Profile):
 
         `extras` is the win rate and the battle count, dropped in the one
         place where they cost more than they say: see `_mark_region`.
+
+        `flags` is dropped where they are drawn as a column of their own,
+        which is the detachment list: a flag on a name sits wherever that
+        name ends, and a list of those is a ragged edge rather than a
+        column.
         """
         if not account_id or not self._settings.shows(surface) or self._waits_for_alt(surface):
             return ''
         entry = self._entry(account_id)
         marker = ''
-        if self._settings.shows_flags(surface):
+        if flags and self._settings.shows_flags(surface):
             marker += self._textures.markup(entry, self._settings['maxFlags'])
         if rating:
             marker += self._badges.rating(entry, self._settings, surface)

@@ -118,11 +118,24 @@ class Rooms(object):
         drawn = (_ROOM_RATING_COLUMN
                  and self._settings.shows('skirmishRoom')
                  and not self._waits_for_alt('skirmishRoom'))
+        # The flags travel the same way as the badges, and for the same
+        # reason as the column: a flag that rides on the name sits wherever
+        # that name ends, so a list of them is a ragged edge. Placed by the
+        # view instead, they end where the ratings begin and read as a
+        # column. `_mark_slots` leaves them off the name for exactly this.
+        shows_flags = (self._settings.shows_flags('skirmishRoom')
+                       and self._settings.shows('skirmishRoom')
+                       and not self._waits_for_alt('skirmishRoom'))
         values = []
         known = []
         badges = []
+        flags = []
         for account_id in account_ids:
             entry = self._entry(account_id)
+            if shows_flags:
+                drawn_flags = self._textures.markup(entry, self._settings['maxFlags']).strip()
+                if drawn_flags:
+                    flags.append(u'%d\t%s' % (account_id, drawn_flags))
             value = self._settings.rating(entry, 'skirmishRoom')
             if value is not None:
                 values.append(value)
@@ -137,6 +150,9 @@ class Rooms(object):
         badge_by_player = u'\n'.join(badges)
         if getattr(view, 'ratingHtmlByPlayer', None) != badge_by_player:
             view.ratingHtmlByPlayer = badge_by_player
+        flags_by_player = u'\n'.join(flags)
+        if getattr(view, 'flagsHtmlByPlayer', None) != flags_by_player:
+            view.flagsHtmlByPlayer = flags_by_player
         # The column's name as the chip the mod names a figure with
         # everywhere else, rather than as words: this is a column of badges
         # and its name is the marking those badges wear. The words stay as
@@ -184,6 +200,27 @@ class Rooms(object):
         _logger.info('room column: enabled=%s drawn=%s sent=%s header=%r -- %s',
                      enabled, drawn, len(badges), header, found)
 
+    def _view_draws_flags(self):
+        """Whether the loaded view draws the detachment's flags itself.
+
+        Asked of the view rather than assumed from this module's own switch,
+        because the two halves of the mod do not arrive together: Python
+        reloads the moment a file is saved, the view only at the next client
+        start. Taking the flags off the names while the running view cannot
+        draw them yet is a list with no flags at all for the rest of the
+        session, which is what a developer saving a file in the middle of
+        somebody's evening would otherwise do to them.
+
+        A view too old to answer raises, and raising means no.
+        """
+        view = views.lobby_view()
+        if view is None:
+            return False
+        try:
+            return bool(view.takesFlags())
+        except Exception:
+            return False
+
     def _mark_slots(self, slots):
         """Mark every member; the account ids seen, for the average."""
         account_ids = []
@@ -191,10 +228,14 @@ class Rooms(object):
             for slot in slots or ():
                 player = slot.get('player') if isinstance(slot, dict) else None
                 if isinstance(player, dict):
-                    # The rating sits on the name unless it has a column of
-                    # its own to sit in; see _ROOM_RATING_COLUMN.
+                    # Neither the rating nor the flags ride on a member's
+                    # name: both have a place of their own in this list now,
+                    # and a flag on the name sits wherever that name happens
+                    # to end. The volunteers' panel still carries both, it
+                    # has no column to put them in.
                     self._mark_region(player, player.get('dbID'), 'skirmishRoom',
-                                      rating=not _ROOM_RATING_COLUMN)
+                                      rating=not _ROOM_RATING_COLUMN,
+                                      flags=not self._view_draws_flags())
                     if player.get('dbID'):
                         account_ids.append(player.get('dbID'))
         except Exception:
@@ -215,7 +256,7 @@ class Rooms(object):
 
         return _makePlayerVO
 
-    def _mark_region(self, vo, account_id, surface, rating=True):
+    def _mark_region(self, vo, account_id, surface, rating=True, flags=True):
         """Both of this window's lists: the detachment, and the volunteers.
 
         Without the win rate and the battle count, which is the one place in
@@ -231,7 +272,7 @@ class Rooms(object):
         # there, and it is not ours to drop. And left untouched when there is
         # nothing to add, so a None stays None -- some views type this field
         # as Object and reject an empty string.
-        marker = self._marker(account_id, surface, rating, extras=False)
+        marker = self._marker(account_id, surface, rating, extras=False, flags=flags)
         if marker:
             vo['region'] = (vo.get('region') or '') + marker
 

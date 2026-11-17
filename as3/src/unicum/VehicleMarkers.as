@@ -80,6 +80,14 @@ package unicum
       // puts there and what Python measures it at (battle/markup.py).
       private static const BADGE_GAP:int = 4;
 
+      // Where a team's column names start in its field list, after the
+      // badges and the average sign, and how far above the figures they sit.
+      private static const CAPTION_FIELD:int = 2;
+
+      private static const CAPTION_GAP:int = 1;
+
+      private static const HEIGHTS:RegExp = /height="(\d+)"/i;
+
       // Backgrounds and hit areas, which lie under the icon and its neighbours.
       private static const BACKGROUND:RegExp = /(bg|hit|background)$/i;
 
@@ -227,7 +235,8 @@ package unicum
             var name:TextField = team as TextField;
             if(name.text == this._averages[team][0])
             {
-               name.htmlText = this._averages[team][0] + "  \u00d8 " + this._averages[team][1];
+               name.htmlText = this._averages[team][0] + "  \u00d8 " +
+                               VehicleMarkers.onlyFigures(this._averages[team][1]);
             }
          }
          this._averages = new Dictionary(true);
@@ -450,8 +459,10 @@ package unicum
             }
             else if(team.text == taken[0])
             {
-               // No column any more: the average goes back after the name.
-               team.htmlText = taken[0] + "  \u00d8 " + taken[1];
+               // No column any more: the average goes back after the name,
+               // its figures alone. A column name only means something
+               // standing over a column, and there is none.
+               team.htmlText = taken[0] + "  \u00d8 " + VehicleMarkers.onlyFigures(taken[1]);
                delete this._averages[team];
             }
             else
@@ -489,17 +500,97 @@ package unicum
             }
             tf.visible = team.visible;
          }
+         // The figures, then a chip per column behind tabs (teams.py).
+         var pieces:Array = String(taken[1]).split("\t");
+         var figures:String = pieces[0];
          var bounds:Rectangle = team.getBounds(parent);
          var y:Number = Math.round(bounds.y + (bounds.height - HEIGHT) / 2) + IMAGE_RISE;
          var local:Number = parent.globalToLocal(new Point(column[0], 0)).x;
-         var badgeWidth:Number = VehicleMarkers.markupWidth(taken[1]);
+         var badgeWidth:Number = VehicleMarkers.markupWidth(figures);
          var signWidth:Number = fields[1].textWidth;
          var badgeX:Number = rightwards ? local + GAP : local - GAP - badgeWidth;
          var signX:Number = rightwards ? local + GAP + column[1] + SPACE : local - GAP - column[1] - SPACE - signWidth;
-         this.setField(fields[0], taken[1], badgeWidth, badgeX, y);
+         this.setField(fields[0], figures, badgeWidth, badgeX, y);
          fields[1].width = signWidth + GUTTER * 2 + 2;
          fields[1].x = Math.round(signX - GUTTER);
          fields[1].y = Math.round(bounds.y + (bounds.height - fields[1].height) / 2);
+         this.placeColumnNames(team, pieces, figures, badgeX, y);
+      }
+
+      // The chips that name the columns, standing over the team's own
+      // figures, which is the row they sit directly above.
+      //
+      // Each chip is centred on the badge it names, and the badges' widths
+      // are read out of the markup rather than assumed: a rating is four
+      // digits wide, a win rate is four or five, a battle count is one to
+      // four, so a header laid out on anything but the real widths slides
+      // off its columns on half the rows.
+      //
+      // One chip per figure or none at all. Pairing them by position is
+      // what makes the header mean anything, and a header one column out is
+      // worse than no header: it does not look wrong, it looks like an
+      // answer.
+      private function placeColumnNames(team:TextField, pieces:Array, figures:String,
+                                        badgeX:Number, badgeY:Number) : void
+      {
+         var fields:Array = this._averageFields[team] as Array;
+         var names:Array = pieces.slice(1);
+         var widths:Array = [];
+         var found:Object = null;
+         WIDTHS.lastIndex = 0;
+         while((found = WIDTHS.exec(figures)) != null)
+         {
+            widths.push(Number(found[1]));
+         }
+         var wanted:int = names.length == widths.length ? names.length : 0;
+         var parent:DisplayObjectContainer = team.parent;
+         // Scaleform lines an inline image up by its BOTTOM edge, so where a
+         // chip's own field has to sit depends on the badge's height and not
+         // on the chip's: both images rest on the same baseline inside their
+         // field, and lifting the field by the badge's height puts the chip
+         // exactly one gap above the badge whatever the chip measures.
+         var row:Number = VehicleMarkers.markupHeight(figures);
+         var top:Number = Math.round(badgeY - row - CAPTION_GAP);
+         var at:Number = badgeX;
+         for(var i:int = 0; i < wanted; i++)
+         {
+            var tf:TextField = fields[CAPTION_FIELD + i] as TextField;
+            if(tf == null)
+            {
+               tf = newField();
+               fields[CAPTION_FIELD + i] = tf;
+            }
+            if(tf.parent != parent)
+            {
+               parent.addChild(tf);
+            }
+            tf.visible = team.visible;
+            var chipWidth:Number = VehicleMarkers.markupWidth(names[i]);
+            this.setField(tf, names[i], chipWidth,
+                          at + (Number(widths[i]) - chipWidth) / 2, top);
+            at += Number(widths[i]) + BADGE_GAP;
+         }
+         // Anything left from a header that was longer a moment ago.
+         for(var spare:int = CAPTION_FIELD + wanted; spare < fields.length; spare++)
+         {
+            if(fields[spare] is TextField)
+            {
+               TextField(fields[spare]).visible = false;
+            }
+         }
+      }
+
+      // An average's figures, without the column names behind the tabs.
+      public static function onlyFigures(markup:String) : String
+      {
+         return String(markup).split("\t")[0];
+      }
+
+      private static function markupHeight(markup:String) : Number
+      {
+         HEIGHTS.lastIndex = 0;
+         var found:Object = HEIGHTS.exec(markup);
+         return found != null ? Number(found[1]) : 0;
       }
 
       // Every badge in a piece of markup, plus the gaps between them.

@@ -179,7 +179,7 @@ package unicum
          {
             if(field.text == stripped)
             {
-               field.htmlText = names[0];
+               field.htmlText = VehicleMarkers.onlyFigures(names[0]);
                names[1] = field.text;
             }
             delete this._stripped[field];
@@ -279,8 +279,14 @@ package unicum
             // is converted once each time the client sets it.
             if(field.text.indexOf("<IMG") >= 0)
             {
+               // Shown without the column names behind the tabs: they are
+               // for VehicleMarkers to stand above the figures, where there
+               // is a column to stand over, and inline after the figures
+               // they would just be two more badges nobody can read. What
+               // was set is kept whole all the same, because that is where
+               // VehicleMarkers reads them from.
                var set:String = field.text;
-               field.htmlText = set;
+               field.htmlText = VehicleMarkers.onlyFigures(set);
                this._names[field] = [set, field.text];
                delete this._stripped[field];
             }

@@ -19,6 +19,8 @@ package unicum
    //                   above because it cannot share their encoding: a badge
    //                   is `<IMG SRC="img://...png" .../>` and carries both a
    //                   comma and a colon. Empty when the column is not drawn.
+   //   flagsHtmlByPlayer   "dbID<tab>flag markup" a line, for the flags
+   //                   column; same encoding, same reason
    //   ratingHeader    what that column is called, the rating's own name
    //   averageHtml     the average's badge markup, empty when no room is open
    //   roomEnabled     false when the settings switch the skirmish room off
@@ -44,7 +46,11 @@ package unicum
 
       private var _ratingHtmlByPlayer:String = "";
 
+      private var _flagsHtmlByPlayer:String = "";
+
       private var _badges:Object = {};
+
+      private var _flags:Object = {};
 
       private var _scores:Object = {};
 
@@ -106,6 +112,32 @@ package unicum
             if(cut > 0)
             {
                this._badges[line.substring(0, cut)] = line.substring(cut + 1);
+            }
+         }
+      }
+
+      public function get flagsHtmlByPlayer() : String
+      {
+         return this._flagsHtmlByPlayer;
+      }
+
+      // The same encoding as the badges above, for the same reason: a flag
+      // is an <IMG> too. Drawn as a column rather than left on the name,
+      // where it sat wherever the name happened to end.
+      public function set flagsHtmlByPlayer(value:String) : void
+      {
+         if(value == this._flagsHtmlByPlayer)
+         {
+            return;
+         }
+         this._flagsHtmlByPlayer = value;
+         this._flags = {};
+         for each(var line:String in (value || "").split("\n"))
+         {
+            var cut:int = line.indexOf("\t");
+            if(cut > 0)
+            {
+               this._flags[line.substring(0, cut)] = line.substring(cut + 1);
             }
          }
       }
@@ -199,7 +231,8 @@ package unicum
                this._sections.splice(i, 1);
                continue;
             }
-            section.update(this.roomEnabled, this.sortMode, this.sortLabels, this._scores, this.averageHtml, this._badges, this.ratingHeader);
+            section.update(this.roomEnabled, this.sortMode, this.sortLabels, this._scores,
+                           this.averageHtml, this._badges, this.ratingHeader, this._flags);
          }
          // The rows are placed again in the render phase, which comes after
          // the client has laid them out for this frame.

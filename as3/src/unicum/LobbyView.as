@@ -59,6 +59,19 @@ package unicum
          return this._room != null ? this._room.report() : "no room tools";
       }
 
+      // Whether this view draws the detachment's flags itself.
+      //
+      // Asked rather than assumed, because the two halves of this mod do
+      // not arrive together: Python reloads the moment a file is saved and
+      // the view only at the next client start. Python taking the flags off
+      // the names while the running view cannot draw them yet is a list
+      // with no flags at all, for as long as the session lasts. A view too
+      // old to answer this raises, and raising means no.
+      public function takesFlags() : Boolean
+      {
+         return true;
+      }
+
       public function get sortLabels() : String
       {
          return this._room != null ? this._room.sortLabels : "";

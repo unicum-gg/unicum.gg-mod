@@ -90,6 +90,22 @@ package unicum
 
       private var _cells:Array = [];
 
+      // The flags, by dbID, and a field each to draw them in. Their own
+      // column rather than a tail on the name: a flag that rides on a name
+      // sits wherever that name ends, and seven of those is a ragged edge.
+      private var _flags:Object = {};
+
+      private var _flagCells:Array = [];
+
+      private var _flagHtml:Array = [];
+
+      // Each slot's name field and the width it had before this narrowed it,
+      // so the teardown can give it back. Narrowed because the flags now
+      // stand where the end of a long name used to reach.
+      private var _names:Array = [];
+
+      private var _nameWidths:Array = [];
+
       // What each cell was last given. Kept apart from the field, because
       // `htmlText` does not read back what it was assigned: Flash rebuilds
       // the markup, so comparing against it is always unequal, and the badge
@@ -136,6 +152,10 @@ package unicum
          {
             this._cells.push(this.plainField(section));
             this._cellHtml.push(null);
+            this._flagCells.push(this.plainField(section));
+            this._flagHtml.push(null);
+            this._names.push(null);
+            this._nameWidths.push(-1);
          }
       }
 
@@ -239,7 +259,9 @@ package unicum
          // The room's own column, exactly as it was before the mod took it.
          this.giveBackColumn();
          this._dropdown.removeEventListener(ListEvent.INDEX_CHANGE, this.onIndexChange);
-         for each(var added:DisplayObject in [this._dropdown, this._average, this._header].concat(this._cells))
+         this.giveBackNames();
+         for each(var added:DisplayObject in [this._dropdown, this._average, this._header]
+                  .concat(this._cells).concat(this._flagCells))
          {
             if(added.parent != null)
             {
@@ -253,11 +275,14 @@ package unicum
       }
 
       // Every frame, from RoomTools, with the state Python keeps up to date.
-      public function update(enabled:Boolean, mode:String, labels:String, scores:Object, averageHtml:String, badges:Object, header:String) : void
+      public function update(enabled:Boolean, mode:String, labels:String, scores:Object,
+                             averageHtml:String, badges:Object, header:String,
+                             flags:Object = null) : void
       {
          this._mode = enabled && MODES.indexOf(mode) >= 0 ? mode : "default";
          this._scores = scores;
          this._badges = badges != null ? badges : {};
+         this._flags = flags != null ? flags : {};
          this._dropdown.visible = enabled;
          this.updateDropdown(labels);
          this.order();
@@ -266,6 +291,7 @@ package unicum
          // badge is placed against the row it belongs to wherever that row
          // has ended up.
          this.updateColumn(enabled, enabled ? header : "");
+         this.updateFlags(enabled);
       }
 
       // Each member's rating, in a column of its own just left of the room's.
@@ -343,6 +369,103 @@ package unicum
             cell.y = Math.round(origin.y + (rating.height - cell.height) / 2);
          }
          this.updateColumnHeader(header, anchor);
+      }
+
+      // The flags, ending where the ratings begin, the same place on every
+      // row.
+      //
+      // The name is narrowed to where that row's flags start, so the two
+      // never meet: the room sizes a name to its field and truncates it
+      // with dots, and a name left at its full width would run under the
+      // flags of anyone whose name is long. Narrowed per row, by that row's
+      // OWN flags rather than by the widest possible, so a player with one
+      // flag keeps the width a player with three has to give up.
+      private function updateFlags(enabled:Boolean) : void
+      {
+         for(var slot:int = 0; slot < SLOTS; slot++)
+         {
+            var cell:TextField = TextField(this._flagCells[slot]);
+            var row:Object = field(this._section, "slot" + slot);
+            var rating:TextField = row != null ? field(row, RATING_FIELD) as TextField : null;
+            var taken:Object = this.data(slot);
+            var markup:String = null;
+            if(enabled && rating != null && taken != null && taken.player != null)
+            {
+               markup = this._flags[String(taken.player.dbID)] as String;
+            }
+            if(markup == null || markup == "")
+            {
+               cell.visible = false;
+               this._flagHtml[slot] = null;
+               this.giveBackName(slot);
+               continue;
+            }
+            cell.visible = true;
+            if(this._flagHtml[slot] != markup)
+            {
+               this._flagHtml[slot] = markup;
+               cell.htmlText = markup;
+            }
+            var origin:Point = this._section.globalToLocal(rating.localToGlobal(new Point(0, 0)));
+            var wide:Number = MembersSection.markupWidth(markup, true);
+            if(wide <= 0)
+            {
+               wide = cell.width - GUTTER * 2;
+            }
+            var right:Number = origin.x - FLAG_GAP;
+            cell.x = Math.round(right - wide) - GUTTER;
+            cell.y = Math.round(origin.y + (rating.height - cell.height) / 2);
+            this.narrowName(slot, row, right - wide - FLAG_GAP);
+         }
+      }
+
+      // A slot's name field, kept short of `edge`.
+      private function narrowName(slot:int, row:Object, edge:Number) : void
+      {
+         var name:TextField = this.nameField(slot, row);
+         if(name == null)
+         {
+            return;
+         }
+         var origin:Point = this._section.globalToLocal(name.localToGlobal(new Point(0, 0)));
+         var room:Number = Math.max(0, Math.round(edge - origin.x));
+         if(room > 0 && name.width != room)
+         {
+            name.width = room;
+         }
+      }
+
+      private function nameField(slot:int, row:Object) : TextField
+      {
+         if(this._names[slot] is TextField)
+         {
+            return TextField(this._names[slot]);
+         }
+         var label:Object = field(row, "slotLabel");
+         var name:TextField = field(label, "textField") as TextField;
+         if(name == null)
+         {
+            return null;
+         }
+         this._names[slot] = name;
+         this._nameWidths[slot] = name.width;
+         return name;
+      }
+
+      private function giveBackName(slot:int) : void
+      {
+         if(this._names[slot] is TextField && this._nameWidths[slot] >= 0)
+         {
+            TextField(this._names[slot]).width = Number(this._nameWidths[slot]);
+         }
+      }
+
+      private function giveBackNames() : void
+      {
+         for(var slot:int = 0; slot < SLOTS; slot++)
+         {
+            this.giveBackName(slot);
+         }
       }
 
       // The room's own figure, out of the way while ours stands in its
@@ -571,14 +694,32 @@ package unicum
       // before the image has loaded.
       private static const IMG_WIDTH:RegExp = /width="(\d+)"/i;
 
-      private static function markupWidth(markup:String) : Number
+      private static const IMG_WIDTHS:RegExp = /width="(\d+)"/gi;
+
+      // Between the flags and the ratings, and between a name and the flags.
+      private static const FLAG_GAP:int = 8;
+
+      // `all` sums every image in the markup rather than reading the first:
+      // a rating is one badge, a set of flags is up to three.
+      private static function markupWidth(markup:String, all:Boolean = false) : Number
       {
          if(markup == null)
          {
             return 0;
          }
-         var found:Object = IMG_WIDTH.exec(markup);
-         return found != null ? Number(found[1]) : 0;
+         if(!all)
+         {
+            var found:Object = IMG_WIDTH.exec(markup);
+            return found != null ? Number(found[1]) : 0;
+         }
+         var total:Number = 0;
+         IMG_WIDTHS.lastIndex = 0;
+         var each:Object = null;
+         while((each = IMG_WIDTHS.exec(markup)) != null)
+         {
+            total += Number(each[1]);
+         }
+         return total;
       }
 
       private static function hasText(kid:DisplayObject) : Boolean
