@@ -80,6 +80,10 @@ const state = {
   raw: null,
   players: {},
   averages: {},
+  // How wide each column is this pass, and how many flags the widest strip
+  // holds: what a row with no figure of its own keeps open. Empty until
+  // python has measured a roster, which is also every pass it draws one.
+  columns: {},
   shown: false,
   clear: 0,
   told: false,
@@ -225,14 +229,8 @@ function group(value) {
  * missing from the client's resource index at startup, which is the only
  * case `Badges.image` cannot answer.
  */
-function fill(node, rating) {
+function fill(node, rating, column) {
   const image = rating && rating.image ? rating.image : "";
-  if (node.getAttribute("data-unicum-image") !== image) {
-    node.setAttribute("data-unicum-image", image);
-    node.style.backgroundImage = image ? `url(${image})` : "";
-    node.style.width = image ? `${rating.width}rem` : "";
-    node.style.height = image ? `${rating.height}rem` : "";
-  }
   // `text` is already written out, `value` is a number to group. The battle
   // count arrives as text (844, 161k) because python shortened it, and
   // grouping it again here would make "1 61k" of a hundred and sixty-one
@@ -242,13 +240,27 @@ function fill(node, rating) {
     if (rating.text !== undefined) text = String(rating.text);
     else if (rating.value !== undefined) text = group(rating.value);
   }
+  // The column, where there is one: python draws every badge of a column
+  // to the column's width, so an image already measures it and an empty
+  // slot is given it, and the two line up. The text fallback is the one
+  // thing not drawn to a grid -- it is the page's own font in a padded box
+  // -- so it keeps whatever width it needs rather than being squeezed into
+  // a column measured for badges.
+  const width = text ? 0 : column || (rating && rating.width) || 0;
+  const wanted = `${image}|${width}`;
+  if (node.getAttribute("data-unicum-image") !== wanted) {
+    node.setAttribute("data-unicum-image", wanted);
+    node.style.backgroundImage = image ? `url(${image})` : "";
+    node.style.width = width ? `${width}rem` : "";
+    node.style.height = image ? `${rating.height}rem` : "";
+  }
   if (node.textContent !== text) node.textContent = text;
   const color = !image && rating && rating.color ? rating.color : "";
   if (node.style.backgroundColor !== color) node.style.backgroundColor = color;
 }
 
 /** The rating of a badge, in its own node so the flags beside it survive. */
-function setValue(badge, rating) {
+function setValue(badge, rating, column) {
   let node = badge.querySelector(`.${MARK}_value`);
   if (!node) {
     node = document.createElement("div");
@@ -256,7 +268,7 @@ function setValue(badge, rating) {
     // Before the flags, which read outwards from the table.
     badge.insertBefore(node, badge.firstChild);
   }
-  fill(node, rating);
+  fill(node, rating, column);
 }
 
 /** One pill of the vehicle group, hidden when there is nothing in it.
@@ -266,9 +278,12 @@ function setValue(badge, rating) {
  * they are reused across rebuilds and across the players who pass through
  * one row's position.
  */
-function setPart(box, role, pill) {
+function setPart(box, role, pill, column) {
   let node = box.querySelector(`.${MARK}_pill--${role}`);
-  if (!pill) {
+  // Nothing in it AND no column for it to hold open: that pill is not on
+  // this screen at all, so the node goes away rather than standing as a
+  // gap nothing will ever fill.
+  if (!pill && !column) {
     if (node) node.style.display = "none";
     return;
   }
@@ -278,7 +293,7 @@ function setPart(box, role, pill) {
     box.appendChild(node);
   }
   if (node.style.display === "none") node.style.display = "";
-  fill(node, pill);
+  fill(node, pill, column);
 }
 
 /** The vehicle's figures, between the account's rating and the flags.
@@ -289,9 +304,13 @@ function setPart(box, role, pill) {
  * before the flags when they are already there, because a badge is reused
  * and its children are not rebuilt in order.
  */
-function setVehicle(badge, vehicle) {
+function setVehicle(badge, vehicle, columns) {
   let box = badge.querySelector(`.${MARK}_vehicle`);
-  if (!vehicle) {
+  // A row with nothing on its tank still holds the two columns open, or
+  // the rows that do have figures are the only ones standing out at that
+  // width and the screen reads as a staircase rather than as columns.
+  const holds = (columns.vehicle || 0) + (columns.battles || 0) > 0;
+  if (!vehicle && !holds) {
     if (box) box.style.display = "none";
     return;
   }
@@ -307,20 +326,40 @@ function setVehicle(badge, vehicle) {
   // battles this is the vehicle's whole record and is drawn quieter to
   // say so, rather than drawn the same and silently meaning something
   // else.
-  const scope = vehicle.scope === "mode" ? "mode" : "overall";
+  const scope = !vehicle || vehicle.scope === "mode" ? "mode" : "overall";
   const named = `${MARK}_vehicle ${MARK}_vehicle--${scope}`;
   if (box.className !== named) box.className = named;
   if (box.style.display === "none") box.style.display = "";
-  for (const role of VEHICLE_PARTS) setPart(box, role, vehicle[role]);
+  // Two columns for three parts: a record carries a rating OR a win rate
+  // and never both, so they share one slot. The rating's node holds it
+  // when the record has neither, and the win rate's takes it when that is
+  // what the record has -- one of the two is always the slot, never both.
+  const first = vehicle && vehicle.winrate ? "winrate" : "rating";
+  for (const role of VEHICLE_PARTS) {
+    const column =
+      role === "battles"
+        ? columns.battles || 0
+        : (role === first && columns.vehicle) || 0;
+    setPart(box, role, vehicle ? vehicle[role] : null, column);
+  }
 }
 
-/** Put `urls` in the badge's flag strip, rebuilt only when it changes. */
-function setFlags(badge, urls) {
-  const wanted = (urls || []).join(" ");
+/** Put `urls` in the badge's flag strip, rebuilt only when it changes.
+ *
+ * `slots` is how many flags the widest strip on screen holds. A strip
+ * shorter than that is filled out with empty ones, so that every row's
+ * flags begin at the same place and the figures beside them are not pushed
+ * about by how many languages a player happens to list. The empty ones go
+ * last, which is outermost: the strip reads outwards from the table like
+ * everything else here, so a lone flag stays beside the figures.
+ */
+function setFlags(badge, urls, slots) {
+  const list = urls || [];
+  const wanted = `${list.join(" ")}|${slots || 0}`;
   if (badge.getAttribute("data-unicum-flags") === wanted) return;
   badge.setAttribute("data-unicum-flags", wanted);
   let strip = badge.querySelector(`.${MARK}_flags`);
-  if (!wanted) {
+  if (!list.length && !slots) {
     if (strip && strip.parentElement) strip.parentElement.removeChild(strip);
     return;
   }
@@ -330,10 +369,10 @@ function setFlags(badge, urls) {
     badge.appendChild(strip);
   }
   strip.innerHTML = "";
-  for (const url of urls) {
+  for (let i = 0; i < Math.max(list.length, slots || 0); i += 1) {
     const flag = document.createElement("div");
     flag.className = `${MARK}_flag`;
-    flag.style.backgroundImage = `url(${url})`;
+    if (list[i]) flag.style.backgroundImage = `url(${list[i]})`;
     strip.appendChild(flag);
   }
 }
@@ -399,9 +438,12 @@ function decorate() {
       const player = state.shown && name ? state.players[name] : null;
       if (player) matched += 1;
       if (player && player.vehicle) vehicles += 1;
-      setValue(badge, player);
-      setVehicle(badge, player ? player.vehicle : null);
-      setFlags(badge, player ? player.flags : null);
+      // The columns this pass holds open, which is nothing at all while
+      // the screen is not showing: a row then keeps no places.
+      const columns = state.shown ? state.columns : {};
+      setValue(badge, player, columns.rating);
+      setVehicle(badge, player ? player.vehicle : null, columns);
+      setFlags(badge, player ? player.flags : null, columns.flags);
       place(badge, row.getBoundingClientRect(), side, clear);
     }
   }
@@ -436,6 +478,7 @@ function readModel() {
   try {
     const data = JSON.parse(raw);
     state.players = data.players || {};
+    state.columns = data.columns || {};
     state.averages = data.averages || {};
     state.shown = !!data.shown;
   } catch (error) {

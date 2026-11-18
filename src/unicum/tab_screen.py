@@ -284,6 +284,11 @@ class TabScreen(object):
             # room for both, so the other two choices both draw both -- what
             # separates them is a column one pill wide, which this is not.
             wants_vehicle = self._settings.wants_vehicle(SURFACE)
+            # Read first, drawn second, because a column cannot be drawn
+            # until the whole screen has been read: every pill in one is
+            # drawn to the width of the widest figure that column holds,
+            # and the widest is not knowable from one row.
+            rows = []
             for names, account_id, tank_id, ally in self._roster():
                 # Asked for before the player is read, so a roster whose
                 # ratings are already cached still fetches the pairs.
@@ -294,15 +299,21 @@ class TabScreen(object):
                     wanted.append(account_id)
                     continue
                 entry = self._lookup.get(PLAYERS, account_id)
-                value = self._settings.rating(entry, SURFACE)
+                rows.append((names, ally, entry, self._settings.rating(entry, SURFACE),
+                             self._lookup.vehicle(account_id, tank_id, mode)
+                             if wants_vehicle and tank_id else None))
+            widths = figures.columns([(value, record) for _, _, _, value, record in rows],
+                                     vehicle_metric)
+            flags = 0
+            for names, ally, entry, value, record in rows:
                 shown = {}
                 if value is not None:
-                    shown.update(figures.rating_pill(self._badges, self._scales, metric, value))
+                    shown.update(figures.rating_pill(self._badges, self._scales, metric, value,
+                                                     widths.get('rating', 0)))
                     values['allies' if ally else 'enemies'].append(value)
-                if wants_vehicle and tank_id:
-                    found = figures.vehicle_figures(
-                        self._badges, self._scales,
-                        self._lookup.vehicle(account_id, tank_id, mode), vehicle_metric)
+                if record is not None:
+                    found = figures.vehicle_figures(self._badges, self._scales, record,
+                                                    vehicle_metric, widths)
                     if found is not None:
                         shown['vehicle'] = found
                 if limit and entry is not None:
@@ -310,9 +321,15 @@ class TabScreen(object):
                     sources = [source for source in sources if source]
                     if sources:
                         shown['flags'] = sources
+                        flags = max(flags, len(sources))
                 if shown:
                     for name in names:
                         data['players'][name] = shown
+            # What the page holds a place for on a row that has none of it.
+            # The flag strip is counted in flags rather than measured in
+            # pixels: a flag's size is in the page's own stylesheet, and a
+            # number here would be the same fact written twice.
+            data['columns'] = dict(widths, flags=flags)
             if self._settings.shows_average(SURFACE):
                 for side in ('allies', 'enemies'):
                     found = values[side]
@@ -320,7 +337,7 @@ class TabScreen(object):
                         continue
                     mean = int(round(sum(found) / float(len(found))))
                     data['averages'][side] = figures.rating_pill(
-                        self._badges, self._scales, metric, mean)
+                        self._badges, self._scales, metric, mean, widths.get('rating', 0))
             # Two requests, not one, and the reason is what each costs. The
             # roster answers in milliseconds off indexed player rows; the
             # per-vehicle read goes at two much larger tables and was measured

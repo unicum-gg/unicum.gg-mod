@@ -238,6 +238,40 @@ def check_page_figures():
           figures.vehicle_figures(badges, _VehicleScales(),
                                   _Record(scope='overall'), 'wnx')['scope'] == 'overall')
 
+    # A page draws columns the way the markup surfaces do: the screen is
+    # measured first, and every pill of a column is drawn to the widest
+    # figure that column has to hold. The page then holds the place open on
+    # the rows that have no figure for it (tab_screen.js).
+    from unicum import badge_png
+
+    rows = [(1687.0, None),
+            (787.4, _Record(wnx=303.0, battles=70)),
+            (5143.0, _Record(wnx=2836.0, battles=222))]
+    widths = figures.columns(rows, 'wnx')
+    check('a column is as wide as the widest figure it holds',
+          widths['rating'] == badge_png.width_of(5143)
+          and widths['vehicle'] == badge_png.width_of(2836)
+          and widths['battles'] == badge_png.width_of('222'))
+    check('a screen with nothing on its tanks has no vehicle column at all',
+          figures.columns([(1687.0, None)], 'wnx') == {'rating': badge_png.width_of(1687)})
+
+    pill = figures.rating_pill(badges, _VehicleScales(), 'wnx', 787.4, widths['rating'])
+    check('and every pill in a column is drawn to it, not to its own figure',
+          pill['width'] == widths['rating'] > badge_png.width_of(787))
+    shown = figures.vehicle_figures(badges, _VehicleScales(),
+                                    _Record(wnx=303.0, battles=70), 'wnx', widths)
+    check('the pills of the tank take their columns the same way',
+          shown['rating']['width'] == widths['vehicle']
+          and shown['battles']['width'] == widths['battles'])
+    # The two share one slot, so they have to share one width: a record
+    # carries a rating or a win rate and never both.
+    check('a win rate standing in for a rating stands in its column',
+          figures.vehicle_figures(badges, _VehicleScales(), _Record(wnx=None, battles=70),
+                                  'wnx', widths)['winrate']['width'] == widths['vehicle'])
+    check('a page that measured nothing draws every pill to its own figure',
+          figures.rating_pill(badges, _VehicleScales(), 'wnx', 787.4)['width']
+          == badge_png.width_of(787))
+
 
 def check_plain_rating():
     """The grey number a row falls back to, and why it is not a pill."""
