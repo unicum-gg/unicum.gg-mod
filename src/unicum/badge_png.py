@@ -289,6 +289,28 @@ def png(value, hex_color, width=0):
     return _png(width, HEIGHT, rows)
 
 
+def blank_png(width):
+    """PNG bytes of `width` by HEIGHT of nothing at all, or None for no width.
+
+    What holds a column's place on a row that has no figure for it.
+
+    Drawn, rather than the column simply left out of that row: the rows are
+    laid out from one end, so a row one badge short does not come up one
+    badge short, it comes up one badge OVER. Every column after the gap
+    slides along into the next one's place, and a screen of rows each
+    missing a different figure reads as a staircase rather than as columns.
+
+    An image rather than spaces, which is the other way to take up room: a
+    space is measured by whatever font the field is set in, at whatever
+    interface scale the player runs, and the width that has to be matched
+    here is a badge's. An image is exactly as wide as it says it is.
+    """
+    width = int(width or 0)
+    if width <= 0:
+        return None
+    return _png(width, HEIGHT, [[0] * (width * 4) for _ in range(HEIGHT)])
+
+
 def tagged_png(value, hex_color, tag):
     """PNG bytes of a badge with its name pinned to its bottom right corner."""
     width, height, rows = tagged_pixels(value, hex_color, tag)

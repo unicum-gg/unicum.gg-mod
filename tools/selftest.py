@@ -60,7 +60,8 @@ from checks.replays import (check_replay_answers, check_replay_confirmation,
                            check_replay_wrong_copy)
 from checks.extras import (check_a_tank_is_asked_for_before_alt,
                            check_alt_swaps_to_the_tank, check_badge_glyphs,
-                           check_battle_count, check_entry_stat, check_extras_badges,
+                           check_battle_count, check_columns_hold_their_place,
+                           check_entry_stat, check_extras_badges,
                            check_extras_fallbacks, check_extras_setting,
                            check_marker_width_ignores_tags, check_page_figures,
                            check_plain_rating,
@@ -188,6 +189,7 @@ def main():
         check_badge_glyphs()
         check_entry_stat()
         check_extras_badges()
+        check_columns_hold_their_place()
         check_extras_fallbacks()
         check_extras_setting()
         check_vehicle_badges()

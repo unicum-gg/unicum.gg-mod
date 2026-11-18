@@ -18,6 +18,15 @@ from unicum.badge_text import MARKER as _MARKER
 
 _logger = logging.getLogger('unicum.badge_files')
 
+#: How a Scaleform field is told to load one of these files.
+#:
+#: Here, with the folder and the names, because it is the other half of the
+#: same answer: this module decides where a badge lives, and this is what a
+#: field is handed to go and get it. The two drifting apart is a badge
+#: written to one path and asked for at another, which draws nothing and
+#: says nothing about why.
+IMG = '<IMG SRC="img://%s" width="%d" height="%d" vspace="-3"/>'
+
 
 class BadgeFiles(object):
     """The folder a mod's badges live in, and what is in it."""
@@ -51,6 +60,23 @@ class BadgeFiles(object):
             return False
         self._on_disk.add(name)
         return True
+
+    def blank(self, width):
+        """The resource path of an empty slot `width` wide, or None.
+
+        A badge like any other as far as this module is concerned: a file
+        with a name, written once, loaded by that name. Its width is in the
+        name for the same reason every other badge's size is -- a file
+        already on disk is never drawn again, so another width has to be
+        another name.
+        """
+        width = int(width or 0)
+        if width <= 0 or not self.ready:
+            return None
+        name = 'blank.%d.png' % width
+        if not self.ensure(name, lambda: badge_png.blank_png(width)):
+            return None
+        return '%s/%s' % (self._res_path, name)
 
     def _prepare(self):
         """Whether badges can draw this session: the folder was there when the client started."""

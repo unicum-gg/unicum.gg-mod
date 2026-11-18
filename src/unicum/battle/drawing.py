@@ -13,7 +13,7 @@ from __future__ import absolute_import
 import logging
 
 from unicum import badges, modes, views
-from unicum.battle.markup import icon_markers, markup_width
+from unicum.battle.markup import icon_markers, markup_width, padded, row_width
 from unicum.battle.teams import TeamNames, tank_of
 from unicum.api.entry import PLAYERS
 
@@ -278,13 +278,25 @@ class Drawing(TeamNames):
                 # blank row answers the question with silence, and silence is
                 # indistinguishable from the mod being broken -- which is
                 # exactly how the first evening of this read.
-                return flags, drawn or self._badges.plain(entry, self._settings, 'battle')
+                return flags, self._row(
+                    drawn or self._badges.plain(entry, self._settings, 'battle'))
         # Compact: this one dict feeds the players panel, whose column is the
         # narrowest place any of these numbers has to fit.
-        return flags, (self._badges.rating(entry, self._settings, 'battle',
-                                           self._widths.get('rating', 0))
-                       + self._badges.extras(entry, self._settings, 'battle',
-                                             compact=True, widths=self._widths))
+        return flags, self._row(
+            self._badges.rating(entry, self._settings, 'battle',
+                                self._widths.get('rating', 0))
+            + self._badges.extras(entry, self._settings, 'battle',
+                                  compact=True, widths=self._widths))
+
+    def _row(self, markup):
+        """A row's figures, a short one made up to the width of the columns.
+
+        A row of badges needs nothing done to it: every slot it is built
+        from is drawn to its column, an empty slot included, so it already
+        measures the whole set. This is for the rows that are text instead
+        -- see `padded`.
+        """
+        return padded(markup, row_width(self._widths), self._badges.spacer)
 
     def _column_widths(self, arena, shows):
         """The width each figure's column needs: its widest value on screen.

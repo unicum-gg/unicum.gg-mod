@@ -27,7 +27,8 @@ import logging
 import os
 
 from unicum import badge_png, config
-from unicum.badge_files import BadgeFiles
+from unicum.badge_chips import ChipBadges
+from unicum.badge_files import IMG as _IMG, BadgeFiles
 from unicum.badge_text import (BATTLES, MARKER as _MARKER, ON_TANK, WIN_RATE,
                                _drawable, _slug, badge_width, caption, count,
                                winrate)
@@ -58,8 +59,6 @@ MAX_VALUE = 20000
 
 _HEIGHT = badge_png.HEIGHT
 
-_IMG = '<IMG SRC="img://%s" width="%d" height="%d" vspace="-3"/>'
-
 # The fallback when a badge cannot be drawn: the figure as plain text in the
 # client's own named font. Without a face Scaleform falls back to its default,
 # which is a serif, and the numbers come out in a different typeface from
@@ -86,7 +85,7 @@ NEUTRAL = '#4a4a4a'
 # met, thirty at a time as a battle loads, in a folder that never stops
 # growing. Rounded to thousands the whole set is about a thousand files and
 # stays that way for good.
-class Badges(object):
+class Badges(ChipBadges):
 
     def __init__(self, scales=None, directory=None, res_path=None, drawable=_drawable):
         self._scales = scales
@@ -110,7 +109,11 @@ class Badges(object):
         """
         value = settings.rating(entry, surface)
         if value is None:
-            return ''
+            # Nothing known about this player, in a column every other row
+            # has a figure in: the place is held open so the columns after
+            # it stay where they are.
+            hole = self.spacer(width)
+            return ' ' + hole if hole else ''
         return ' ' + (self.markup(settings.metric(surface), value, width)
                       or '%d' % round(value))
 
@@ -125,28 +128,48 @@ class Badges(object):
 
         `compact` is accepted and ignored. A badge count is already rounded,
         because its width is not what bounds it (see `_COMPACT_FROM`).
+
+        With `widths`, a figure this player has not got is an empty slot of
+        its column's width rather than nothing at all: the rows are laid
+        out from one end, so a row that simply leaves a column out puts
+        every column after it in its neighbour's place. Without `widths`
+        there are no columns to hold open and a missing figure is left out,
+        which is what every surface but a battle screen wants.
         """
-        if entry is None or not entry.known:
-            return ''
         parts = []
-        window = settings.extra('winrate', surface)
-        if window is not None:
-            value = entry.stat('winrate', window)
-            if value is not None:
-                # `or` rather than a branch on the colour: a band the scale
-                # gives is still no badge when the client cannot load one,
-                # and dropping the figure would be worse than drawing it
-                # plainly. `winrate_markup` makes that choice once.
-                parts.append(self.winrate_markup(value, settings.winrate_decimal(),
-                                                 _column(widths, 'winrate')))
-        window = settings.extra('battles', surface)
-        if window is not None:
-            value = entry.stat('battles', window)
-            if value is not None:
-                parts.append(self.count_markup(value, _column(widths, 'battles')))
+        value = self._shown(entry, settings, 'winrate', surface)
+        if value is not None:
+            # `or` rather than a branch on the colour: a band the scale
+            # gives is still no badge when the client cannot load one,
+            # and dropping the figure would be worse than drawing it
+            # plainly. `winrate_markup` makes that choice once.
+            parts.append(self.winrate_markup(value, settings.winrate_decimal(),
+                                             _column(widths, 'winrate')))
+        else:
+            parts.append(self.spacer(_column(widths, 'winrate')))
+        value = self._shown(entry, settings, 'battles', surface)
+        if value is not None:
+            parts.append(self.count_markup(value, _column(widths, 'battles')))
+        else:
+            parts.append(self.spacer(_column(widths, 'battles')))
+        parts = [part for part in parts if part]
         if not parts:
             return ''
         return ' ' + _GAP.join(parts)
+
+    @staticmethod
+    def _shown(entry, settings, name, surface):
+        """The figure this surface shows for `name`, or None where there is none.
+
+        None for all three of "this surface shows no such figure", "nothing
+        is known about this player" and "this player has none": the caller
+        draws an empty slot for each, and the three are the same answer to
+        the only question it asks.
+        """
+        window = settings.extra(name, surface)
+        if window is None or entry is None or not entry.known:
+            return None
+        return entry.stat(name, window)
 
     def vehicle(self, record, settings, surface, widths=None):
         """' ' + what a player does on the tank they brought, or ''.
@@ -178,11 +201,17 @@ class Badges(object):
         if not settings.shows(surface):
             return ''
         parts = []
+        # Whether any of this is a figure, as opposed to the empty slots
+        # that hold a column's place: a row of nothing but slots is not a
+        # row this tank has anything to say on, and the caller falls back
+        # to the career figure on exactly that answer.
+        drew = False
         metric = settings.vehicle_metric(surface)
         value = record.rating(metric) if metric else None
         if value is not None:
             drawn = self.markup(metric, value, _column(widths, 'rating')) if on_mode else None
             parts.append(drawn or _DIM % ('%d' % round(value)))
+            drew = True
         elif record.winrate is not None:
             # No WN rating for this mode, and there never will be: the
             # expected values those scales are built from are computed on
@@ -198,6 +227,14 @@ class Badges(object):
             # to be as wide as.
             parts.append((self._pill(text, color, _column(widths, 'rating'))
                           if on_mode else '') or _DIM % text)
+            drew = True
+        else:
+            parts.append(self.spacer(_column(widths, 'rating')))
+        # The win rate column belongs to the career row beside this one. A
+        # tank row never fills it -- the tank's own win rate stands in the
+        # rating's column above, where the rating would have been -- so
+        # here it holds the place and draws nothing.
+        parts.append(self.spacer(_column(widths, 'winrate')))
         # Drawn whatever the surface was told about battle counts, which is
         # the one place this mod overrides that choice and the reason is the
         # figure beside it: a career count is twenty thousand and says nothing
@@ -208,8 +245,12 @@ class Badges(object):
             text = count(record.battles)
             parts.append((self._pill(text, NEUTRAL, _column(widths, 'battles'))
                           if on_mode else '') or _DIM % text)
-        if not parts:
+            drew = True
+        else:
+            parts.append(self.spacer(_column(widths, 'battles')))
+        if not drew:
             return ''
+        parts = [part for part in parts if part]
         return ' ' + _GAP.join(parts)
 
     def plain(self, entry, settings, surface):
@@ -254,63 +295,6 @@ class Badges(object):
             return None
         return self._scales.color(scale, value, unit) if unit else self._scales.color(scale, value)
 
-    def tagged_markup(self, text, color, tag):
-        """htmlText for a badge with `tag` pinned to its bottom right corner.
-
-        The badge keeps the size it has everywhere else in the mod; the tag
-        is a small dark chip overhanging its corner, which is what leaves
-        every digit of the figure visible.
-
-        Only the settings window asks for one. A battle row is thirty lines
-        of three badges and would be ninety chips in the narrowest column
-        this mod draws; the window is where a reader is asking what the
-        figures are, and the only place with the room to answer.
-
-        '' when the badge cannot draw at all, like every other badge here.
-        """
-        if not self._ready or not color or not tag:
-            return ''
-        # `text` may be a number, which is how a rating arrives: it is the
-        # drawing that groups it by thousands, and the name only has to be
-        # unique and spellable.
-        key = text if isinstance(text, basestring) else '%d' % text
-        chip, rows = badge_png._chip_size(tag)
-        # The chip's size is in the name, and it is there for one reason: a
-        # badge already on disk is never drawn again, and this chip has been
-        # redesigned twice. Both times the file kept its name, so every
-        # player who had seen the old one kept seeing it, stretched to the
-        # new one's width. Size in the name, and a redesign simply asks for
-        # a file nobody has.
-        name = '%s.%s%dx%d.%s.png' % (_slug(key), _slug(tag).lower(), chip, rows,
-                                      color.lstrip('#').lower())
-        if not self._files.ensure(name, lambda: badge_png.tagged_png(text, color, tag)):
-            return ''
-        width, height = badge_png.tag_size(text, tag)
-        return _IMG % ('%s/%s' % (self._res_path, name), width, height)
-
-    def chip_markup(self, tag):
-        """htmlText for a chip on its own: what names a column of figures.
-
-        The same chip the mod stamps into a badge's corner, which is the
-        whole point of drawing it from the same code: a column headed "WR"
-        and a badge wearing "WR" have to be the one marking, or they read as
-        two conventions and the reader has to learn both.
-
-        '' when it cannot be drawn, like every other badge here.
-        """
-        if not self._ready or not tag:
-            return ''
-        chip, rows = badge_png.chip_size(tag)
-        if not chip:
-            return ''
-        # Its size in the name, for the reason `tagged_markup` gives: a file
-        # already on disk is never drawn again, so a redesign has to ask for
-        # a name nobody has.
-        name = 'chip.%s%dx%d.png' % (_slug(tag).lower(), chip, rows)
-        if not self._files.ensure(name, lambda: badge_png.chip_png(tag)):
-            return ''
-        return _IMG % ('%s/%s' % (self._res_path, name), chip, rows)
-
     def count_markup(self, battles, width=0):
         """A battle count as its badge, or as plain grey text when none draws.
 
@@ -321,6 +305,16 @@ class Badges(object):
         """
         text = count(battles)
         return self._pill(text, NEUTRAL, width) or _DIM % text
+
+    def spacer(self, width):
+        """htmlText for an empty slot `width` wide, or '' when none can draw.
+
+        A column's place held open on a row that has no figure to put in
+        it. Why a row keeps the place rather than closing the gap, and why
+        it is an image, is in `badge_png.blank_png`.
+        """
+        path = self._files.blank(width)
+        return _IMG % (path, int(width), _HEIGHT) if path else ''
 
     def picture(self, text, color, width=0):
         """(resource path, width, height) of a badge of arbitrary text, or None.

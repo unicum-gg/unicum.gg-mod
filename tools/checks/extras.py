@@ -567,6 +567,10 @@ def check_a_tank_is_asked_for_before_alt():
         def plain(self, entry, settings, surface):
             return ' grey'
 
+        def spacer(self, width):
+            # No columns in this check, so nothing holds a place in one.
+            return ''
+
     class Session(object):
         def callback(self, delay, func):
             pass
@@ -625,6 +629,103 @@ def check_extras_fallbacks():
           plain.extras(_Entry({}, known=False), _Settings(battles='total'), 'battle') == '')
     check('nor does one whose window the server has not filled',
           plain.extras(_Entry({'total': {}}), _Settings(winrate='total', battles='total'), 'battle') == '')
+
+
+def check_columns_hold_their_place():
+    """A figure a player has not got leaves its column open rather than closing it.
+
+    The battle screens lay a row out from its far end, so a row that simply
+    leaves a column out does not come up one badge short: every column after
+    the gap slides into its neighbour's place, and a screen of rows each
+    missing a different figure reads as a staircase rather than as columns.
+    That is what was reported, and this is the invariant that answers it:
+    every row measures the same, whatever any one player is known for.
+    """
+    import os
+    import struct
+    import tempfile
+    import zlib
+    from unicum import badge_png
+    from unicum.battle.markup import markup_width, padded, row_width
+
+    def unpacked(png):
+        """The pixels of a PNG this mod wrote, filter bytes and all."""
+        at = 8
+        while at < len(png):
+            length = struct.unpack('>I', png[at:at + 4])[0]
+            if png[at + 4:at + 8] == b'IDAT':
+                return zlib.decompress(png[at + 8:at + 8 + length])
+            at += 12 + length
+        return None
+
+    tmp = tempfile.mkdtemp()
+    badges = _badges(tmp, _Scales())
+    # A column is never narrower than the widest figure in it, which is what
+    # `Drawing._column_widths` measures it as; a badge drawn in one wider
+    # than that is what makes the column. Written here the same way, because
+    # a hole is drawn to the COLUMN and a badge to the wider of the two: a
+    # column measured too narrow would put the two at different widths and
+    # the rows would not line up after all.
+    widths = {'rating': 32, 'winrate': 34, 'battles': badge_png.width_of('161k')}
+    shows = _Settings(winrate='total', battles='total')
+
+    both = badges.extras(_Entry({'total': {'battles': 161762, 'winrate': 58.7}}), shows,
+                         'battle', widths=widths)
+    one = badges.extras(_Entry({'total': {'battles': 161762}}), shows, 'battle', widths=widths)
+    neither = badges.extras(_Entry({}, known=False), shows, 'battle', widths=widths)
+
+    check('a row missing a figure measures what a full row measures',
+          markup_width(one) == markup_width(both) == markup_width(neither))
+    check('because it still carries a slot per column',
+          one.count('<IMG') == 2 and neither.count('<IMG') == 2)
+    # Where the hole is, is the whole of it. One at the end of the row would
+    # measure the same and leave every figure in the wrong column.
+    check('and the hole stands in the column the figure is missing from',
+          'blank.34.png' in one and one.index('blank.34') < one.index('161k'))
+
+    check('a hole is a file of its own width, like every other badge',
+          os.path.isfile(os.path.join(tmp, 'blank.34.png')))
+    check('a column holds its figure and its hole at one width',
+          markup_width(one) == markup_width(both))
+    blank = badge_png.blank_png(34)
+    check('and it is a PNG', blank[:8] == b'\x89PNG\r\n\x1a\n')
+    # A hole that drew anything at all would be a black box on every row
+    # that has nothing to say.
+    check('whose every pixel is nothing at all', set(unpacked(blank)) == set(b'\x00'))
+    check('no width, no slot: a column no row has is not a column',
+          badges.spacer(0) == '' and badge_png.blank_png(0) is None)
+
+    # A surface that is not a column asks for no widths, and gets what it
+    # always got: the figures it has, and nothing where it has none.
+    check('a surface with no columns draws no holes',
+          badges.extras(_Entry({'total': {'battles': 161762}}), shows, 'battle').count('<IMG') == 1)
+
+    row = ' ' + badges.spacer(widths['rating']) + both
+    check('a row built of slots already measures the whole set',
+          markup_width(row) == row_width(widths))
+    check('so nothing is added in front of it',
+          padded(row, row_width(widths), badges.spacer) == row)
+
+    # A row on the tank its player brought carries the same columns as the
+    # career row beside it, and fills one fewer: the tank's win rate stands
+    # in the rating's column when there is no rating for the mode, so the
+    # win rate column is a hole on every one of these rows.
+    tank = _badges(tempfile.mkdtemp(), _VehicleScales()).vehicle(
+        _Record(battles=70, wnx=1933.6), _Settings(winrate='total', battles='total'),
+        'battle', widths=widths)
+    check('a tank row carries a slot for every column too', tank.count('<IMG') == 3)
+    check('with the hole in the win rate column, between the two it fills',
+          tank.index('blank.34') > tank.index('wnx.1934') and
+          tank.index('blank.34') < tank.index('70.4a4a4a'))
+    check('so it measures the same as every other row', markup_width(tank) == row_width(widths))
+
+    # The grey stand-in is text, not badges: it is measured rather than
+    # drawn, so it is the one row that has to be made up to size.
+    text = padded(' <font color="#8a8a8a">1934</font>', row_width(widths), badges.spacer)
+    check('a row of text is filled up to the columns it stands in',
+          markup_width(text) == row_width(widths))
+    check('and filled in front, so what it does hold lands at the end',
+          text.index('blank.') < text.index('1934'))
 
 
 def check_badge_glyphs():

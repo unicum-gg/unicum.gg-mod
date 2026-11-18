@@ -28,6 +28,36 @@ def markup_width(markup):
     return images + text.count(' ') * _SPACE_WIDTH + sum(c.isdigit() for c in text) * _DIGIT_WIDTH
 
 
+def row_width(widths):
+    """How wide a row holding every column measures, in the order they are drawn.
+
+    One slot per column, each after the single space that keeps two inline
+    images from showing a seam, so the widths alone are not the answer.
+    """
+    return sum(_SPACE_WIDTH + int(width or 0) for width in (widths or {}).values())
+
+
+def padded(markup, width, spacer):
+    """`markup` with an empty image in front, so the whole measures `width`.
+
+    What puts a row that is not built of badges under the columns anyway.
+
+    A row of badges needs none of this: each of its slots is drawn to its
+    column's width and a hole is an image of exactly that, so the row comes
+    out the full width by construction and `short` is nothing. What this
+    catches is the rows that are text -- the grey stand-in shown while a
+    tank's record is still being fetched, and the grey figures of a mode
+    the site publishes no per-tank record for. Text is measured rather than
+    drawn, so it lands wherever its digits take it; the screens lay a row
+    out from its far end, so filling the difference in front of it puts
+    what the row does hold at the end of the columns instead of adrift
+    between them.
+    """
+    short = int(width or 0) - markup_width(markup) - _SPACE_WIDTH
+    hole = spacer(short) if short > 0 else ''
+    return ' ' + hole + markup if hole else markup
+
+
 def icon_markers(flags, badge):
     """[badge html, its width, flags html, their width], drawn as two columns."""
     badge, flags = badge.strip(), flags.strip()
