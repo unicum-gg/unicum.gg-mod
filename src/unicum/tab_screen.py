@@ -330,6 +330,8 @@ class TabScreen(object):
             # pixels: a flag's size is in the page's own stylesheet, and a
             # number here would be the same fact written twice.
             data['columns'] = dict(widths, flags=flags)
+            data['headers'] = figures.headers(self._badges, widths, metric,
+                                              self._settings['window'])
             if self._settings.shows_average(SURFACE):
                 for side in ('allies', 'enemies'):
                     found = values[side]

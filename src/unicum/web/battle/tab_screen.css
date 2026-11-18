@@ -138,3 +138,32 @@
 /* A team's average is drawn by the same code and the same classes as a
    player's rating, off its header block's rectangle, so the two sit in one
    column down each side of the table. It needs no rule of its own. */
+
+/* The chips that name the columns, on the heading line above the rows.
+ *
+ * A slot is the column's own width with its chip centred in it, and it
+ * carries the figures' own classes so that the gaps between the columns are
+ * the ones those classes already set rather than the same numbers written a
+ * second time. What is left to do here is turn off the part of a pill that
+ * only a figure wants: a slot holds a name, not a number, so no band, no
+ * padding and no fixed height. Written after those rules and at the same
+ * weight, which is what lets it win. */
+.unicum-tab-rating_head:not(:empty) {
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    height: auto;
+    padding: 0;
+    border-radius: 0;
+    background-color: transparent;
+}
+
+/* The chip itself, at its own size inside that slot: a name is drawn, not
+   stretched, or TANK over a wide column would not be the chip the badges
+   wear in their corner. */
+.unicum-tab-rating_chip {
+    flex-shrink: 0;
+    background-position: center center;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+}

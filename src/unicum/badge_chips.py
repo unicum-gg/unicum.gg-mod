@@ -69,15 +69,27 @@ class ChipBadges(object):
 
         '' when it cannot be drawn, like every other badge here.
         """
+        found = self.chip_picture(tag)
+        return _IMG % found if found is not None else ''
+
+    def chip_picture(self, tag):
+        """(resource path, width, height) of a chip on its own, or None.
+
+        What `chip_markup` wraps for Scaleform, unwrapped: a Gameface page
+        puts the same three pieces in a style instead of in an `<IMG>` tag,
+        and the chip over a column of the battle Tab screen has to be the
+        same drawing as the chip in the corner of a badge, or the screen
+        reads as two conventions.
+        """
         if not self._ready or not tag:
-            return ''
+            return None
         chip, rows = badge_png.chip_size(tag)
         if not chip:
-            return ''
+            return None
         # Its size in the name, for the reason `tagged_markup` gives: a file
         # already on disk is never drawn again, so a redesign has to ask for
         # a name nobody has.
         name = 'chip.%s%dx%d.png' % (_slug(tag).lower(), chip, rows)
         if not self._files.ensure(name, lambda: badge_png.chip_png(tag)):
-            return ''
-        return _IMG % ('%s/%s' % (self._res_path, name), chip, rows)
+            return None
+        return '%s/%s' % (self._res_path, name), chip, rows

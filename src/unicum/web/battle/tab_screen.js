@@ -84,6 +84,9 @@ const state = {
   // holds: what a row with no figure of its own keeps open. Empty until
   // python has measured a roster, which is also every pass it draws one.
   columns: {},
+  // The chip naming each column, by column. Empty when the screen draws no
+  // header at all, which is all or nothing: see `figures.headers`.
+  headers: {},
   shown: false,
   clear: 0,
   told: false,
@@ -388,7 +391,7 @@ function setFlags(badge, urls, slots) {
  * `offsetHeight` read back in the same pixel space as the rectangle, so the
  * whole sum is done in pixels and converted once at the end.
  */
-function place(badge, rect, side, clear) {
+function place(badge, rect, side, clear, lift) {
   if (!rect || !rect.height || !rect.width || !state.base) {
     if (badge.style.display !== "none") badge.style.display = "none";
     return;
@@ -397,7 +400,11 @@ function place(badge, rect, side, clear) {
   const left =
     (side === "allies" ? rect.left - GAP - clear - badge.offsetWidth : rect.right + GAP) -
     base.left;
-  const top = rect.top + (rect.height - badge.offsetHeight) / 2 - base.top;
+  // `lift` raises a row off the line it would otherwise be centred on,
+  // which is how the column names stand over the figures rather than in
+  // them: both are centred in the same block, so the one that names the
+  // other has to be lifted out of it by hand.
+  const top = rect.top + (rect.height - badge.offsetHeight) / 2 - (lift || 0) - base.top;
   const x = `${Math.round(toRem(left))}rem`;
   const y = `${Math.round(toRem(top))}rem`;
   if (badge.style.left !== x) badge.style.left = x;
@@ -450,6 +457,93 @@ function decorate() {
   return { drawn, matched, vehicles };
 }
 
+// Between a chip and the figures it names, in rem. The one spacing choice
+// here: everything else on this line is a measured width.
+const CHIP_GAP = 2;
+
+/** One slot of the header row: the column's width, with its chip centred.
+ *
+ * The slot borrows the figures' own classes, so the gaps between the
+ * columns are the gaps those classes already carry rather than the same
+ * numbers written a second time here. The chip is a child rather than the
+ * slot's own background, because a background is stretched to its box and
+ * a chip is narrower than the column it names -- stretched, TANK over a
+ * 32rem column would not be the chip the badges wear.
+ */
+function setChip(parent, selector, classes, column, chip) {
+  let slot = parent.querySelector(selector);
+  if (!slot) {
+    slot = document.createElement("div");
+    slot.className = classes;
+    parent.appendChild(slot);
+  }
+  if (slot.className !== classes) slot.className = classes;
+  const width = column ? `${column}rem` : "";
+  if (slot.style.width !== width) slot.style.width = width;
+  let mark = slot.firstElementChild;
+  if (!mark) {
+    mark = document.createElement("div");
+    mark.className = `${MARK}_chip`;
+    slot.appendChild(mark);
+  }
+  const image = chip ? chip.image : "";
+  if (mark.getAttribute("data-unicum-image") === image) return;
+  mark.setAttribute("data-unicum-image", image);
+  mark.style.backgroundImage = image ? `url(${image})` : "";
+  mark.style.width = chip ? `${chip.width}rem` : "";
+  mark.style.height = chip ? `${chip.height}rem` : "";
+}
+
+/** The row of column names: the same boxes as a player's row, holding chips.
+ *
+ * The same boxes on purpose. The header is placed off the same rectangle
+ * and anchored at the same edge as the rows, so if it is built out of the
+ * same slots at the same widths it stands over the columns by
+ * construction, with no second layout to keep in step with the first.
+ */
+function setHead(badge, columns, heads) {
+  setChip(badge, `.${MARK}_value`, `${MARK}_value ${MARK}_head`,
+          columns.rating, heads.rating);
+  let box = badge.querySelector(`.${MARK}_vehicle`);
+  if (!box) {
+    box = document.createElement("div");
+    badge.appendChild(box);
+  }
+  // No scope class: a column's name is not a figure about a wider set of
+  // battles, so it is not drawn quieter than the names beside it.
+  if (box.className !== `${MARK}_vehicle`) box.className = `${MARK}_vehicle`;
+  setChip(box, `.${MARK}_pill--rating`,
+          `${MARK}_pill ${MARK}_pill--rating ${MARK}_head`, columns.vehicle, heads.vehicle);
+  setChip(box, `.${MARK}_pill--battles`,
+          `${MARK}_pill ${MARK}_pill--battles ${MARK}_head`, columns.battles, heads.battles);
+}
+
+/** The column names, on each team's heading line above its rows. */
+function drawHeads() {
+  const blocks = headings();
+  const heads = state.shown ? state.headers : null;
+  const chip = heads && (heads.rating || heads.vehicle || heads.battles);
+  if (!chip) return;
+  for (const side of ["allies", "enemies"]) {
+    const block = blocks[side];
+    if (!block) continue;
+    const key = `${side}:head`;
+    alive[key] = true;
+    const badge = badgeOf(key, side);
+    setHead(badge, state.columns, heads);
+    // The chips stand one gap above the figures they name. Both rows are
+    // centred in the same heading block, so lifting one clear of the other
+    // is the half-difference of their heights, plus the chip and the gap.
+    // With no average on that line there is nothing to stand clear of, and
+    // the names take the line themselves.
+    const average = state.averages[side];
+    const lift = average
+      ? (average.height - chip.height) / 2 + chip.height + CHIP_GAP
+      : 0;
+    place(badge, block.getBoundingClientRect(), side, state.clear, lift);
+  }
+}
+
 function drawAverages() {
   const blocks = headings();
   for (const side of ["allies", "enemies"]) {
@@ -479,6 +573,7 @@ function readModel() {
     const data = JSON.parse(raw);
     state.players = data.players || {};
     state.columns = data.columns || {};
+    state.headers = data.headers || {};
     state.averages = data.averages || {};
     state.shown = !!data.shown;
   } catch (error) {
@@ -535,6 +630,7 @@ function poll() {
   for (const key of Object.keys(alive)) delete alive[key];
   const counts = decorate();
   drawAverages();
+  drawHeads();
   // A row or a header that went away keeps its badge in the layer; hide it
   // rather than leave it standing where that row used to be.
   for (const key of Object.keys(badges)) {

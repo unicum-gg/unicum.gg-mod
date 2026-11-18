@@ -68,6 +68,56 @@ def columns(rows, metric):
     return widest
 
 
+def headers(badges, widths, metric, window):
+    """{column: chip} naming the columns of this screen, or {}.
+
+    The chip a badge wears in the settings window and the one standing
+    over a team's average in battle, drawn once more over each column
+    here: a column headed TANK and a badge wearing TANK are one marking,
+    and two drawings of it would drift into two conventions.
+
+    All of them or none. A column left unnamed among named ones does not
+    read as a column nobody named, it reads as a column that means
+    something else -- and the two rating columns, the tank's and the
+    player's, are exactly the pair a reader needs told apart.
+
+    Short names, because a chip stands over ONE column: WNX is 21 pixels
+    wide and TANK 24, against columns of 24 and 32, while the two-word
+    captions this mod writes elsewhere are 39 and 45 and would lie over
+    their neighbours.
+    """
+    heads = {}
+    for column, tag in (('rating', badge_lib.caption(metric, window, short=True)),
+                        ('vehicle', badge_lib.ON_TANK),
+                        ('battles', badge_lib.BATTLES)):
+        if not widths.get(column):
+            continue
+        chip = chip_pill(badges, tag)
+        if chip is None:
+            return {}
+        heads[column] = chip
+    return heads
+
+
+def chip_pill(badges, tag):
+    """{image, width, height} of the chip that names a column, or None.
+
+    The same small dark label the mod stamps into the corner of a badge and
+    stands over the team average in a battle: one drawing, so a column
+    headed TANK and a badge wearing TANK are one marking rather than two
+    conventions a reader has to learn.
+
+    None when it cannot be drawn, which is the answer a header has to take
+    all or nothing from: a column left unnamed among named ones reads as a
+    column that means something else.
+    """
+    found = badges.chip_picture(tag) if tag else None
+    if found is None:
+        return None
+    path, width, height = found
+    return {'image': 'img://%s' % path, 'width': width, 'height': height}
+
+
 def count_pill(badges, battles, width=0):
     """{image, width, height} of a battle-count pill, or {text, color}.
 

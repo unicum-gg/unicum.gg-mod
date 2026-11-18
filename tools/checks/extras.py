@@ -272,6 +272,30 @@ def check_page_figures():
           figures.rating_pill(badges, _VehicleScales(), 'wnx', 787.4)['width']
           == badge_png.width_of(787))
 
+    # The chips that name those columns, over the heading line.
+    heads = figures.headers(badges, widths, 'wnx', 'recent')
+    check('every column the screen has is named', sorted(heads) == ['battles', 'rating', 'vehicle'])
+    check('and named by the chip the badges wear, drawn as an image',
+          all(chip['image'].startswith('img://') and chip['width'] > 0
+              for chip in heads.values()))
+    check('which is the same file the markup surfaces stamp on a badge',
+          heads['vehicle']['image'][len('img://'):] in badges.chip_markup('TANK'))
+    check('a screen with nothing on its tanks names only the column it has',
+          sorted(figures.headers(badges, {'rating': 32}, 'wnx', 'recent')) == ['rating'])
+    # All of them or none: a column left unnamed among named ones does not
+    # read as unnamed, it reads as meaning something else.
+    check('a window this mod has no word for leaves the whole header off',
+          figures.headers(badges, widths, 'wnx', 'whenever') == {})
+
+    # Why the names are one word. A chip stands over ONE column, and the
+    # two-word captions this mod writes elsewhere are wider than the column
+    # they would name, so they would lie over their neighbours.
+    check('a one-word name fits over a column of figures',
+          badge_png.chip_size('WNX')[0] <= badge_png.width_of(5143)
+          and badge_png.chip_size('TANK')[0] <= badge_png.width_of(5143))
+    check('and a two-word one does not',
+          badge_png.chip_size('WNX TANK')[0] > badge_png.width_of(5143))
+
 
 def check_plain_rating():
     """The grey number a row falls back to, and why it is not a pill."""
