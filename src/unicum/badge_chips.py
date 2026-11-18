@@ -72,7 +72,7 @@ class ChipBadges(object):
         found = self.chip_picture(tag)
         return _IMG % found if found is not None else ''
 
-    def chip_picture(self, tag):
+    def chip_picture(self, tag, width=0):
         """(resource path, width, height) of a chip on its own, or None.
 
         What `chip_markup` wraps for Scaleform, unwrapped: a Gameface page
@@ -83,13 +83,13 @@ class ChipBadges(object):
         """
         if not self._ready or not tag:
             return None
-        chip, rows = badge_png.chip_size(tag)
+        chip, rows = badge_png.chip_size(tag, width)
         if not chip:
             return None
         # Its size in the name, for the reason `tagged_markup` gives: a file
         # already on disk is never drawn again, so a redesign has to ask for
         # a name nobody has.
         name = 'chip.%s%dx%d.png' % (_slug(tag).lower(), chip, rows)
-        if not self._files.ensure(name, lambda: badge_png.chip_png(tag)):
+        if not self._files.ensure(name, lambda: badge_png.chip_png(tag, width)):
             return None
         return '%s/%s' % (self._res_path, name), chip, rows

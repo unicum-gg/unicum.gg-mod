@@ -278,8 +278,17 @@ def check_page_figures():
     check('and named by the chip the badges wear, drawn as an image',
           all(chip['image'].startswith('img://') and chip['width'] > 0
               for chip in heads.values()))
-    check('which is the same file the markup surfaces stamp on a badge',
-          heads['vehicle']['image'][len('img://'):] in badges.chip_markup('TANK'))
+    # Drawn to the column, like every badge standing under it: a name the
+    # width of its own letters sits in the middle of a width it does not
+    # claim, and three of those do not read as a header.
+    check('and drawn to the width of the column it names',
+          heads['rating']['width'] == widths['rating']
+          and heads['vehicle']['width'] == widths['vehicle']
+          and heads['battles']['width'] == widths['battles'])
+    check('while the same chip asked for no column is the very file the '
+          'markup surfaces stamp on a badge',
+          figures.chip_pill(badges, 'TANK')['image'][len('img://'):]
+          in badges.chip_markup('TANK'))
     check('a screen with nothing on its tanks names only the column it has',
           sorted(figures.headers(badges, {'rating': 32}, 'wnx', 'recent')) == ['rating'])
     # All of them or none: a column left unnamed among named ones does not
@@ -290,10 +299,10 @@ def check_page_figures():
     # Why the names are one word. A chip stands over ONE column, and the
     # two-word captions this mod writes elsewhere are wider than the column
     # they would name, so they would lie over their neighbours.
-    check('a one-word name fits over a column of figures',
+    check('a one-word name fits inside a column of figures',
           badge_png.chip_size('WNX')[0] <= badge_png.width_of(5143)
           and badge_png.chip_size('TANK')[0] <= badge_png.width_of(5143))
-    check('and a two-word one does not',
+    check('and a two-word one would be wider than the column it names',
           badge_png.chip_size('WNX TANK')[0] > badge_png.width_of(5143))
 
 

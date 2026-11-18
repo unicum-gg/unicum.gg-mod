@@ -242,32 +242,45 @@ def tagged_pixels(value, hex_color, tag):
     return width, height, out
 
 
-def chip_size(tag):
-    """(width, height) of a chip standing on its own, (0, 0) without glyphs."""
-    return _chip_size(tag)
+def chip_size(tag, width=0):
+    """(width, height) of a chip standing on its own, (0, 0) without glyphs.
+
+    `width` widens it to the column it names, exactly as it widens a badge:
+    a name over a column is read as belonging to that column, and one drawn
+    to its own letters sits in the middle of a width it does not claim.
+    Narrower than the letters is ignored, for the reason `pixels` gives.
+    """
+    chip, rows = _chip_size(tag)
+    if not chip:
+        return 0, 0
+    return max(int(width or 0), chip), rows
 
 
-def chip_pixels(tag):
+def chip_pixels(tag, width=0):
     """(width, height, rows) for a chip with no badge behind it.
 
     The same chip `tagged_pixels` stamps into a badge's corner, drawn alone:
     a column of figures is named by the chip its figures wear, so the two
     have to be one drawing rather than two drawings of one idea.
+
+    `width` widens the band and centres the letters in it, which is what
+    makes the name the width of the column under it.
     """
     chip, rows = _chip_size(tag)
     if not chip:
         return 0, 0, []
+    width = max(int(width or 0), chip)
     masks = _load()
-    shape = _band(chip, rows, masks['left'], masks['right'])
-    letters = [[0] * chip for _ in range(rows)]
+    shape = _band(width, rows, masks['left'], masks['right'])
+    letters = [[0] * width for _ in range(rows)]
     _lay(letters, tag, caption_cell_of, (masks.get('caption') or {}).get('glyphs') or {},
-         masks['margin'], TAG_PAD, 0)
-    return chip, rows, _compose(chip, rows, shape, letters, TAG_BAND)
+         masks['margin'], TAG_PAD + (width - chip) // 2, 0)
+    return width, rows, _compose(width, rows, shape, letters, TAG_BAND)
 
 
-def chip_png(tag):
+def chip_png(tag, width=0):
     """A chip on its own as PNG bytes, or None when it cannot be drawn."""
-    width, height, rows = chip_pixels(tag)
+    width, height, rows = chip_pixels(tag, width)
     return _png(width, height, rows) if width else None
 
 

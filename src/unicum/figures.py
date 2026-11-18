@@ -81,10 +81,15 @@ def headers(badges, widths, metric, window):
     something else -- and the two rating columns, the tank's and the
     player's, are exactly the pair a reader needs told apart.
 
+    Each name is drawn to the width of the column it names, like every
+    badge standing under it: a name the width of its own letters sits in
+    the middle of a width it does not claim, and a header of three such
+    names does not read as a header at all.
+
     Short names, because a chip stands over ONE column: WNX is 21 pixels
     wide and TANK 24, against columns of 24 and 32, while the two-word
-    captions this mod writes elsewhere are 39 and 45 and would lie over
-    their neighbours.
+    captions this mod writes elsewhere are 39 and 45 and would be wider
+    than the column they name rather than drawn to it.
     """
     heads = {}
     for column, tag in (('rating', badge_lib.caption(metric, window, short=True)),
@@ -92,14 +97,14 @@ def headers(badges, widths, metric, window):
                         ('battles', badge_lib.BATTLES)):
         if not widths.get(column):
             continue
-        chip = chip_pill(badges, tag)
+        chip = chip_pill(badges, tag, widths[column])
         if chip is None:
             return {}
         heads[column] = chip
     return heads
 
 
-def chip_pill(badges, tag):
+def chip_pill(badges, tag, width=0):
     """{image, width, height} of the chip that names a column, or None.
 
     The same small dark label the mod stamps into the corner of a badge and
@@ -111,7 +116,7 @@ def chip_pill(badges, tag):
     all or nothing from: a column left unnamed among named ones reads as a
     column that means something else.
     """
-    found = badges.chip_picture(tag) if tag else None
+    found = badges.chip_picture(tag, width) if tag else None
     if found is None:
         return None
     path, width, height = found
