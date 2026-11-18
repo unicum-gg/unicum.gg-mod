@@ -820,6 +820,31 @@ def check_badge_glyphs():
     check('a rating still lays out grouped by thousands',
           ''.join(badge_png.layout(3818)) == '3 818')
 
+    # A chip standing over a column sits directly above the badges it names,
+    # and a square box over a rounded one is read as a mistake. The corner
+    # mask is rendered for a twelve pixel badge and a chip is ten, so it is
+    # fitted by keeping both of its ends -- never by scaling, which would
+    # soften the curve into a different corner.
+    def corners(rows):
+        """The alpha of the four corner pixels of a drawing."""
+        return [rows[y][x * 4 + 3] for y in (0, -1) for x in (0, -1)]
+
+    _, chip_rows = badge_png.chip_pixels('WNX', 32)[1:]
+    _, badge_rows = badge_png.pixels(5143, '#5A3175', 32)
+    check('a chip is rounded with the very corner the badge under it has',
+          corners(chip_rows) == corners(badge_rows))
+    check('and that corner is a curve, not a square one drawn by accident',
+          all(alpha < 255 for alpha in corners(chip_rows)))
+    check('the middle of the chip is solid all the same',
+          chip_rows[len(chip_rows) // 2][3] == 255)
+    # Fitted, so the curve is the mask's own rows and not an average of them.
+    check('a mask fitted to a shorter box keeps both of its ends',
+          badge_png._corners(masks['left'], 10)[:2] == masks['left'][:2]
+          and badge_png._corners(masks['left'], 10)[-2:] == masks['left'][-2:])
+    check('and to a taller one stretches its solid middle',
+          len(badge_png._corners(masks['left'], 20)) == 20
+          and badge_png._corners(masks['left'], 20)[:2] == masks['left'][:2])
+
 
 def check_entry_stat():
     """Unlike a rating, these never fall back to the other window."""

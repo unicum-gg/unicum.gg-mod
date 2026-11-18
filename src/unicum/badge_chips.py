@@ -46,14 +46,17 @@ class ChipBadges(object):
         # unique and spellable.
         key = text if isinstance(text, basestring) else '%d' % text
         chip, rows = badge_png._chip_size(tag)
-        # The chip's size is in the name, and it is there for one reason: a
-        # badge already on disk is never drawn again, and this chip has been
-        # redesigned twice. Both times the file kept its name, so every
-        # player who had seen the old one kept seeing it, stretched to the
-        # new one's width. Size in the name, and a redesign simply asks for
-        # a file nobody has.
-        name = '%s.%s%dx%d.%s.png' % (_slug(key), _slug(tag).lower(), chip, rows,
-                                      color.lstrip('#').lower())
+        # The chip's size and its corner are in the name, and they are there
+        # for one reason: a badge already on disk is never drawn again, and
+        # this chip has been redesigned three times. The first two times the
+        # file kept its name, so every player who had seen the old one kept
+        # seeing it, stretched to the new one's width. The drawing in the
+        # name, and a redesign simply asks for a file nobody has -- which is
+        # what the corner is doing there, the third redesign being the day
+        # it stopped being square.
+        name = '%s.%s%dx%dc%d.%s.png' % (_slug(key), _slug(tag).lower(), chip, rows,
+                                         badge_png.corner_width(),
+                                         color.lstrip('#').lower())
         if not self._files.ensure(name, lambda: badge_png.tagged_png(text, color, tag)):
             return ''
         width, height = badge_png.tag_size(text, tag)
@@ -86,10 +89,11 @@ class ChipBadges(object):
         chip, rows = badge_png.chip_size(tag, width)
         if not chip:
             return None
-        # Its size in the name, for the reason `tagged_markup` gives: a file
-        # already on disk is never drawn again, so a redesign has to ask for
-        # a name nobody has.
-        name = 'chip.%s%dx%d.png' % (_slug(tag).lower(), chip, rows)
+        # Its size and its corner in the name, for the reason
+        # `tagged_markup` gives: a file already on disk is never drawn
+        # again, so a redesign has to ask for a name nobody has.
+        name = 'chip.%s%dx%dc%d.png' % (_slug(tag).lower(), chip, rows,
+                                        badge_png.corner_width())
         if not self._files.ensure(name, lambda: badge_png.chip_png(tag, width)):
             return None
         return '%s/%s' % (self._res_path, name), chip, rows

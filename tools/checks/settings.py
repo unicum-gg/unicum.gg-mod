@@ -158,12 +158,14 @@ def check_settings_preview(workdir):
     check('and the only text on the row is the name it decorates',
           named.count(u'<font') == 1 and u'>Player<' in named
           and named.index(u'<font') == 0)
-    # The chip has been redesigned twice and kept its file name both times,
-    # which left every badge already on disk being served at the new one's
-    # width. The size is in the name now.
+    # The chip has been redesigned three times and kept its file name the
+    # first two, which left every badge already on disk being served at the
+    # new one's width. The drawing is in the name now: its size, and the
+    # corner it is rounded with, the third redesign being the day it
+    # stopped being square.
     chip_w, chip_h = badge_png._chip_size(u'WNX 30D')
-    check('and its file name says what size chip drew it',
-          u'.wnx-30d%dx%d.' % (chip_w, chip_h) in named)
+    check('and its file name says what chip drew it, size and corner',
+          u'.wnx-30d%dx%dc%d.' % (chip_w, chip_h, badge_png.corner_width()) in named)
     check('the chip names the period too, each figure carrying its own',
           u'.wnx-30d' in named and u'.wr-30d' in named and u'.btl-all' in named)
 

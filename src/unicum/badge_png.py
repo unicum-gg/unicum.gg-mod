@@ -84,17 +84,52 @@ def _rgb(hex_color):
     return tuple(int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
 
 
+def corner_width():
+    """How many pixels wide a rounded corner is, or 0 without a mask for one."""
+    mask = _load().get('left') or []
+    return len(mask[0]) if mask else 0
+
+
+def _corners(mask, height):
+    """A corner mask fitted to a box `height` tall.
+
+    A rounded corner is the same curve whatever its box is tall: the two
+    ends are drawn and everything between them is solid -- in the mask on
+    disk, two rows of curve at each end of twelve. So a mask rendered for a
+    twelve pixel badge serves a ten pixel chip exactly, by keeping both of
+    its ends and dropping that much of the solid middle, and a taller box
+    by repeating the middle. Not by scaling: scaling a coverage mask
+    softens the curve, and the chip would stop being the corner the badges
+    beside it are drawn with, which is the whole point of sharing it.
+
+    A box too short to hold both ends keeps as much of each as fits. At
+    that size there is no corner to speak of and no better answer.
+    """
+    if len(mask) == height:
+        return mask
+    if height < len(mask):
+        top = height // 2
+        return mask[:top] + mask[len(mask) - (height - top):]
+    half = len(mask) // 2
+    middle = [list(mask[half]) for _ in range(height - len(mask))]
+    return mask[:half] + middle + mask[half:]
+
+
 def _band(width, height, left, right):
     """The badge's own coverage: full, but for the rounded corners.
 
-    A box shorter than the corner masks were rendered for is left square:
-    rounding it from a taller mask would round it by the wrong amount, and
-    a 6px chip has no room for a 2px radius anyway.
+    Every box this module draws is rounded the same way, whatever its
+    height: a chip standing over a column sits right above the badges it
+    names, and a square box over a rounded one is read as a mistake.
+
+    A box too narrow to hold two corners is left square, which is the only
+    case left: there is nowhere to put them.
     """
     shape = [[255] * width for _ in range(height)]
-    if len(left) != height:
+    corner = len(left[0]) if left else 0
+    if not corner or width < 2 * corner:
         return shape
-    corner = len(left[0])
+    left, right = _corners(left, height), _corners(right, height)
     for y in range(height):
         for x in range(corner):
             shape[y][x] = left[y][x]
