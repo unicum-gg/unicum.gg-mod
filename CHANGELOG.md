@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.1
+
+### Improved
+
+- Build for the game client 2.4.2.0
+
 ## 0.10.0
 
 ### Added
